@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.web.client.RestTemplate;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -26,6 +27,7 @@ public class SecurityConfig {
                 .pathMatchers("/fallback/**").permitAll()
                 .pathMatchers("/hello").permitAll()
                 .pathMatchers("/admin/**").permitAll()
+                .pathMatchers("/api/proxy/**").permitAll()
                 // Protected endpoints
                 .pathMatchers("/api/v1/**").authenticated()
                 .anyExchange().authenticated()
@@ -35,5 +37,10 @@ public class SecurityConfig {
             );
         
         return http.build();
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 } 
