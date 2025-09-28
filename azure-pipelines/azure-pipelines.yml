@@ -1,0 +1,468 @@
+# SmartWatts CI/CD Pipeline for Azure DevOps
+# This pipeline builds, tests, and deploys the SmartWatts platform
+
+trigger:
+  branches:
+    include:
+    - main
+    - develop
+  tags:
+    include:
+    - v*
+
+pr:
+  branches:
+    include:
+    - main
+    - develop
+
+variables:
+  # Build Configuration
+  buildConfiguration: 'Release'
+  javaVersion: '17'
+  gradleVersion: '8.5'
+  
+  # Container Registry
+  containerRegistry: 'smartwatts.azurecr.io'
+  imageRepository: 'smartwatts'
+  containerRegistryServiceConnection: 'smartwatts-acr-connection'
+  
+  # Kubernetes
+  kubernetesServiceConnection: 'smartwatts-aks-connection'
+  namespace: 'smartwatts'
+  helmReleaseName: 'smartwatts'
+  
+  # Service Matrix
+  services: |
+    api-gateway
+    user-service
+    energy-service
+    device-service
+    analytics-service
+    billing-service
+    notification-service
+    edge-gateway-service
+    facility-service
+    feature-flag-service
+    device-verification-service
+    appliance-monitoring-service
+
+stages:
+- stage: Build
+  displayName: 'Build and Test'
+  jobs:
+  - job: CodeQuality
+    displayName: 'Code Quality & Security'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: SonarCloudPrepare@1
+      displayName: 'Prepare SonarCloud analysis'
+      inputs:
+        SonarCloud: 'smartwatts-sonarcloud'
+        organization: 'smartwatts'
+        scannerMode: 'CLI'
+        configMode: 'file'
+        configFile: 'sonar-project.properties'
+        extraProperties: |
+          sonar.projectKey=smartwatts
+          sonar.organization=smartwatts
+          sonar.host.url=https://sonarcloud.io
+          sonar.sources=backend
+          sonar.java.binaries=backend/*/build/classes
+          sonar.coverage.jacoco.xmlReportPaths=backend/*/build/reports/jacoco/test/jacocoTestReport.xml
+
+    - task: SonarCloudAnalyze@1
+      displayName: 'Run SonarCloud analysis'
+
+    - task: SonarCloudPublish@1
+      displayName: 'Publish SonarCloud results'
+      inputs:
+        pollingWaitSec: '300'
+
+    - task: Trivy@1
+      displayName: 'Run Trivy vulnerability scan'
+      inputs:
+        scanType: 'fs'
+        scanRef: '.'
+        format: 'sarif'
+        outputFile: 'trivy-results.sarif'
+
+    - task: PublishSecurityAnalysisResults@1
+      displayName: 'Publish Trivy scan results'
+      inputs:
+        toolName: 'Trivy'
+        allTools: false
+
+  - job: BuildAndTest
+    displayName: 'Build & Test Services'
+    dependsOn: CodeQuality
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      matrix:
+        api-gateway:
+          serviceName: 'api-gateway'
+        user-service:
+          serviceName: 'user-service'
+        energy-service:
+          serviceName: 'energy-service'
+        device-service:
+          serviceName: 'device-service'
+        analytics-service:
+          serviceName: 'analytics-service'
+        billing-service:
+          serviceName: 'billing-service'
+        notification-service:
+          serviceName: 'notification-service'
+        edge-gateway-service:
+          serviceName: 'edge-gateway-service'
+        facility-service:
+          serviceName: 'facility-service'
+        feature-flag-service:
+          serviceName: 'feature-flag-service'
+        device-verification-service:
+          serviceName: 'device-verification-service'
+        appliance-monitoring-service:
+          serviceName: 'appliance-monitoring-service'
+    steps:
+    - task: Cache@2
+      displayName: 'Cache Gradle dependencies'
+      inputs:
+        key: 'gradle | "$(Agent.OS)" | **/gradle-wrapper.properties'
+        restoreKeys: |
+          gradle | "$(Agent.OS)"
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+
+    - task: Gradle@2
+      displayName: 'Build $(serviceName)'
+      inputs:
+        workingDirectory: 'backend/$(serviceName)'
+        gradleWrapperFile: 'backend/$(serviceName)/gradlew'
+        gradleOptions: '-Xmx2048m'
+        publishJUnitResults: true
+        testResultsFiles: '**/TEST-*.xml'
+        tasks: 'build -x test'
+
+    - task: Gradle@2
+      displayName: 'Run unit tests for $(serviceName)'
+      inputs:
+        workingDirectory: 'backend/$(serviceName)'
+        gradleWrapperFile: 'backend/$(serviceName)/gradlew'
+        gradleOptions: '-Xmx2048m'
+        publishJUnitResults: true
+        testResultsFiles: '**/TEST-*.xml'
+        tasks: 'test'
+
+    - task: Gradle@2
+      displayName: 'Run integration tests for $(serviceName)'
+      inputs:
+        workingDirectory: 'backend/$(serviceName)'
+        gradleWrapperFile: 'backend/$(serviceName)/gradlew'
+        gradleOptions: '-Xmx2048m'
+        publishJUnitResults: true
+        testResultsFiles: '**/TEST-*.xml'
+        tasks: 'integrationTest'
+      continueOnError: true
+
+    - task: PublishTestResults@2
+      displayName: 'Publish test results for $(serviceName)'
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/TEST-*.xml'
+        testRunTitle: '$(serviceName) Tests'
+        mergeTestResults: true
+      condition: always()
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage for $(serviceName)'
+      inputs:
+        codeCoverageTool: 'JaCoCo'
+        summaryFileLocation: 'backend/$(serviceName)/build/reports/jacoco/test/jacocoTestReport.xml'
+        reportDirectory: 'backend/$(serviceName)/build/reports/jacoco/test/html'
+      condition: always()
+
+- stage: BuildImages
+  displayName: 'Build Docker Images'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: BuildDockerImages
+    displayName: 'Build and Push Docker Images'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      matrix:
+        api-gateway:
+          serviceName: 'api-gateway'
+        user-service:
+          serviceName: 'user-service'
+        energy-service:
+          serviceName: 'energy-service'
+        device-service:
+          serviceName: 'device-service'
+        analytics-service:
+          serviceName: 'analytics-service'
+        billing-service:
+          serviceName: 'billing-service'
+        notification-service:
+          serviceName: 'notification-service'
+        edge-gateway-service:
+          serviceName: 'edge-gateway-service'
+        facility-service:
+          serviceName: 'facility-service'
+        feature-flag-service:
+          serviceName: 'feature-flag-service'
+        device-verification-service:
+          serviceName: 'device-verification-service'
+        appliance-monitoring-service:
+          serviceName: 'appliance-monitoring-service'
+    steps:
+    - task: Docker@2
+      displayName: 'Build and push $(serviceName) image'
+      inputs:
+        command: 'buildAndPush'
+        repository: '$(imageRepository)/$(serviceName)'
+        dockerfile: 'backend/$(serviceName)/Dockerfile'
+        containerRegistry: '$(containerRegistryServiceConnection)'
+        tags: |
+          $(Build.BuildId)
+          latest
+          $(Build.SourceBranchName)
+
+    - task: Trivy@1
+      displayName: 'Scan $(serviceName) image for vulnerabilities'
+      inputs:
+        scanType: 'image'
+        imageName: '$(containerRegistry)/$(imageRepository)/$(serviceName):$(Build.BuildId)'
+        format: 'sarif'
+        outputFile: 'trivy-image-$(serviceName).sarif'
+
+    - task: PublishSecurityAnalysisResults@1
+      displayName: 'Publish Trivy scan results for $(serviceName)'
+      inputs:
+        toolName: 'Trivy'
+        allTools: false
+
+- stage: DeployStaging
+  displayName: 'Deploy to Staging'
+  dependsOn: BuildImages
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - deployment: DeployToStaging
+    displayName: 'Deploy to Staging Environment'
+    environment: 'staging'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: HelmDeploy@0
+            displayName: 'Deploy to staging with Helm'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceConnection: '$(kubernetesServiceConnection)'
+              namespace: '$(namespace)-staging'
+              command: 'upgrade'
+              chartType: 'FilePath'
+              chartPath: 'helm/smartwatts'
+              releaseName: '$(helmReleaseName)-staging'
+              valueFile: 'helm/smartwatts/values-staging.yaml'
+              overrideValues: |
+                image.tag=$(Build.BuildId)
+                ingress.hosts[0].host=staging-api.smartwatts.com
+
+          - task: Kubernetes@1
+            displayName: 'Wait for deployment to be ready'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceConnection: '$(kubernetesServiceConnection)'
+              command: 'apply'
+              useConfigurationFile: true
+              inline: |
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                  name: staging-health-check
+                spec:
+                  containers:
+                  - name: health-check
+                    image: curlimages/curl:latest
+                    command: ['sh', '-c']
+                    args: ['kubectl wait --for=condition=available --timeout=300s deployment/$(helmReleaseName)-staging-api-gateway -n $(namespace)-staging']
+
+          - task: PowerShell@2
+            displayName: 'Run smoke tests'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Add smoke test commands here
+                Write-Host "Running smoke tests against staging environment..."
+                # Example: Invoke-WebRequest -Uri "https://staging-api.smartwatts.com/actuator/health"
+
+- stage: DeployProduction
+  displayName: 'Deploy to Production'
+  dependsOn: 
+  - BuildImages
+  - DeployStaging
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployToProduction
+    displayName: 'Deploy to Production Environment'
+    environment: 'production'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: HelmDeploy@0
+            displayName: 'Deploy to production with Helm'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceConnection: '$(kubernetesServiceConnection)'
+              namespace: '$(namespace)'
+              command: 'upgrade'
+              chartType: 'FilePath'
+              chartPath: 'helm/smartwatts'
+              releaseName: '$(helmReleaseName)'
+              valueFile: 'helm/smartwatts/values-production.yaml'
+              overrideValues: |
+                image.tag=$(Build.BuildId)
+
+          - task: Kubernetes@1
+            displayName: 'Wait for production deployment to be ready'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceConnection: '$(kubernetesServiceConnection)'
+              command: 'apply'
+              useConfigurationFile: true
+              inline: |
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                  name: production-health-check
+                spec:
+                  containers:
+                  - name: health-check
+                    image: curlimages/curl:latest
+                    command: ['sh', '-c']
+                    args: ['kubectl wait --for=condition=available --timeout=300s deployment/$(helmReleaseName)-api-gateway -n $(namespace)']
+
+          - task: PowerShell@2
+            displayName: 'Run production health checks'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Add health check commands here
+                Write-Host "Running health checks against production environment..."
+                # Example: Invoke-WebRequest -Uri "https://api.smartwatts.com/actuator/health"
+
+          - task: SlackNotification@1
+            displayName: 'Send deployment notification'
+            inputs:
+              channel: '#deployments'
+              message: 'SmartWatts production deployment completed successfully!'
+            condition: always()
+
+- stage: PerformanceTest
+  displayName: 'Performance Testing'
+  dependsOn: DeployStaging
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - job: RunPerformanceTests
+    displayName: 'Run Performance Tests'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: JMeterInstaller@1
+      displayName: 'Install JMeter'
+      inputs:
+        jmeterVersion: '5.5'
+
+    - task: PowerShell@2
+      displayName: 'Run JMeter performance tests'
+      inputs:
+        targetType: 'inline'
+        script: |
+          jmeter -n -t tests/performance/smartwatts-load-test.jmx `
+            -l results.jtl `
+            -e -o performance-report `
+            -Jhost=staging-api.smartwatts.com `
+            -Jport=443 `
+            -Jprotocol=https
+
+    - task: PublishTestResults@2
+      displayName: 'Publish performance test results'
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'results.jtl'
+        testRunTitle: 'Performance Tests'
+      condition: always()
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish performance report'
+      inputs:
+        pathToPublish: 'performance-report'
+        artifactName: 'performance-results'
+      condition: always()
+
+- stage: SecurityTest
+  displayName: 'Security Testing'
+  dependsOn: DeployStaging
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  jobs:
+  - job: RunSecurityTests
+    displayName: 'Run Security Tests'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: OWASPDependencyCheck@5
+      displayName: 'Run OWASP Dependency Check'
+      inputs:
+        projectName: 'SmartWatts'
+        scanPath: '.'
+        format: 'HTML'
+        failOnCVSS: '7'
+
+    - task: PowerShell@2
+      displayName: 'Run OWASP ZAP baseline scan'
+      inputs:
+        targetType: 'inline'
+        script: |
+          # Install ZAP
+          docker run -t owasp/zap2docker-stable zap-baseline.py -t https://staging-api.smartwatts.com -r zap-report.html
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish security test results'
+      inputs:
+        pathToPublish: 'zap-report.html'
+        artifactName: 'security-results'
+      condition: always()
+
+- stage: Cleanup
+  displayName: 'Cleanup'
+  dependsOn: 
+  - DeployProduction
+  - PerformanceTest
+  - SecurityTest
+  condition: always()
+  jobs:
+  - job: CleanupOldImages
+    displayName: 'Cleanup Old Images'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Clean up old container images'
+      inputs:
+        azureSubscription: '$(containerRegistryServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Keep only the last 10 versions of each image
+          az acr repository show-tags --name smartwatts --repository smartwatts/api-gateway --orderby time_desc --query '[10:].name' -o tsv | xargs -I {} az acr repository delete --name smartwatts --image smartwatts/api-gateway:{} --yes
+          # Repeat for other services...

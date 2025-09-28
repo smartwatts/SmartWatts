@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SmartWatts API Docs Aggregator</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
+  <style>
+    body { background: #f8fafc; font-family: 'Inter', sans-serif; }
+    #service-select { margin: 20px 0; padding: 8px; font-size: 1rem; }
+    .topbar { background: #0072cc !important; }
+    .topbar-wrapper img { content: url('https://raw.githubusercontent.com/swagger-api/swagger-ui/master/dist/favicon-32x32.png'); height: 32px; }
+  </style>
+</head>
+<body>
+  <div style="padding: 20px;">
+    <h2>SmartWatts API Documentation</h2>
+    <label for="service-select">Select Microservice:</label>
+    <select id="service-select"></select>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+  <script>
+    const select = document.getElementById('service-select');
+    const SWAGGER_UI = window.SwaggerUIBundle;
+    let ui = null;
+
+    async function fetchServices() {
+      const res = await fetch('/v3/api-docs');
+      const data = await res.json();
+      return data.services || [];
+    }
+
+    function loadSwagger(serviceName) {
+      if (!serviceName) return;
+      const url = `/v3/api-docs/${serviceName}`;
+      if (ui) ui.destroy();
+      ui = SWAGGER_UI({
+        url,
+        dom_id: '#swagger-ui',
+        presets: [SWAGGER_UI.presets.apis],
+        layout: 'BaseLayout',
+        docExpansion: 'none',
+        deepLinking: true,
+        showExtensions: true,
+        showCommonExtensions: true,
+      });
+    }
+
+    fetchServices().then(services => {
+      services.forEach(svc => {
+        const opt = document.createElement('option');
+        opt.value = svc.name;
+        opt.textContent = svc.name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        select.appendChild(opt);
+      });
+      if (services.length > 0) {
+        loadSwagger(services[0].name);
+        select.value = services[0].name;
+      }
+    });
+
+    select.addEventListener('change', e => {
+      loadSwagger(e.target.value);
+    });
+  </script>
+</body>
+</html> 

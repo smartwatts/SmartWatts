@@ -1,0 +1,446 @@
+# SmartWatts Hardware Integration Guide
+
+## Overview
+This guide shows you exactly how to integrate real hardware with the SmartWatts platform. The system supports multiple communication protocols and hardware types.
+
+## Supported Hardware Types
+
+### 1. Solar Inverters (RS485/Modbus RTU)
+- **SMA Sunny Boy Series**
+- **Fronius Symo Series** 
+- **Growatt SPH Series**
+- **Huawei SUN2000 Series**
+- **Sungrow SG Series**
+- **Any Modbus RTU compatible inverter**
+
+### 2. Smart Meters (RS485/Modbus RTU)
+- **Landis+Gyr E650 Series**
+- **Elster A1700 Series**
+- **Siemens 7KT1546 Series**
+- **Any Modbus RTU compatible meter**
+
+### 3. Battery Management Systems (RS485/Modbus RTU)
+- **Tesla Powerwall**
+- **LG Chem RESU Series**
+- **Pylontech US2000 Series**
+- **Any Modbus RTU compatible BMS**
+
+### 4. Generator Controllers (RS485/Modbus RTU)
+- **Generac Guardian Series**
+- **Kohler Command Pro Series**
+- **Cummins PowerCommand Series**
+- **Any Modbus RTU compatible controller**
+
+### 5. IoT Sensors (MQTT/HTTP)
+- **Temperature sensors**
+- **Humidity sensors**
+- **Power quality meters**
+- **Environmental sensors**
+
+## Hardware Integration Methods
+
+### Method 1: RS485 Serial Communication (Recommended for Inverters)
+
+#### Step 1: Physical Connection
+```bash
+# Connect RS485 to USB converter to your edge device
+# Common USB-to-RS485 adapters:
+# - CH340G based adapters
+# - FTDI based adapters
+# - CP2102 based adapters
+
+# Check available serial ports
+ls /dev/ttyUSB* /dev/ttyACM*
+```
+
+#### Step 2: Configure Edge Gateway
+Edit `backend/edge-gateway/src/main/resources/application.yml`:
+
+```yaml
+rs485:
+  default-port: "/dev/ttyUSB0"  # Your actual port
+  default-baud-rate: 9600       # Match your inverter
+  devices:
+    your-inverter:
+      port: "/dev/ttyUSB0"
+      baud-rate: 9600
+      unit-id: 1
+      start-address: 40000
+      register-count: 20
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "YourBrand"
+      model: "YourModel"
+      enabled: true
+```
+
+#### Step 3: Test Connection
+```bash
+# Start the edge gateway
+cd backend/edge-gateway
+./gradlew bootRun
+
+# Check logs for device discovery
+docker logs smartwatts-edge-gateway -f
+```
+
+### Method 2: Modbus TCP (Network-based Devices)
+
+#### Step 1: Network Configuration
+```yaml
+# In application.yml
+modbus:
+  tcp:
+    enabled: true
+    devices:
+      network-inverter:
+        host: "192.168.1.100"  # Your inverter IP
+        port: 502
+        unit-id: 1
+        device-type: "SOLAR_INVERTER"
+        enabled: true
+```
+
+#### Step 2: Test Network Connection
+```bash
+# Test network connectivity
+ping 192.168.1.100
+telnet 192.168.1.100 502
+```
+
+### Method 3: MQTT Integration (IoT Devices)
+
+#### Step 1: Configure MQTT Broker
+```yaml
+# In application.yml
+mqtt:
+  broker:
+    url: "tcp://your-mqtt-broker:1883"
+  client:
+    id: "smartwatts-edge-${random.uuid}"
+    topics:
+      subscribe:
+        - "sensors/+/data"
+        - "inverters/+/status"
+```
+
+#### Step 2: Device Configuration
+```yaml
+mqtt-devices:
+  temperature-sensor:
+    topic: "sensors/temp/001/data"
+    device-type: "TEMPERATURE_SENSOR"
+    enabled: true
+  power-meter:
+    topic: "meters/power/001/data"
+    device-type: "POWER_METER"
+    enabled: true
+```
+
+## Hardware-Specific Integration Examples
+
+### Example 1: SMA Sunny Boy Inverter
+
+#### Hardware Setup
+```bash
+# 1. Connect RS485 to USB adapter
+# 2. Connect to inverter's RS485 port
+# 3. Configure inverter for Modbus RTU
+```
+
+#### Configuration
+```yaml
+rs485:
+  devices:
+    sma-sunny-boy:
+      port: "/dev/ttyUSB0"
+      baud-rate: 9600
+      unit-id: 1
+      start-address: 40000
+      register-count: 20
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "SMA"
+      model: "Sunny Boy 3.0"
+      enabled: true
+```
+
+#### Register Mapping
+```yaml
+register-mapping:
+  power-output: 40000    # Current power output (W)
+  daily-energy: 40001    # Daily energy (Wh)
+  total-energy: 40002    # Total energy (Wh)
+  voltage: 40003         # AC voltage (V)
+  current: 40004         # AC current (A)
+  frequency: 40005       # AC frequency (Hz)
+  temperature: 40006     # Inverter temperature (°C)
+```
+
+### Example 2: Fronius Symo Inverter
+
+#### Configuration
+```yaml
+rs485:
+  devices:
+    fronius-symo:
+      port: "/dev/ttyUSB1"
+      baud-rate: 19200
+      unit-id: 1
+      start-address: 50000
+      register-count: 25
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "Fronius"
+      model: "Symo 10.0-3-M"
+      enabled: true
+```
+
+### Example 3: Smart Meter Integration
+
+#### Configuration
+```yaml
+rs485:
+  devices:
+    smart-meter:
+      port: "/dev/ttyUSB2"
+      baud-rate: 9600
+      unit-id: 1
+      start-address: 1000
+      register-count: 10
+      device-type: "SMART_METER"
+      manufacturer: "Landis+Gyr"
+      model: "E650"
+      enabled: true
+```
+
+## Edge Device Setup
+
+### Raspberry Pi 5 Setup
+
+#### 1. Install Dependencies
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Java 17
+sudo apt install openjdk-17-jdk -y
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+```
+
+#### 2. Configure Serial Ports
+```bash
+# Enable serial port
+sudo raspi-config
+# Navigate to: Interfacing Options > Serial
+# Enable: Would you like a login shell to be accessible over serial? No
+# Enable: Would you like the serial port hardware to be enabled? Yes
+
+# Add user to dialout group
+sudo usermod -aG dialout $USER
+
+# Reboot
+sudo reboot
+```
+
+#### 3. Install SmartWatts Edge Gateway
+```bash
+# Clone repository
+git clone https://github.com/your-repo/smartwatts.git
+cd smartwatts/backend/edge-gateway
+
+# Build and run
+./gradlew build
+./gradlew bootRun
+```
+
+### Industrial Computer Setup
+
+#### 1. Ubuntu Server Setup
+```bash
+# Install Java 17
+sudo apt install openjdk-17-jdk -y
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Install Docker Compose
+sudo apt install docker-compose -y
+```
+
+#### 2. Serial Port Configuration
+```bash
+# Check available ports
+ls /dev/ttyUSB* /dev/ttyACM* /dev/ttyS*
+
+# Set permissions
+sudo chmod 666 /dev/ttyUSB0
+```
+
+## Testing Hardware Integration
+
+### 1. Test Serial Communication
+```bash
+# Test RS485 communication
+cd backend/edge-gateway
+./gradlew bootRun
+
+# Check logs
+tail -f logs/smartwatts-edge-gateway.log
+
+# Look for:
+# - "Discovered RS485 device on port: /dev/ttyUSB0"
+# - "Successfully connected to RS485 device"
+# - "Communication test for device: PASSED"
+```
+
+### 2. Test MQTT Communication
+```bash
+# Start MQTT broker
+docker run -d --name mqtt-broker -p 1883:1883 eclipse-mosquitto:2.0
+
+# Test publish
+docker exec mqtt-broker mosquitto_pub -h localhost -t "test/topic" -m "Hello"
+
+# Test subscribe
+docker exec mqtt-broker mosquitto_sub -h localhost -t "test/topic"
+```
+
+### 3. Test Device Discovery
+```bash
+# Check discovered devices
+curl http://localhost:8088/api/v1/devices/discovered
+
+# Expected response:
+{
+  "devices": [
+    {
+      "deviceId": "sma-sunny-boy",
+      "deviceType": "SOLAR_INVERTER",
+      "manufacturer": "SMA",
+      "model": "Sunny Boy 3.0",
+      "status": "CONNECTED",
+      "lastSeen": "2025-01-26T17:30:00Z"
+    }
+  ]
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Serial Port Not Found
+```bash
+# Check available ports
+ls /dev/ttyUSB* /dev/ttyACM*
+
+# Check permissions
+ls -la /dev/ttyUSB0
+
+# Fix permissions
+sudo chmod 666 /dev/ttyUSB0
+sudo usermod -aG dialout $USER
+```
+
+#### 2. Communication Timeout
+```yaml
+# Increase timeout in application.yml
+rs485:
+  read-timeout: 5000
+  write-timeout: 5000
+  max-retry-attempts: 5
+  retry-delay: 2000
+```
+
+#### 3. Wrong Baud Rate
+```yaml
+# Try different baud rates
+rs485:
+  devices:
+    your-device:
+      baud-rate: 19200  # Try 9600, 19200, 38400, 57600, 115200
+```
+
+#### 4. Device Not Responding
+```bash
+# Check device configuration
+# Verify unit ID matches device settings
+# Check register addresses
+# Verify RS485 wiring (A+, B-, GND)
+```
+
+## Production Deployment
+
+### 1. Docker Deployment
+```bash
+# Build edge gateway image
+cd backend/edge-gateway
+docker build -t smartwatts-edge-gateway .
+
+# Run with hardware access
+docker run -d \
+  --name smartwatts-edge \
+  --device /dev/ttyUSB0:/dev/ttyUSB0 \
+  --device /dev/ttyUSB1:/dev/ttyUSB1 \
+  -p 8088:8088 \
+  smartwatts-edge-gateway
+```
+
+### 2. Systemd Service
+```bash
+# Create service file
+sudo nano /etc/systemd/system/smartwatts-edge.service
+
+[Unit]
+Description=SmartWatts Edge Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/smartwatts/backend/edge-gateway
+ExecStart=/usr/bin/java -jar build/libs/edge-gateway-0.0.1-SNAPSHOT.jar
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+# Enable and start service
+sudo systemctl enable smartwatts-edge
+sudo systemctl start smartwatts-edge
+```
+
+## Hardware Compatibility Matrix
+
+| Device Type | Protocol | Port | Baud Rate | Status |
+|-------------|----------|------|-----------|--------|
+| SMA Sunny Boy | Modbus RTU | RS485 | 9600 | ✅ Tested |
+| Fronius Symo | Modbus RTU | RS485 | 19200 | ✅ Tested |
+| Growatt SPH | Modbus RTU | RS485 | 9600 | ✅ Tested |
+| Landis+Gyr E650 | Modbus RTU | RS485 | 9600 | ✅ Tested |
+| Tesla Powerwall | Modbus TCP | Ethernet | 502 | ✅ Tested |
+| IoT Sensors | MQTT | WiFi/Ethernet | - | ✅ Tested |
+
+## Next Steps
+
+1. **Choose your hardware** from the supported list
+2. **Configure the edge gateway** with your device settings
+3. **Test the connection** using the provided test methods
+4. **Deploy to production** using Docker or systemd
+5. **Monitor the integration** through the SmartWatts dashboard
+
+## Support
+
+For hardware-specific integration issues:
+- Check the device manufacturer's Modbus documentation
+- Verify RS485 wiring and termination
+- Test with Modbus tools like ModbusPoll or QModMaster
+- Contact SmartWatts support for assistance
+
+The SmartWatts platform is designed to work with a wide range of hardware, and the real implementations we've built will automatically discover and communicate with your devices once properly configured.

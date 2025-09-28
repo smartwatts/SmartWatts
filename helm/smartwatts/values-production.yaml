@@ -1,0 +1,224 @@
+# Production environment values for SmartWatts
+# This overrides the default values.yaml for production
+
+# Image configuration
+image:
+  tag: latest
+
+# Ingress configuration
+ingress:
+  enabled: true
+  hosts:
+    - host: api.smartwatts.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: smartwatts-prod-tls
+      hosts:
+        - api.smartwatts.com
+
+# Resource configuration (optimized for production)
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+# Autoscaling configuration (optimized for production)
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+# Database configuration (optimized for production)
+postgresql:
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: premium-ssd
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+# Redis configuration (optimized for production)
+redis:
+  enabled: true
+  master:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: premium-ssd
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# Microservices configuration (optimized for production)
+microservices:
+  api-gateway:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  user-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  energy-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  device-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  analytics-service:
+    replicas: 5
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 1000m
+        memory: 1Gi
+  
+  billing-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  notification-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  edge-gateway-service:
+    replicas: 2
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 1000m
+        memory: 1Gi
+  
+  facility-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  feature-flag-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  device-verification-service:
+    replicas: 3
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  appliance-monitoring-service:
+    replicas: 5
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+      requests:
+        cpu: 1000m
+        memory: 1Gi
+
+# Environment variables for production
+env:
+  POSTGRES_HOST: postgresql
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: smartwatts
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: smartwatts-production-postgres-password
+  REDIS_HOST: redis-master
+  REDIS_PORT: 6379
+  EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+  JAVA_OPTS: "-Xmx1536m -Xms512m -XX:+UseG1GC"
+
+# Monitoring configuration (full monitoring for production)
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: 30d
+  grafana:
+    enabled: true
+    adminPassword: "smartwatts-production-grafana-password"
+
+# Security configuration (enhanced for production)
+security:
+  enabled: true
+  networkPolicies:
+    enabled: true
+  podSecurityPolicy:
+    enabled: true
+  serviceAccount:
+    create: true
+    annotations:
+      azure.workload.identity/client-id: smartwatts-workload-identity

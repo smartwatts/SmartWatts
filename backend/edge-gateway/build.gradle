@@ -1,0 +1,84 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.0'
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+group = 'com.smartwatts'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '17'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+    // TensorFlow repository
+    maven { url 'https://maven.google.com' }
+    maven { url 'https://jitpack.io' }
+}
+
+ext {
+    set('springCloudVersion', "2023.0.3")
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
+    
+    // IoT Protocol Support
+    implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
+    implementation 'com.digitalpetri.modbus:modbus-master-tcp:1.2.0'
+    implementation 'com.digitalpetri.modbus:modbus-slave-tcp:1.2.0'
+    
+    // RS485 Serial Communication Support
+    implementation 'com.fazecast:jSerialComm:2.9.3'
+    // Note: Modbus RTU dependencies will be added when needed for production
+    // implementation 'com.digitalpetri.modbus:modbus-master-rtu:1.2.0'
+    // implementation 'com.digitalpetri.modbus:modbus-slave-rtu:1.2.0'
+    
+    // Data Processing & ML
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    
+    // TensorFlow Lite for Edge ML
+    implementation 'org.tensorflow:tensorflow-lite:2.13.0'
+    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
+    implementation 'org.tensorflow:tensorflow-lite-metadata:0.4.4'
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.13.0'
+    
+    // ML Data Processing
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'com.google.guava:guava:32.1.2-jre'
+    
+    // Database & Caching
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'com.h2database:h2' // For edge local storage
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

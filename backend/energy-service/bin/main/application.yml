@@ -1,0 +1,85 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: energy-service
+  
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:smartwatts_energy}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  cloud:
+    netflix:
+      eureka:
+        client:
+          service-url:
+            defaultZone: http://localhost:8761/eureka/
+          register-with-eureka: true
+          fetch-registry: true
+        instance:
+          prefer-ip-address: true
+          instance-id: ${spring.application.name}:${server.port}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.smartwatts.energyservice: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Energy specific configuration
+energy:
+  data:
+    retention-days: 2555  # 7 years
+    aggregation-interval: 15  # minutes
+  sources:
+    - GRID
+    - SOLAR
+    - GENERATOR
+    - INVERTER
+    - HYBRID
+
+# Security Configuration
+smartwatts:
+  security:
+    device-verification:
+      enabled: true
+      strict-mode: true
+      block-unverified: true
+    auth-secret-validation:
+      enabled: true
+      required: false
+      validate-on-ingestion: true
+    device-service:
+      url: http://localhost:8083
+      timeout: 5000
+      retry-attempts: 3
+    audit:
+      log-all-attempts: true
+      log-success: true
+      log-failures: true 

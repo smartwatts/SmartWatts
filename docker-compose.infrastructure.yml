@@ -1,0 +1,370 @@
+version: '3.8'
+
+services:
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smartwatts-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smartwatts-grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=smartwatts123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Redis for Rate Limiting and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: smartwatts-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass smartwatts123
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartwatts-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: smartwatts
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/backup-database.sh:/opt/backup-database.sh
+      - ./scripts/restore-database.sh:/opt/restore-database.sh
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Eureka Service Discovery
+  eureka-server:
+    image: steeltoeoss/eureka-server:latest
+    container_name: smartwatts-eureka
+    ports:
+      - "8761:8761"
+    environment:
+      - EUREKA_SERVER_ENABLED=true
+      - EUREKA_SERVER_REGISTER_WITH_EUREKA=false
+      - EUREKA_SERVER_FETCH_REGISTRY=false
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: smartwatts-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./ssl/certs:/etc/nginx/ssl/certs
+      - ./ssl/private:/etc/nginx/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - api-gateway
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: smartwatts-api-gateway
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - REDIS_HOST=redis
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # User Service
+  user-service:
+    build:
+      context: ./backend/user-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - POSTGRES_HOST=postgres
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Energy Service
+  energy-service:
+    build:
+      context: ./backend/energy-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-energy-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - POSTGRES_HOST=postgres
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Device Service
+  device-service:
+    build:
+      context: ./backend/device-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-device-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - POSTGRES_HOST=postgres
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-analytics-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - POSTGRES_HOST=postgres
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Billing Service
+  billing-service:
+    build:
+      context: ./backend/billing-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-billing-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - POSTGRES_HOST=postgres
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-notification-service
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - POSTGRES_HOST=postgres
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Edge Gateway Service
+  edge-gateway-service:
+    build:
+      context: ./backend/edge-gateway-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-edge-gateway-service
+    ports:
+      - "8088:8088"
+    environment:
+      - SPRING_PROFILES_ACTIVE=ssl
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./ssl/certs:/app/ssl/certs
+      - ./ssl/private:/app/ssl/private
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - eureka-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backup Service
+  backup-service:
+    image: postgres:15-alpine
+    container_name: smartwatts-backup-service
+    environment:
+      - POSTGRES_DB=smartwatts
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./scripts:/opt/scripts
+      - backup_data:/var/backups/smartwatts
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    command: |
+      sh -c "
+        apk add --no-cache postgresql-client &&
+        while true; do
+          sleep 3600 &&
+          /opt/scripts/backup-database.sh
+        done
+      "
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  redis_data:
+  postgres_data:
+  backup_data:
+
+networks:
+  smartwatts-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

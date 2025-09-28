@@ -1,0 +1,82 @@
+groups:
+  - name: smartwatts-alerts
+    rules:
+      # Service Down Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate for {{ $labels.job }}"
+          description: "Error rate is {{ $value }} errors per second for {{ $labels.job }}"
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time for {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.job }}"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (jvm_memory_used_bytes / jvm_memory_max_bytes) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage for {{ $labels.job }}"
+          description: "Memory usage is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: system_cpu_usage > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage for {{ $labels.job }}"
+          description: "CPU usage is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionIssues
+        expr: hikaricp_connections_active / hikaricp_connections_max > 0.9
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection pool nearly exhausted for {{ $labels.job }}"
+          description: "Database connection pool is {{ $value | humanizePercentage }} full for {{ $labels.job }}"
+
+      # Redis Connection Issues
+      - alert: RedisConnectionIssues
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis connection lost for {{ $labels.job }}"
+          description: "Redis is not accessible for {{ $labels.job }}"
+
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is {{ $value | humanizePercentage }} available on {{ $labels.instance }}"

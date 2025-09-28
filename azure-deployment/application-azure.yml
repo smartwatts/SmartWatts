@@ -1,0 +1,158 @@
+# Azure-specific application configuration
+# This file should be placed in each service's src/main/resources/
+
+spring:
+  profiles:
+    active: azure
+  
+  datasource:
+    url: ${SQL_CONNECTION_STRING}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.SQLServerDialect
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+  
+  redis:
+    host: ${SPRING_REDIS_HOST:redis}
+    port: ${SPRING_REDIS_PORT:6379}
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
+
+  cloud:
+    azure:
+      iot:
+        hub:
+          connection-string: ${AZURE_IOT_HUB_CONNECTION_STRING}
+          device-connection-string: ${AZURE_DEVICE_CONNECTION_STRING:}
+      
+      storage:
+        blob:
+          connection-string: ${STORAGE_CONNECTION_STRING}
+          container-name: smartwatts-data
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE:http://service-discovery:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+
+logging:
+  level:
+    com.smartwatts: INFO
+    org.springframework.cloud: WARN
+    org.hibernate: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: /var/log/smartwatts/application.log
+    max-size: 10MB
+    max-history: 30
+
+# Azure-specific configurations
+azure:
+  iot:
+    hub:
+      connection-string: ${AZURE_IOT_HUB_CONNECTION_STRING}
+      device-id: ${AZURE_DEVICE_ID:smartwatts-gateway}
+  
+  storage:
+    blob:
+      connection-string: ${STORAGE_CONNECTION_STRING}
+      container-name: smartwatts-data
+      path: data/
+
+# SmartWatts specific configurations
+smartwatts:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:SmartWatts2025SecretKeyForAzureDeployment}
+      expiration: 86400000 # 24 hours
+  
+  features:
+    appliance-recognition:
+      enabled: true
+      model-path: /app/models/nilm-model.tflite
+    
+    circuit-management:
+      enabled: true
+      max-circuits: 100
+    
+    solar-monitoring:
+      enabled: true
+      inverter-apis:
+        deye: true
+        solis: true
+        growatt: true
+    
+    community-benchmarking:
+      enabled: true
+      data-sharing: true
+      regions:
+        - lagos
+        - abuja
+        - port-harcourt
+        - kano
+        - ibadan
+
+# Performance optimizations for B1s VM
+server:
+  tomcat:
+    threads:
+      max: 50
+      min-spare: 5
+    max-connections: 1000
+    accept-count: 100
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+
+# Memory optimization
+spring:
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true

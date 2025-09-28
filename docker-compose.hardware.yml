@@ -1,0 +1,237 @@
+version: '3.8'
+
+services:
+  # MQTT Broker for IoT devices
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0
+    container_name: smartwatts-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mqtt-data:/mosquitto/data
+      - mqtt-logs:/mosquitto/log
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Edge Gateway with hardware access
+  edge-gateway:
+    build:
+      context: ./backend/edge-gateway
+      dockerfile: Dockerfile
+    container_name: smartwatts-edge-gateway
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: hardware,docker
+      JAVA_OPTS: "-Xmx1g -Xms512m"
+    volumes:
+      # Mount serial ports for hardware access
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyUSB1:/dev/ttyUSB1
+      - /dev/ttyUSB2:/dev/ttyUSB2
+      - /dev/ttyACM0:/dev/ttyACM0
+      - /dev/ttyACM1:/dev/ttyACM1
+      # Mount configuration
+      - ./config/edge-gateway.yml:/app/config/application-hardware.yml
+      # Mount models directory
+      - ./models:/app/models
+    devices:
+      # Grant access to serial devices
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyUSB1:/dev/ttyUSB1
+      - /dev/ttyUSB2:/dev/ttyUSB2
+      - /dev/ttyACM0:/dev/ttyACM0
+      - /dev/ttyACM1:/dev/ttyACM1
+    depends_on:
+      - mqtt-broker
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+    privileged: true  # Required for hardware access
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: smartwatts-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JAVA_OPTS: "-Xmx1g -Xms512m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/ -Dspring.redis.host=redis -Dspring.redis.port=6379"
+    depends_on:
+      - service-discovery
+      - redis
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Service Discovery
+  service-discovery:
+    build:
+      context: ./backend/service-discovery
+      dockerfile: Dockerfile
+    container_name: smartwatts-service-discovery
+    ports:
+      - "8761:8761"
+    environment:
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: smartwatts-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartwatts-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: smartwatts
+      POSTGRES_USER: smartwatts
+      POSTGRES_PASSWORD: smartwatts123
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # User Service
+  user-service:
+    build:
+      context: ./backend/user-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JAVA_OPTS: "-Xmx512m -Xms256m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_users
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Energy Service
+  energy-service:
+    build:
+      context: ./backend/energy-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-energy-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JAVA_OPTS: "-Xmx512m -Xms256m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_energy
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Device Service
+  device-service:
+    build:
+      context: ./backend/device-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-device-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JAVA_OPTS: "-Xmx512m -Xms256m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_devices
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-analytics-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JAVA_OPTS: "-Xmx512m -Xms256m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_analytics
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Billing Service
+  billing-service:
+    build:
+      context: ./backend/billing-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-billing-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JAVA_OPTS: "-Xmx512m -Xms256m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_billing
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smartwatts-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_WS_URL: ws://localhost:8080
+    depends_on:
+      - api-gateway
+    networks:
+      - smartwatts-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  mqtt-data:
+  mqtt-logs:
+
+networks:
+  smartwatts-network:
+    driver: bridge
+
+

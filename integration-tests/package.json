@@ -1,0 +1,16 @@
+{
+  "name": "smartwatts-integration-tests",
+  "version": "1.0.0",
+  "description": "Integration tests for SmartWatts consumer-grade features",
+  "main": "test-consumer-grade-features.js",
+  "scripts": {
+    "test": "node test-consumer-grade-features.js",
+    "test:headless": "HEADLESS=true node test-consumer-grade-features.js"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

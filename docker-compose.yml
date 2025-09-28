@@ -1,0 +1,161 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartwatts-postgres
+    environment:
+      POSTGRES_DB: smartwatts_users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - smartwatts-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: smartwatts-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smartwatts-network
+
+  # Kafka for Event Streaming
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: smartwatts-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - smartwatts-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: smartwatts-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - smartwatts-network
+
+  # Elasticsearch for Analytics
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: smartwatts-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - smartwatts-network
+
+  # Kibana for Elasticsearch Management
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: smartwatts-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - smartwatts-network
+
+  # MQTT Broker for IoT Communication
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: smartwatts-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./infrastructure/docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - smartwatts-network
+
+  # Prometheus for Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smartwatts-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - smartwatts-network
+
+  # Grafana for Monitoring Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smartwatts-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/docker/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - smartwatts-network
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_users
+      EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+      JAVA_OPTS: "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  elasticsearch_data:
+  mosquitto_data:
+  mosquitto_logs:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  smartwatts-network:
+    driver: bridge 

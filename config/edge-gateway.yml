@@ -1,0 +1,259 @@
+# SmartWatts Edge Gateway Hardware Configuration
+# This file contains the configuration for real hardware integration
+
+server:
+  port: 8088
+
+spring:
+  application:
+    name: edge-gateway
+  profiles:
+    active: hardware
+
+# Edge Gateway Configuration
+edge:
+  ml:
+    models:
+      sync-interval: 3600000  # 1 hour in milliseconds
+      energy_forecast: "models/energy_forecast.tflite"
+      anomaly_detection: "models/anomaly_detection.tflite"
+      optimization: "models/optimization.tflite"
+    inference:
+      batch_size: 32
+      timeout_ms: 5000
+    anomaly:
+      threshold: 0.8
+    prediction:
+      horizon:
+        hours: 24
+    optimization:
+      confidence:
+        min: 0.7
+  device:
+    discovery-interval: 30000  # 30 seconds in milliseconds
+  mqtt:
+    broker:
+      url: tcp://mqtt-broker:1883
+    client:
+      id: smartwatts-edge-${random.uuid}
+      clean-session: true
+      connection-timeout: 30
+      keep-alive-interval: 60
+      automatic-reconnect: true
+
+# RS485 Serial Communication Configuration
+rs485:
+  default-port: "/dev/ttyUSB0"
+  default-baud-rate: 9600
+  default-data-bits: 8
+  default-parity: "NONE"
+  default-stop-bits: 1
+  read-timeout: 1000
+  write-timeout: 1000
+  polling-interval: 5000
+  auto-discovery: true
+  enable-logging: true
+  max-retry-attempts: 3
+  retry-delay: 1000
+  devices:
+    # SMA Sunny Boy Inverter
+    sma-sunny-boy:
+      port: "/dev/ttyUSB0"
+      baud-rate: 9600
+      data-bits: 8
+      parity: "NONE"
+      stop-bits: 1
+      read-timeout: 1000
+      write-timeout: 1000
+      unit-id: 1
+      start-address: 40000
+      register-count: 20
+      control-address: 0
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "SMA"
+      model: "Sunny Boy 3.0"
+      enabled: true
+      
+    # Fronius Symo Inverter
+    fronius-symo:
+      port: "/dev/ttyUSB1"
+      baud-rate: 19200
+      data-bits: 8
+      parity: "NONE"
+      stop-bits: 1
+      read-timeout: 1000
+      write-timeout: 1000
+      unit-id: 1
+      start-address: 50000
+      register-count: 25
+      control-address: 0
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "Fronius"
+      model: "Symo 10.0-3-M"
+      enabled: true
+      
+    # Growatt SPH Inverter
+    growatt-sph:
+      port: "/dev/ttyUSB2"
+      baud-rate: 9600
+      data-bits: 8
+      parity: "NONE"
+      stop-bits: 1
+      read-timeout: 1000
+      write-timeout: 1000
+      unit-id: 1
+      start-address: 1000
+      register-count: 10
+      control-address: 0
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "Growatt"
+      model: "SPH 10000TL3"
+      enabled: true
+      
+    # Smart Meter
+    smart-meter:
+      port: "/dev/ttyUSB3"
+      baud-rate: 9600
+      data-bits: 8
+      parity: "NONE"
+      stop-bits: 1
+      read-timeout: 1000
+      write-timeout: 1000
+      unit-id: 1
+      start-address: 1000
+      register-count: 10
+      control-address: 0
+      device-type: "SMART_METER"
+      manufacturer: "Landis+Gyr"
+      model: "E650"
+      enabled: true
+      
+    # Battery Management System
+    battery-system:
+      port: "/dev/ttyUSB4"
+      baud-rate: 9600
+      data-bits: 8
+      parity: "NONE"
+      stop-bits: 1
+      read-timeout: 1000
+      write-timeout: 1000
+      unit-id: 1
+      start-address: 2000
+      register-count: 15
+      control-address: 0
+      device-type: "BATTERY_SYSTEM"
+      manufacturer: "Tesla"
+      model: "Powerwall 2"
+      enabled: true
+
+# Modbus TCP Configuration
+modbus:
+  tcp:
+    enabled: true
+    devices:
+      # Network-based inverter
+      network-inverter:
+        host: "192.168.1.100"
+        port: 502
+        unit-id: 1
+        start-address: 40000
+        register-count: 20
+        device-type: "SOLAR_INVERTER"
+        manufacturer: "Huawei"
+        model: "SUN2000-10KTL"
+        enabled: true
+        
+      # Network-based battery
+      network-battery:
+        host: "192.168.1.101"
+        port: 502
+        unit-id: 1
+        start-address: 3000
+        register-count: 15
+        device-type: "BATTERY_SYSTEM"
+        manufacturer: "LG Chem"
+        model: "RESU 10H"
+        enabled: true
+
+# MQTT Device Configuration
+mqtt-devices:
+  # Temperature Sensor
+  temperature-sensor:
+    topic: "sensors/temp/001/data"
+    device-type: "TEMPERATURE_SENSOR"
+    manufacturer: "DHT22"
+    model: "Temperature Sensor"
+    enabled: true
+    
+  # Humidity Sensor
+  humidity-sensor:
+    topic: "sensors/humidity/001/data"
+    device-type: "HUMIDITY_SENSOR"
+    manufacturer: "DHT22"
+    model: "Humidity Sensor"
+    enabled: true
+    
+  # Power Quality Meter
+  power-quality-meter:
+    topic: "meters/power-quality/001/data"
+    device-type: "POWER_QUALITY_METER"
+    manufacturer: "Schneider Electric"
+    model: "PM8000"
+    enabled: true
+    
+  # Environmental Sensor
+  environmental-sensor:
+    topic: "sensors/environmental/001/data"
+    device-type: "ENVIRONMENTAL_SENSOR"
+    manufacturer: "BME280"
+    model: "Environmental Sensor"
+    enabled: true
+
+# Security Configuration
+smartwatts:
+  security:
+    device-verification:
+      enabled: true
+      strict-mode: true
+      block-unverified: true
+    auth-secret-validation:
+      enabled: true
+      required: false
+      validate-on-ingestion: true
+    device-service:
+      url: http://device-service:8083
+      timeout: 5000
+      retry-attempts: 3
+    audit:
+      log-all-attempts: true
+      log-success: true
+      log-failures: true
+
+# Logging Configuration
+logging:
+  level:
+    com.smartwatts.edge: INFO
+    org.springframework.web: INFO
+    com.fazecast.jSerialComm: DEBUG
+    com.digitalpetri.modbus: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+  file:
+    name: logs/smartwatts-edge-gateway.log
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,devices,discovery
+  endpoint:
+    health:
+      show-details: always
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+
+

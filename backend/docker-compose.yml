@@ -1,0 +1,287 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartwatts-postgres
+    environment:
+      POSTGRES_DB: smartwatts
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_MULTIPLE_DATABASES: smartwatts_users,smartwatts_energy,smartwatts_devices,smartwatts_analytics,smartwatts_billing,smartwatts_facility360,smartwatts_feature_flags,smartwatts_device_verification,smartwatts_appliance_monitoring
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - smartwatts-network
+
+  # Redis for Caching and Rate Limiting
+  redis:
+    image: redis:7-alpine
+    container_name: smartwatts-redis
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_PASSWORD: ""
+    volumes:
+      - redis_data:/data
+    networks:
+      - smartwatts-network
+
+  # Service Discovery (Eureka Server)
+  service-discovery:
+    build:
+      context: ./service-discovery
+      dockerfile: Dockerfile
+    container_name: smartwatts-service-discovery
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: smartwatts-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: ""
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+      JAVA_OPTS: "-Xmx1g -Xms512m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+    depends_on:
+      - service-discovery
+      - redis
+    networks:
+      - smartwatts-network
+
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_users
+      SPRING_CLOUD_NETFLIX_EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    command: ["java", "-Xmx1g", "-Xms512m", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # Energy Service
+  energy-service:
+    build:
+      context: ./energy-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-energy-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+    command: ["java", "-Xmx1g", "-Xms512m", "-jar", "/app/app.jar"]
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # Device Service
+  device-service:
+    build:
+      context: ./device-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-device-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+    command: ["java", "-Xmx1g", "-Xms512m", "-jar", "/app/app.jar"]
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./analytics-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-analytics-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+      OPENWEATHER_API_KEY: demo-key
+    command: ["java", "-Xmx1g", "-Xms512m", "-jar", "/app/app.jar"]
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # Billing Service
+  billing-service:
+    build:
+      context: ./billing-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-billing-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # Facility360 Service
+  facility-service:
+    build:
+      context: ./facility-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-facility-service
+    ports:
+      - "8089:8089"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_facility360
+    command: ["java", "-Xmx1g", "-Xms512m", "-Dspring.profiles.active=docker", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # Edge Gateway Service
+  edge-gateway:
+    build:
+      context: ./edge-gateway
+      dockerfile: Dockerfile
+    container_name: smartwatts-edge-gateway
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CLOUD_NETFLIX_EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    depends_on:
+      - service-discovery
+    networks:
+      - smartwatts-network
+
+  # Feature Flag Service
+  feature-flag-service:
+    build:
+      context: ./feature-flag-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-feature-flag-service
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+      SPRING_CLOUD_NETFLIX_EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # Device Verification & Activation Service
+  device-verification-service:
+    build:
+      context: ./device-verification-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-device-verification-service
+    ports:
+      - "8091:8091"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+      SPRING_CLOUD_NETFLIX_EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+  # API Docs Aggregator Service
+  api-docs-service:
+    build:
+      context: ./api-docs-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-api-docs-service
+    ports:
+      - "8086:8089"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - service-discovery
+    networks:
+      - smartwatts-network
+
+  # Spring Boot Admin Server
+  spring-boot-admin:
+    build:
+      context: ./spring-boot-admin
+      dockerfile: Dockerfile
+    container_name: smartwatts-spring-boot-admin
+    ports:
+      - "9090:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      - service-discovery
+    networks:
+      - smartwatts-network
+
+  # Appliance Monitoring Service
+  appliance-monitoring-service:
+    build:
+      context: ./appliance-monitoring-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-appliance-monitoring-service
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+      SPRING_CLOUD_NETFLIX_EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+      OPENWEATHER_API_KEY: demo-key
+    command: ["java", "-Xmx1g", "-Xms512m", "-jar", "/app/app.jar"]
+    depends_on:
+      - service-discovery
+      - postgres
+    networks:
+      - smartwatts-network
+
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  smartwatts-network:
+    driver: bridge 

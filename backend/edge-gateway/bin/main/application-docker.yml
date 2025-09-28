@@ -1,0 +1,51 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: edge-gateway
+  
+  cloud:
+    netflix:
+      eureka:
+        client:
+          service-url:
+            defaultZone: http://service-discovery:8761/eureka/
+          register-with-eureka: true
+          fetch-registry: true
+        instance:
+          prefer-ip-address: true
+          instance-id: ${spring.application.name}:${server.port}
+
+# Facility Integration Configuration
+facility:
+  service:
+    url: http://facility-service:8089
+  sync:
+    interval: 300000  # 5 minutes in milliseconds
+
+# Edge Gateway Configuration
+edge:
+  ml:
+    models:
+      sync-interval: 3600000  # 1 hour in milliseconds
+  device:
+    discovery-interval: 30000  # 30 seconds in milliseconds
+
+# Logging Configuration
+logging:
+  level:
+    com.smartwatts.edge: INFO
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

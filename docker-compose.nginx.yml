@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: smartwatts-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./ssl/certs:/etc/nginx/ssl/certs
+      - ./ssl/private:/etc/nginx/ssl/private
+    networks:
+      - backend_smartwatts-network
+    restart: unless-stopped
+
+networks:
+  backend_smartwatts-network:
+    external: true

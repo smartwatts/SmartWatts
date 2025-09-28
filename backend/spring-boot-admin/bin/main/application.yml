@@ -1,0 +1,48 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: spring-boot-admin
+  
+  cloud:
+    netflix:
+      eureka:
+        client:
+          service-url:
+            defaultZone: http://service-discovery:8761/eureka/
+          register-with-eureka: true
+          fetch-registry: true
+        instance:
+          prefer-ip-address: true
+          instance-id: ${spring.application.name}:${server.port}
+
+# Spring Boot Admin Configuration
+spring.boot.admin:
+  ui:
+    title: SmartWatts Admin Dashboard
+    brand: SmartWatts
+    show-services: true
+    show-version: true
+    refresh-interval: 10000
+  context-path: /admin
+  security:
+    enabled: false
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    com.smartwatts.admin: DEBUG
+    de.codecentric.boot.admin: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n" 

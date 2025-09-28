@@ -1,0 +1,2 @@
+-- No test users - production ready
+-- Users will be created through the registration API 

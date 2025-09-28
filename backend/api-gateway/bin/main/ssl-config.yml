@@ -1,0 +1,59 @@
+# SSL/TLS Configuration for API Gateway
+server:
+  ssl:
+    enabled: true
+    key-store: classpath:ssl/api-gateway.p12
+    key-store-password: smartwatts123
+    key-store-type: PKCS12
+    key-alias: api-gateway
+    trust-store: classpath:ssl/truststore.jks
+    trust-store-password: smartwatts123
+    trust-store-type: JKS
+    client-auth: want
+    protocol: TLS
+    enabled-protocols: TLSv1.2,TLSv1.3
+    ciphers: 
+      - TLS_AES_256_GCM_SHA384
+      - TLS_CHACHA20_POLY1305_SHA256
+      - TLS_AES_128_GCM_SHA256
+      - ECDHE-RSA-AES256-GCM-SHA384
+      - ECDHE-RSA-AES128-GCM-SHA256
+      - ECDHE-RSA-AES256-SHA384
+      - ECDHE-RSA-AES128-SHA256
+    session-timeout: 300
+    session-cache-size: 1000
+    session-tracking-modes: COOKIE,URL
+  port: 8443
+  http2:
+    enabled: true
+
+# Redirect HTTP to HTTPS
+spring:
+  cloud:
+    gateway:
+      httpclient:
+        ssl:
+          use-insecure-trust-manager: false
+          handshake-timeout: 10000
+          close-notify-flush-timeout: 3000
+          close-notify-read-timeout: 0
+          default-protocols: TLSv1.2,TLSv1.3
+          enabled-protocols: TLSv1.2,TLSv1.3
+          ciphers:
+            - TLS_AES_256_GCM_SHA384
+            - TLS_CHACHA20_POLY1305_SHA256
+            - TLS_AES_128_GCM_SHA256
+            - ECDHE-RSA-AES256-GCM-SHA384
+            - ECDHE-RSA-AES128-GCM-SHA256
+            - ECDHE-RSA-AES256-SHA384
+            - ECDHE-RSA-AES128-SHA256
+
+# Security headers
+security:
+  headers:
+    frame-options: DENY
+    content-type-options: nosniff
+    xss-protection: 1; mode=block
+    strict-transport-security: max-age=31536000; includeSubDomains
+    referrer-policy: strict-origin-when-cross-origin
+    content-security-policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'

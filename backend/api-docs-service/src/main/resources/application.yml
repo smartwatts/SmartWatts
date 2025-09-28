@@ -1,0 +1,66 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: api-docs-service
+  
+  cloud:
+    netflix:
+      eureka:
+        client:
+          service-url:
+            defaultZone: http://service-discovery:8761/eureka/
+          register-with-eureka: true
+          fetch-registry: true
+        instance:
+          prefer-ip-address: true
+          instance-id: ${spring.application.name}:${server.port}
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  default-produces-media-type: application/json
+  default-consumes-media-type: application/json
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    com.smartwatts.apidocs: DEBUG
+    org.springframework.web: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+# Service Discovery Configuration
+service-discovery:
+  services:
+    - name: user-service
+      url: http://user-service:8081
+      docs-path: /v3/api-docs
+    - name: energy-service
+      url: http://energy-service:8082
+      docs-path: /v3/api-docs
+    - name: device-service
+      url: http://device-service:8083
+      docs-path: /v3/api-docs
+    - name: analytics-service
+      url: http://analytics-service:8084
+      docs-path: /v3/api-docs
+    - name: billing-service
+      url: http://billing-service:8085
+      docs-path: /v3/api-docs 

@@ -1,0 +1,14 @@
+# User Service Email Configuration
+smartwatts:
+  notifications:
+    # Email notifications
+    email:
+      enabled: true
+      service:
+        url: http://localhost:8085
+
+# Logging configuration for email service
+logging:
+  level:
+    com.smartwatts.userservice.service.EmailService: DEBUG
+    com.smartwatts.userservice.service.UserService: INFO

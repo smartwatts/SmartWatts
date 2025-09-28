@@ -1,0 +1,31 @@
+# Notification Service Configuration
+smartwatts:
+  notifications:
+    # Email notifications
+    email:
+      enabled: true
+      service:
+        url: http://localhost:8085
+    
+    # SMS notifications (for critical alerts only)
+    sms:
+      enabled: false
+      service:
+        url: http://localhost:8086
+    
+    # Push notifications
+    push:
+      enabled: true
+      service:
+        url: http://localhost:8087
+    
+    # Webhook notifications
+    webhook:
+      enabled: false
+      url: # Configure webhook URL if needed
+
+# Logging configuration for notifications
+logging:
+  level:
+    com.smartwatts.energyservice.service.NotificationService: DEBUG
+    com.smartwatts.energyservice.service.AlertService: INFO

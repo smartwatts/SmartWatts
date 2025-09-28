@@ -1,0 +1,113 @@
+# Staging environment values for SmartWatts
+# This overrides the default values.yaml for staging
+
+# Image configuration
+image:
+  tag: latest
+
+# Ingress configuration
+ingress:
+  enabled: true
+  hosts:
+    - host: staging-api.smartwatts.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: smartwatts-staging-tls
+      hosts:
+        - staging-api.smartwatts.com
+
+# Resource configuration (reduced for staging)
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# Autoscaling configuration (reduced for staging)
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 85
+
+# Database configuration (smaller for staging)
+postgresql:
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# Redis configuration (smaller for staging)
+redis:
+  enabled: true
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 125m
+        memory: 128Mi
+
+# Microservices configuration (reduced replicas for staging)
+microservices:
+  api-gateway:
+    replicas: 1
+  user-service:
+    replicas: 1
+  energy-service:
+    replicas: 1
+  device-service:
+    replicas: 1
+  analytics-service:
+    replicas: 1
+  billing-service:
+    replicas: 1
+  notification-service:
+    replicas: 1
+  edge-gateway-service:
+    replicas: 1
+  facility-service:
+    replicas: 1
+  feature-flag-service:
+    replicas: 1
+  device-verification-service:
+    replicas: 1
+  appliance-monitoring-service:
+    replicas: 1
+
+# Environment variables for staging
+env:
+  POSTGRES_HOST: postgresql
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: smartwatts_staging
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: smartwatts-staging-postgres-password
+  REDIS_HOST: redis-master
+  REDIS_PORT: 6379
+  EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+  JAVA_OPTS: "-Xmx256m -Xms128m"
+
+# Monitoring configuration (simplified for staging)
+monitoring:
+  enabled: false
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false

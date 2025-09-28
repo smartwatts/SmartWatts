@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "smartwatts.fullname" . }}-api-gateway
+  labels:
+    {{- include "smartwatts.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api-gateway
+spec:
+  replicas: {{ .Values.microservices.api-gateway.replicas | default 2 }}
+  selector:
+    matchLabels:
+      {{- include "smartwatts.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api-gateway
+  template:
+    metadata:
+      labels:
+        {{- include "smartwatts.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.image.repository }}/api-gateway:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: POSTGRES_HOST
+          value: {{ .Values.env.POSTGRES_HOST | quote }}
+        - name: POSTGRES_PORT
+          value: {{ .Values.env.POSTGRES_PORT | quote }}
+        - name: POSTGRES_DB
+          value: {{ .Values.env.POSTGRES_DB | quote }}
+        - name: POSTGRES_USER
+          value: {{ .Values.env.POSTGRES_USER | quote }}
+        - name: POSTGRES_PASSWORD
+          value: {{ .Values.env.POSTGRES_PASSWORD | quote }}
+        - name: REDIS_HOST
+          value: {{ .Values.env.REDIS_HOST | quote }}
+        - name: REDIS_PORT
+          value: {{ .Values.env.REDIS_PORT | quote }}
+        - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
+          value: {{ .Values.env.EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE | quote }}
+        - name: JAVA_OPTS
+          value: {{ .Values.env.JAVA_OPTS | quote }}
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.microservices.api-gateway.resources | nindent 10 }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}

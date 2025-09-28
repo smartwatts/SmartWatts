@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartwatts-postgres
+    environment:
+      POSTGRES_DB: smartwatts_users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - smartwatts-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: smartwatts-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smartwatts-network
+
+  # MQTT Broker for IoT Communication
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: smartwatts-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - smartwatts-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  mosquitto_data:
+  mosquitto_logs:
+
+networks:
+  smartwatts-network:
+    driver: bridge

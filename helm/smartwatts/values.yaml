@@ -1,0 +1,252 @@
+# Default values for SmartWatts
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  imageRegistry: smartwatts.azurecr.io
+  imagePullSecrets:
+    - name: smartwatts-acr-secret
+
+# Image configuration
+image:
+  repository: smartwatts
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  hosts:
+    - host: api.smartwatts.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: smartwatts-tls
+      hosts:
+        - api.smartwatts.com
+
+# Resource configuration
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Autoscaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Database configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "smartwatts-postgres-password"
+    database: "smartwatts"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# Redis configuration
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# Microservices configuration
+microservices:
+  api-gateway:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  user-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  energy-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  device-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  analytics-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  billing-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  notification-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  edge-gateway-service:
+    enabled: true
+    replicas: 1
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+  
+  facility-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  feature-flag-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  device-verification-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  
+  appliance-monitoring-service:
+    enabled: true
+    replicas: 2
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# Environment variables
+env:
+  POSTGRES_HOST: postgresql
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: smartwatts
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: smartwatts-postgres-password
+  REDIS_HOST: redis-master
+  REDIS_PORT: 6379
+  EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
+  JAVA_OPTS: "-Xmx512m -Xms256m"
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+    adminPassword: "smartwatts-grafana-password"
+
+# Security configuration
+security:
+  enabled: true
+  networkPolicies:
+    enabled: true
+  podSecurityPolicy:
+    enabled: true
