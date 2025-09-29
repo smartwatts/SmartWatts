@@ -222,44 +222,56 @@ export default function DashboardClient() {
   const { dashboardStyle } = useDashboardTheme()
   const { user } = useAuth()
 
-  // Get theme-specific styling with enhanced 3D effects
+  // Professional Intelligence Platform Theme Styles
   const getThemeStyles = () => {
     switch (dashboardStyle) {
       case 'landing-page':
         return {
-          header: 'bg-gradient-to-br from-blue-50 via-white to-green-50 rounded-3xl shadow-2xl border border-blue-200 p-8 text-gray-900 relative overflow-hidden',
-          headerText: 'text-gray-600',
-          card: 'bg-white rounded-2xl shadow-xl border border-blue-100 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          cardIcon: 'text-blue-600',
-          chart: 'bg-white rounded-2xl shadow-xl border border-blue-100 p-6 transform hover:scale-105 transition-all duration-300',
-          kpiCard: 'bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardAlt: 'bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardWarm: 'bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardPurple: 'bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
+          header: 'bg-gradient-intelligence rounded-3xl shadow-2xl border border-intelligence-200 p-8 text-white relative overflow-hidden',
+          headerText: 'text-intelligence-100',
+          card: 'bg-card rounded-2xl shadow-xl border border-intelligence-200 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          cardIcon: 'text-intelligence-500',
+          chart: 'bg-card rounded-2xl shadow-xl border border-intelligence-200 p-6 transform hover:scale-105 transition-all duration-300',
+          kpiCard: 'bg-gradient-intelligence rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardAlt: 'bg-gradient-trust rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardWarm: 'bg-gradient-to-br from-warning-500 to-warning-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardPurple: 'bg-gradient-to-br from-intelligence-600 to-intelligence-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
         }
       case 'warm-beige':
         return {
-          header: 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 dark:from-gray-800 dark:via-blue-900 dark:to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
-          headerText: 'text-amber-100 dark:text-blue-200',
-          card: 'bg-amber-50 dark:bg-gray-800 rounded-2xl shadow-xl border border-amber-200 dark:border-gray-700 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          cardIcon: 'text-amber-600 dark:text-blue-400',
-          chart: 'bg-amber-50 dark:bg-gray-800 rounded-2xl shadow-xl border border-amber-200 dark:border-gray-700 p-6 transform hover:scale-105 transition-all duration-300',
-          kpiCard: 'bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardAlt: 'bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardWarm: 'bg-gradient-to-br from-yellow-500 to-amber-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardPurple: 'bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
+          header: 'bg-gradient-to-r from-warning-600 via-warning-500 to-warning-600 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
+          headerText: 'text-warning-100',
+          card: 'bg-surface-50 rounded-2xl shadow-xl border border-warning-200 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          cardIcon: 'text-warning-600',
+          chart: 'bg-surface-50 rounded-2xl shadow-xl border border-warning-200 p-6 transform hover:scale-105 transition-all duration-300',
+          kpiCard: 'bg-gradient-to-br from-warning-500 to-warning-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardAlt: 'bg-gradient-to-br from-warning-600 to-danger-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardWarm: 'bg-gradient-to-br from-warning-400 to-warning-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardPurple: 'bg-gradient-to-br from-intelligence-500 to-intelligence-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
         }
-      default: // dark theme
+      case 'professional-intelligence':
         return {
-          header: 'bg-gradient-to-r from-gray-800 via-blue-900 to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
-          headerText: 'text-blue-200',
-          card: 'bg-gray-800 rounded-2xl shadow-xl border border-gray-700 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          cardIcon: 'text-blue-400',
-          chart: 'bg-gray-800 rounded-2xl shadow-xl border border-gray-700 p-6 transform hover:scale-105 transition-all duration-300',
-          kpiCard: 'bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardAlt: 'bg-gradient-to-br from-green-600 to-green-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardWarm: 'bg-gradient-to-br from-orange-600 to-orange-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardPurple: 'bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
+          header: 'bg-gradient-intelligence rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
+          headerText: 'text-intelligence-100',
+          card: 'bg-card rounded-2xl shadow-xl border border-intelligence-200 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          cardIcon: 'text-intelligence-400',
+          chart: 'bg-card rounded-2xl shadow-xl border border-intelligence-200 p-6 transform hover:scale-105 transition-all duration-300',
+          kpiCard: 'bg-gradient-intelligence rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardAlt: 'bg-gradient-trust rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardWarm: 'bg-gradient-to-br from-warning-500 to-warning-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardPurple: 'bg-gradient-to-br from-intelligence-600 to-intelligence-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
+        }
+      default: // Professional Intelligence theme
+        return {
+          header: 'bg-gradient-intelligence rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
+          headerText: 'text-intelligence-100',
+          card: 'bg-card rounded-2xl shadow-xl border border-intelligence-200 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          cardIcon: 'text-intelligence-400',
+          chart: 'bg-card rounded-2xl shadow-xl border border-intelligence-200 p-6 transform hover:scale-105 transition-all duration-300',
+          kpiCard: 'bg-gradient-intelligence rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardAlt: 'bg-gradient-trust rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardWarm: 'bg-gradient-to-br from-warning-500 to-warning-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
+          kpiCardPurple: 'bg-gradient-to-br from-intelligence-600 to-intelligence-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
         }
     }
   }
@@ -292,7 +304,18 @@ export default function DashboardClient() {
         }
 
         // Parse responses or use default empty data
-        const energyData: EnergyData[] = energyResponse.ok ? await energyResponse.json() : []
+        const energyResponseData = energyResponse.ok ? await energyResponse.json() : { content: [] }
+        const energyData: EnergyData[] = energyResponseData.content || []
+        
+        // Ensure we have valid chart data even if empty
+        const chartData: EnergyData[] = energyData.length > 0 ? energyData : [
+          { time: '00:00', consumption: 0, generation: 0, cost: 0 },
+          { time: '06:00', consumption: 0, generation: 0, cost: 0 },
+          { time: '12:00', consumption: 0, generation: 0, cost: 0 },
+          { time: '18:00', consumption: 0, generation: 0, cost: 0 },
+          { time: '24:00', consumption: 0, generation: 0, cost: 0 }
+        ]
+        
         const stats: DashboardStats = statsResponse.ok ? await statsResponse.json() : {
           totalEnergyConsumption: 0,
           totalEnergyGeneration: 0,
@@ -363,7 +386,7 @@ export default function DashboardClient() {
         const efficiencyBenchmarks: EfficiencyBenchmark[] = efficiencyBenchmarksResponse.ok ? await efficiencyBenchmarksResponse.json() : []
 
         // Set all the real data
-        setEnergyData(energyData)
+        setEnergyData(chartData)
         setStats(stats)
         setCostOptimizations(costOptimizations)
         setEnergyEfficiencies(energyEfficiencies)
@@ -389,17 +412,17 @@ export default function DashboardClient() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-blue-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-xl text-gray-600 dark:text-gray-300">Loading your energy insights...</p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-intelligence-500 mx-auto"></div>
+          <p className="mt-4 text-xl text-surface-100">Loading your energy insights...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-blue-900 dark:to-gray-800 p-6">
+    <div className="min-h-screen bg-gradient-surface p-6">
       {/* Enhanced Header with 3D Effects */}
       <div className={themeStyles.header}>
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
@@ -420,19 +443,19 @@ export default function DashboardClient() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
               <p className="text-white/80 text-sm">Current Load</p>
-              <p className="text-2xl font-bold text-white">{stats.currentConsumption} kW</p>
+              <p className="text-2xl font-bold text-white">{stats.totalEnergyConsumption || 0} kW</p>
             </div>
             <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
               <p className="text-white/80 text-sm">Efficiency</p>
-              <p className="text-2xl font-bold text-white">{stats.efficiencyScore}%</p>
+              <p className="text-2xl font-bold text-white">{stats.efficiency || 0}%</p>
             </div>
             <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
               <p className="text-white/80 text-sm">Solar Gen</p>
-              <p className="text-2xl font-bold text-white">{stats.solarGeneration} kWh</p>
+              <p className="text-2xl font-bold text-white">{stats.totalEnergyGeneration || 0} kWh</p>
             </div>
             <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 text-center">
               <p className="text-white/80 text-sm">Savings</p>
-              <p className="text-2xl font-bold text-white">₦{stats.costSavings}</p>
+              <p className="text-2xl font-bold text-white">₦{stats.totalSavings || 0}</p>
             </div>
           </div>
         </div>
@@ -444,7 +467,7 @@ export default function DashboardClient() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-blue-100">Monthly Cost</p>
-              <p className="text-3xl font-bold text-white">₦{stats.monthlyCost.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white">₦{(stats.totalCost || 0).toFixed(2)}</p>
               <p className="text-xs text-blue-100 mt-1">Current billing cycle</p>
             </div>
             <div className="p-3 bg-white/20 rounded-xl">
@@ -457,7 +480,7 @@ export default function DashboardClient() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-green-100">Solar Generation</p>
-              <p className="text-3xl font-bold text-white">{stats.solarGeneration} kWh</p>
+              <p className="text-3xl font-bold text-white">{stats.totalEnergyGeneration || 0} kWh</p>
               <p className="text-xs text-green-100 mt-1">Today's production</p>
             </div>
             <div className="p-3 bg-white/20 rounded-xl">
@@ -470,7 +493,7 @@ export default function DashboardClient() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-orange-100">Cost Savings</p>
-              <p className="text-3xl font-bold text-white">₦{stats.costSavings.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white">₦{(stats.totalSavings || 0).toFixed(2)}</p>
               <p className="text-xs text-orange-100 mt-1">This month</p>
             </div>
             <div className="p-3 bg-white/20 rounded-xl">
@@ -483,7 +506,7 @@ export default function DashboardClient() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-purple-100">Efficiency Score</p>
-              <p className="text-3xl font-bold text-white">{stats.efficiencyScore}%</p>
+              <p className="text-3xl font-bold text-white">{stats.efficiency || 0}%</p>
               <p className="text-xs text-purple-100 mt-1">Performance rating</p>
             </div>
             <div className="p-3 bg-white/20 rounded-xl">
@@ -498,85 +521,107 @@ export default function DashboardClient() {
         {/* Energy Consumption Chart */}
         <div className={themeStyles.chart}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Energy Consumption</h3>
+            <h3 className="text-xl font-semibold text-surface-50">Energy Consumption</h3>
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <span className="text-sm text-gray-600 dark:text-gray-400">Consumption</span>
-              <div className="w-3 h-3 bg-green-500 rounded-full ml-4"></div>
-              <span className="text-sm text-gray-600 dark:text-gray-400">Generation</span>
+              <div className="w-3 h-3 bg-intelligence-500 rounded-full"></div>
+              <span className="text-sm text-surface-400">Consumption</span>
+              <div className="w-3 h-3 bg-trust-500 rounded-full ml-4"></div>
+              <span className="text-sm text-surface-400">Generation</span>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={energyData}>
-              <defs>
-                <linearGradient id="consumptionGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1}/>
-                </linearGradient>
-                <linearGradient id="generationGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="time" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '12px',
-                  color: '#F9FAFB',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-                }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="consumption" 
-                stackId="1" 
-                stroke="#3B82F6" 
-                fill="url(#consumptionGradient)"
-                strokeWidth={3}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="generation" 
-                stackId="2" 
-                stroke="#10B981" 
-                fill="url(#generationGradient)"
-                strokeWidth={3}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {energyData && energyData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={energyData}>
+                <defs>
+                  <linearGradient id="consumptionGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="generationGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="time" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#18181b', 
+                    border: '1px solid #6366f1',
+                    borderRadius: '12px',
+                    color: '#f8fafc',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="consumption" 
+                  stackId="1" 
+                  stroke="#6366f1" 
+                  fill="url(#consumptionGradient)"
+                  strokeWidth={3}
+                  connectNulls={false}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="generation" 
+                  stackId="2" 
+                  stroke="#14b8a6" 
+                  fill="url(#generationGradient)"
+                  strokeWidth={3}
+                  connectNulls={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-surface-400">
+              <div className="text-center">
+                <div className="text-4xl mb-2">📊</div>
+                <p>No energy data available</p>
+                <p className="text-sm">Data will appear when devices are connected</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Cost Analysis Chart */}
         <div className={themeStyles.chart}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Cost Analysis</h3>
-            <div className="text-sm text-gray-600 dark:text-gray-400">24-hour breakdown</div>
+            <h3 className="text-xl font-semibold text-surface-50">Cost Analysis</h3>
+            <div className="text-sm text-surface-400">24-hour breakdown</div>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={energyData}>
-              <defs>
-                <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.3}/>
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="time" stroke="#9CA3AF" />
-              <YAxis stroke="#9CA3AF" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '12px',
-                  color: '#F9FAFB',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-                }}
-              />
-              <Bar dataKey="cost" fill="url(#costGradient)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {energyData && energyData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={energyData}>
+                <defs>
+                  <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0.3}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="time" stroke="#64748b" />
+                <YAxis stroke="#64748b" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#18181b', 
+                    border: '1px solid #a855f7',
+                    borderRadius: '12px',
+                    color: '#f8fafc',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+                  }}
+                />
+                <Bar dataKey="cost" fill="url(#costGradient)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-surface-400">
+              <div className="text-center">
+                <div className="text-4xl mb-2">💰</div>
+                <p>No cost data available</p>
+                <p className="text-sm">Cost analysis will appear when data is available</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -787,22 +832,22 @@ export default function DashboardClient() {
             <div className="space-y-4">
               <div className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Peak Demand</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{loadProfile.peakDemand} kW</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Hourly Data Points</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">{loadProfile.hourly?.length || 0}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Load Factor</p>
-                  <p className="text-xl font-bold text-blue-600">{Math.round(loadProfile.loadFactor * 100)}%</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Daily Data Points</p>
+                  <p className="text-xl font-bold text-blue-600">{loadProfile.daily?.length || 0}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-3 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 rounded-xl">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Peak Hours</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{loadProfile.peakHours.join(', ')}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Weekly Data</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{loadProfile.weekly?.length || 0} points</p>
                 </div>
                 <div className="text-center p-3 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Off-Peak Hours</p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{loadProfile.offPeakHours.join(', ')}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Monthly Data</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{loadProfile.monthly?.length || 0} points</p>
                 </div>
               </div>
             </div>
@@ -937,14 +982,14 @@ export default function DashboardClient() {
                 </div>
               </div>
               <div className="p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Solar Irradiance</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{weatherImpact.solarIrradiance} W/m²</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Solar Efficiency: {Math.round(weatherImpact.solarEfficiency * 100)}%</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Temperature</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{weatherImpact.temperature}°C</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Current temperature</p>
               </div>
               <div className="p-4 bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">HVAC Load</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{weatherImpact.hvacLoad} kW</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Energy Impact: {Math.round(weatherImpact.energyImpact * 100)}%</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Humidity</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{weatherImpact.humidity}%</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Energy Impact: {Math.round(weatherImpact.impact * 100)}%</p>
               </div>
             </div>
           </div>
