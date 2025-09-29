@@ -143,15 +143,18 @@
     - Property name mismatches between frontend and backend data structures
   - **Solution**: Updated property names to match backend API responses and added safe access with fallback values
   - **Result**: Dashboard now loads without errors and displays data correctly
-- **Professional Intelligence Theme Implementation**: Complete dashboard theme redesign
-  - **Objective**: Replace dark blue theme with professional, trustworthy, sleek, and insightful design
+- **System Theme Implementation**: Complete dashboard theme redesign and standardization
+  - **Objective**: Rename appliance-monitoring theme to "System Theme" and make it the default theme
   - **Features Implemented**:
-    - Professional Intelligence Palette with sophisticated color scheme
-    - Enhanced gradients and visual effects (glow, shimmer animations)
-    - Glass morphism effects for modern UI
-    - Consistent theme across all dashboard components
-  - **Files Updated**: tailwind.config.js, globals.css, DashboardClient.tsx, ThemeContext.tsx, DashboardThemeContext.tsx
-  - **Result**: Dashboard now has cutting-edge digital intelligence platform appearance
+    - Renamed 'appliance-monitoring' theme to 'system-theme' across all components
+    - Updated DashboardThemeContext to use 'system-theme' as default
+    - Updated ThemeSelector to show 'System Theme' as the option name
+    - Updated pageStyles utility to use 'system-theme' case
+    - Updated DashboardClient to use 'system-theme' case
+    - All section backgrounds now use white backgrounds consistently
+    - Theme is now more meaningful and represents the main system theme
+  - **Files Updated**: DashboardThemeContext.tsx, ThemeSelector.tsx, pageStyles.ts, DashboardClient.tsx
+  - **Result**: Dashboard now has a consistent, professional "System Theme" as the default with white section backgrounds
 - **API Gateway Proxy Implementation**: Added ProxyController for frontend service routing
   - **Root Cause**: Frontend making calls to `/api/proxy` but API Gateway lacked corresponding controller
   - **Solution**: Created ProxyController to handle frontend requests and forward to backend services

@@ -252,7 +252,7 @@ export default function DashboardClient() {
           kpiCardWarm: 'bg-gradient-to-br from-warning-500 to-warning-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
           kpiCardPurple: 'bg-gradient-to-br from-intelligence-600 to-intelligence-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
         }
-      case 'appliance-monitoring':
+        case 'system-theme':
         return {
           header: 'bg-gradient-to-r from-gray-800 via-blue-900 to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
           headerText: 'text-blue-200',

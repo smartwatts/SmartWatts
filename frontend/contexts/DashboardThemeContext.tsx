@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
-type DashboardStyle = 'dark' | 'appliance-monitoring' | 'system-default' | 'landing-page' | 'professional-intelligence'
+type DashboardStyle = 'dark' | 'system-theme' | 'system-default' | 'landing-page' | 'professional-intelligence'
 
 interface DashboardThemeContextType {
   dashboardStyle: DashboardStyle
@@ -19,19 +19,19 @@ export const useDashboardTheme = () => {
 
 export const DashboardThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [dashboardStyle, setDashboardStyle] = useState<DashboardStyle>(() => {
-    // Initialize from localStorage if available, otherwise use 'professional-intelligence' as default
+    // Initialize from localStorage if available, otherwise use 'system-default' as default
     if (typeof window !== 'undefined') {
       const savedStyle = localStorage.getItem('dashboardStyle') as DashboardStyle
-      return savedStyle && ['dark', 'appliance-monitoring', 'system-default', 'landing-page', 'professional-intelligence'].includes(savedStyle) ? savedStyle : 'appliance-monitoring'
+      return savedStyle && ['dark', 'system-theme', 'system-default', 'landing-page', 'professional-intelligence'].includes(savedStyle) ? savedStyle : 'system-default'
     }
-    return 'appliance-monitoring'
+    return 'system-default'
   })
 
   // Load dashboard style from localStorage on mount (client-side only)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedStyle = localStorage.getItem('dashboardStyle') as DashboardStyle
-      if (savedStyle && ['dark', 'appliance-monitoring', 'system-default', 'landing-page', 'professional-intelligence'].includes(savedStyle)) {
+      if (savedStyle && ['dark', 'system-theme', 'system-default', 'landing-page', 'professional-intelligence'].includes(savedStyle)) {
         setDashboardStyle(savedStyle)
       }
     }

@@ -44,7 +44,7 @@ export const usePageStyles = (): PageStyles => {
           tableRow: 'border-b border-blue-100 hover:bg-blue-50 transition-colors duration-200'
         }
       
-      case 'appliance-monitoring':
+      case 'system-theme':
         return {
           header: 'bg-gradient-to-r from-gray-800 via-blue-900 to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
           headerText: 'text-blue-200',

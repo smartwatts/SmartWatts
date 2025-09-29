@@ -7,7 +7,7 @@ interface ThemeOption {
   id: string
   name: string
   appTheme: 'light' | 'dark' | 'auto'
-  dashboardStyle: 'dark' | 'appliance-monitoring' | 'system-default'
+  dashboardStyle: 'dark' | 'system-theme' | 'system-default'
   icon: React.ComponentType<{ className?: string }>
 }
 
@@ -20,10 +20,10 @@ const themeOptions: ThemeOption[] = [
     icon: MoonIcon
   },
   {
-    id: 'appliance-monitoring',
-    name: 'Appliance Monitoring',
+    id: 'system-theme',
+    name: 'System Theme',
     appTheme: 'light',
-    dashboardStyle: 'appliance-monitoring',
+    dashboardStyle: 'system-theme',
     icon: SunIcon
   },
   {
@@ -61,8 +61,8 @@ export default function ThemeSelector() {
     if (theme === 'dark') {
       return 'dark'
     } else {
-      // For light theme, return appliance-monitoring
-      return 'appliance-monitoring'
+      // For light theme, return system-default
+      return 'system-default'
     }
   }
 
