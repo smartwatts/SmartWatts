@@ -386,11 +386,11 @@ export default function Devices() {
       <Layout>
         <div className="space-y-6 animate-fade-in">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-600 dark:from-gray-800 dark:via-blue-900 dark:to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-800 via-blue-900 to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold mb-2">Device Management</h1>
-                <p className="text-blue-100 dark:text-blue-200 text-lg">Monitoring and control of smart energy infrastructure</p>
+                <p className="text-blue-200 text-lg">Monitoring and control of smart energy infrastructure</p>
                 <div className="flex items-center mt-4 space-x-6">
                   <div className="flex items-center space-x-2">
                     <CheckCircleIcon className="h-5 w-5 text-green-300" />

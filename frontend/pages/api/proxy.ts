@@ -20,13 +20,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const serviceUrls: { [key: string]: string } = {
     user: 'http://localhost:8081/api/v1',
+    'user-service': 'http://localhost:8081/api/v1',
     energy: 'http://localhost:8082/api/v1',
+    'energy-service': 'http://localhost:8082/api/v1',
     device: 'http://localhost:8083/api/v1',
+    'device-service': 'http://localhost:8083/api/v1',
     analytics: 'http://localhost:8084/api/v1',
+    'analytics-service': 'http://localhost:8084/api/v1',
     billing: 'http://localhost:8085/api/v1',
+    'billing-service': 'http://localhost:8085/api/v1',
     facility: 'http://localhost:8089/api/v1',
+    'facility-service': 'http://localhost:8089/api/v1',
     'feature-flags': 'http://localhost:8090/api/feature-flags',
-    'appliance-monitoring': 'http://localhost:8092/api/v1/appliance-monitoring',
+    'feature-flag-service': 'http://localhost:8090/api/feature-flags',
+    'appliance-monitoring': 'http://localhost:8087/api/v1/appliance-monitoring',
+    'appliance-monitoring-service': 'http://localhost:8087/api/v1/appliance-monitoring',
+    'device-verification': 'http://localhost:8091/api/v1/device-verification',
+    'device-verification-service': 'http://localhost:8091/api/v1/device-verification',
   }
 
   const baseUrl = serviceUrls[service as string]

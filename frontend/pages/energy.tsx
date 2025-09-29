@@ -124,12 +124,8 @@ export default function EnergyMonitor() {
           {/* Enhanced Header */}
           <div className={`${styles.header} mb-8`}>
             <div className="relative z-10">
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-                Energy Monitor
-              </h1>
-              <p className={`text-xl ${styles.headerText} mb-6`}>
-                Real-time energy consumption, generation, and cost monitoring
-              </p>
+              <h1 className="text-3xl font-bold mb-2">Energy Monitor</h1>
+              <p className="text-blue-200 text-lg">Real-time energy consumption, generation, and cost monitoring</p>
               
               {/* Timeframe Selector */}
               <div className="flex space-x-2">
@@ -153,7 +149,7 @@ export default function EnergyMonitor() {
             
             {/* Background Pattern */}
             <div className="absolute inset-0 opacity-10">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-green-400 rounded-3xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-3xl"></div>
             </div>
           </div>
 
@@ -211,7 +207,7 @@ export default function EnergyMonitor() {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Energy Consumption Chart */}
-        <div className={styles.chart}>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Energy Consumption</h3>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={energyData}>
@@ -230,7 +226,7 @@ export default function EnergyMonitor() {
         </div>
 
         {/* Cost Analysis Chart */}
-        <div className={styles.chart}>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Cost Analysis</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={energyData}>
@@ -244,7 +240,7 @@ export default function EnergyMonitor() {
           </div>
 
       {/* Alerts Section */}
-      <div className={styles.section}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Energy Alerts</h3>
         <div className="space-y-3">
           {alerts.map((alert) => (
@@ -260,7 +256,7 @@ export default function EnergyMonitor() {
               </div>
 
       {/* Quick Actions */}
-      <div className={styles.section}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button className={styles.button}>

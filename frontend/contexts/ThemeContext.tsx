@@ -25,7 +25,7 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('dark')
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('light')
+  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>('dark')
 
   useEffect(() => {
     // Load theme from localStorage on mount

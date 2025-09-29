@@ -38,12 +38,17 @@ interface EnergyData {
 
 interface DashboardStats {
   currentConsumption: number
+  totalEnergyConsumption: number
   monthlyCost: number
+  totalCost: number
   solarGeneration: number
+  totalEnergyGeneration: number
   offPeakSavings: number
   costSavings: number
+  totalSavings: number
   peakDemand: number
   efficiencyScore: number
+  efficiency: number
   carbonFootprint: number
 }
 
@@ -109,6 +114,10 @@ interface LoadProfile {
   peakHours: string[]
   offPeakHours: string[]
   loadFactor: number
+  hourly?: any[]
+  daily?: any[]
+  weekly?: any[]
+  monthly?: any[]
 }
 
 interface CarbonFootprint {
@@ -147,6 +156,7 @@ interface WeatherImpact {
   energyImpact: number
   hvacLoad: number
   solarEfficiency: number
+  impact?: number
 }
 
 interface EfficiencyBenchmark {
@@ -162,12 +172,17 @@ export default function DashboardClient() {
   const [energyData, setEnergyData] = useState<EnergyData[]>([])
   const [stats, setStats] = useState<DashboardStats>({
     currentConsumption: 0,
+    totalEnergyConsumption: 0,
     monthlyCost: 0,
+    totalCost: 0,
     solarGeneration: 0,
+    totalEnergyGeneration: 0,
     offPeakSavings: 0,
     costSavings: 0,
+    totalSavings: 0,
     peakDemand: 0,
     efficiencyScore: 0,
+    efficiency: 0,
     carbonFootprint: 0
   })
   const [costOptimizations, setCostOptimizations] = useState<CostOptimization[]>([])
@@ -237,17 +252,29 @@ export default function DashboardClient() {
           kpiCardWarm: 'bg-gradient-to-br from-warning-500 to-warning-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
           kpiCardPurple: 'bg-gradient-to-br from-intelligence-600 to-intelligence-700 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
         }
-      case 'warm-beige':
+      case 'appliance-monitoring':
         return {
-          header: 'bg-gradient-to-r from-warning-600 via-warning-500 to-warning-600 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
-          headerText: 'text-warning-100',
-          card: 'bg-surface-50 rounded-2xl shadow-xl border border-warning-200 p-6 transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          cardIcon: 'text-warning-600',
-          chart: 'bg-surface-50 rounded-2xl shadow-xl border border-warning-200 p-6 transform hover:scale-105 transition-all duration-300',
-          kpiCard: 'bg-gradient-to-br from-warning-500 to-warning-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardAlt: 'bg-gradient-to-br from-warning-600 to-danger-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardWarm: 'bg-gradient-to-br from-warning-400 to-warning-500 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl',
-          kpiCardPurple: 'bg-gradient-to-br from-intelligence-500 to-intelligence-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-all duration-300 hover:shadow-2xl'
+          header: 'bg-gradient-to-r from-gray-800 via-blue-900 to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden',
+          headerText: 'text-blue-200',
+          card: 'bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6',
+          cardIcon: 'text-blue-500',
+          chart: 'bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6',
+          kpiCard: 'bg-green-50 dark:bg-green-900/20 rounded-xl p-6 text-center',
+          kpiCardAlt: 'bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 text-center',
+          kpiCardWarm: 'bg-purple-50 dark:bg-purple-900/20 rounded-xl p-6 text-center',
+          kpiCardPurple: 'bg-purple-50 dark:bg-purple-900/20 rounded-xl p-6 text-center'
+        }
+      case 'system-default':
+        return {
+          header: 'bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8',
+          headerText: 'text-gray-900 dark:text-white',
+          card: 'bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6',
+          cardIcon: 'text-gray-600 dark:text-gray-400',
+          chart: 'bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6',
+          kpiCard: 'bg-gray-50 dark:bg-gray-700 rounded-lg p-6 text-center',
+          kpiCardAlt: 'bg-gray-50 dark:bg-gray-700 rounded-lg p-6 text-center',
+          kpiCardWarm: 'bg-gray-50 dark:bg-gray-700 rounded-lg p-6 text-center',
+          kpiCardPurple: 'bg-gray-50 dark:bg-gray-700 rounded-lg p-6 text-center'
         }
       case 'professional-intelligence':
         return {
@@ -412,7 +439,7 @@ export default function DashboardClient() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-surface flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-intelligence-500 mx-auto"></div>
           <p className="mt-4 text-xl text-surface-100">Loading your energy insights...</p>
@@ -422,7 +449,7 @@ export default function DashboardClient() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-surface p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       {/* Enhanced Header with 3D Effects */}
       <div className={themeStyles.header}>
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
@@ -466,12 +493,12 @@ export default function DashboardClient() {
         <div className={themeStyles.kpiCard}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-blue-100">Monthly Cost</p>
-              <p className="text-3xl font-bold text-white">₦{(stats.totalCost || 0).toFixed(2)}</p>
-              <p className="text-xs text-blue-100 mt-1">Current billing cycle</p>
+              <p className="text-sm font-medium text-green-600 dark:text-green-400">Monthly Cost</p>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">₦{(stats.totalCost || 0).toFixed(2)}</p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">Current billing cycle</p>
             </div>
-            <div className="p-3 bg-white/20 rounded-xl">
-              <CreditCardIcon className="h-8 w-8 text-white" />
+            <div className="p-3 bg-green-100 dark:bg-green-800 rounded-xl">
+              <CreditCardIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </div>
@@ -479,12 +506,12 @@ export default function DashboardClient() {
         <div className={themeStyles.kpiCardAlt}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-100">Solar Generation</p>
-              <p className="text-3xl font-bold text-white">{stats.totalEnergyGeneration || 0} kWh</p>
-              <p className="text-xs text-green-100 mt-1">Today's production</p>
+              <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Solar Generation</p>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{stats.totalEnergyGeneration || 0} kWh</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Today's production</p>
             </div>
-            <div className="p-3 bg-white/20 rounded-xl">
-              <SunIcon className="h-8 w-8 text-white" />
+            <div className="p-3 bg-blue-100 dark:bg-blue-800 rounded-xl">
+              <SunIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </div>
@@ -492,12 +519,12 @@ export default function DashboardClient() {
         <div className={themeStyles.kpiCardWarm}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-orange-100">Cost Savings</p>
-              <p className="text-3xl font-bold text-white">₦{(stats.totalSavings || 0).toFixed(2)}</p>
-              <p className="text-xs text-orange-100 mt-1">This month</p>
+              <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Cost Savings</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">₦{(stats.totalSavings || 0).toFixed(2)}</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">This month</p>
             </div>
-            <div className="p-3 bg-white/20 rounded-xl">
-              <BanknotesIcon className="h-8 w-8 text-white" />
+            <div className="p-3 bg-purple-100 dark:bg-purple-800 rounded-xl">
+              <BanknotesIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </div>
@@ -505,12 +532,12 @@ export default function DashboardClient() {
         <div className={themeStyles.kpiCardPurple}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-purple-100">Efficiency Score</p>
-              <p className="text-3xl font-bold text-white">{stats.efficiency || 0}%</p>
-              <p className="text-xs text-purple-100 mt-1">Performance rating</p>
+              <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Efficiency Score</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{stats.efficiency || 0}%</p>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Performance rating</p>
             </div>
-            <div className="p-3 bg-white/20 rounded-xl">
-              <LightBulbIcon className="h-8 w-8 text-white" />
+            <div className="p-3 bg-purple-100 dark:bg-purple-800 rounded-xl">
+              <LightBulbIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </div>

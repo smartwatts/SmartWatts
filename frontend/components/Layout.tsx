@@ -149,7 +149,7 @@ export default function Layout({ children }: LayoutProps) {
   if (!currentUser) {
     return (
       <DashboardThemeProvider>
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-blue-900 dark:to-gray-800">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
           <main className="py-6">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
               {children}
@@ -162,7 +162,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <DashboardThemeProvider>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-blue-900 dark:to-gray-800">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Mobile sidebar overlay */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-40 lg:hidden">

@@ -339,11 +339,11 @@ export default function DashboardOption2() {
       <Layout>
         <div className="space-y-6 animate-fade-in">
           {/* Header - Option 2: Warm Beige/Cream Theme */}
-          <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 dark:from-gray-800 dark:via-blue-900 dark:to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-800 via-blue-900 to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold mb-2">Energy Intelligence Dashboard</h1>
-                <p className="text-amber-100 dark:text-blue-200 text-lg">Comprehensive energy analytics and optimization insights</p>
+                <p className="text-blue-200 text-lg">Comprehensive energy analytics and optimization insights</p>
                 <div className="flex items-center mt-4 space-x-6">
                   <div className="flex items-center space-x-2">
                     <ClockIcon className="h-5 w-5 text-amber-200 dark:text-blue-300" />

@@ -30,14 +30,14 @@ const nextConfig = {
       },
     ];
   },
-  // async rewrites() {
-  //   return [
-  //     {
-  //       source: '/api/(?!proxy).*',
-  //       destination: 'http://localhost:8080/api/:path*',
-  //     },
-  //   ];
-  // },
+  async rewrites() {
+    return [
+      {
+        source: '/api/proxy',
+        destination: 'http://localhost:8080/api/proxy',
+      },
+    ];
+  },
 }
 
 module.exports = nextConfig 

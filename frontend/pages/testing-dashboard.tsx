@@ -8,7 +8,7 @@ export default function TestingDashboard() {
       <Layout>
         <div className="space-y-8">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-800 via-blue-900 to-gray-800 rounded-3xl shadow-2xl p-8 text-white relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold mb-2">SmartWatts Testing Dashboard</h1>
