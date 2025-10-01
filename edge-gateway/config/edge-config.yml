@@ -1,0 +1,140 @@
+# SmartWatts Edge Gateway Configuration for R501 RK3588
+# Complete configuration for production deployment
+
+# Hardware Configuration
+hardware:
+  device_type: "R501_RK3588"
+  cpu_cores: 8
+  memory_gb: 8
+  storage_path: "/opt/smartwatts/data"
+  max_concurrent_devices: 50
+  ai_model_path: "/opt/smartwatts/models"
+  enable_gpu_acceleration: true
+
+# Network Configuration
+network:
+  host: "0.0.0.0"
+  port: 8080
+  mqtt_broker_host: "localhost"
+  mqtt_broker_port: 1883
+  mqtt_username: null
+  mqtt_password: null
+  cloud_api_url: "https://api.smartwatts.com"
+  cloud_api_key: null
+  enable_ssl: false
+  ssl_cert_path: null
+  ssl_key_path: null
+
+# MQTT Configuration
+mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  username: null
+  password: null
+  client_id: "smartwatts_edge_gateway"
+  keepalive: 60
+  qos: 1
+  retain: true
+  topics:
+    energy_data: "smartwatts/energy/+/data"
+    device_status: "smartwatts/devices/+/status"
+    device_discovery: "smartwatts/discovery/+/announce"
+    alerts: "smartwatts/alerts/+/+"
+    commands: "smartwatts/commands/+/+"
+
+# Modbus Configuration
+modbus:
+  enabled: true
+  tcp_host: "192.168.1.100"
+  tcp_port: 502
+  rtu_port: "/dev/ttyUSB0"
+  rtu_baudrate: 9600
+  rtu_parity: "N"
+  rtu_stopbits: 1
+  rtu_bytesize: 8
+  timeout: 3.0
+  retries: 3
+  devices:
+    - name: "Solar Inverter"
+      type: "inverter"
+      address: 1
+      protocol: "tcp"
+      host: "192.168.1.101"
+      port: 502
+      enabled: true
+    - name: "Energy Meter"
+      type: "meter"
+      address: 2
+      protocol: "rtu"
+      port: "/dev/ttyUSB0"
+      baudrate: 9600
+      enabled: true
+    - name: "Battery System"
+      type: "battery"
+      address: 3
+      protocol: "tcp"
+      host: "192.168.1.102"
+      port: 502
+      enabled: true
+
+# Storage Configuration
+storage:
+  database_url: "sqlite:///opt/smartwatts/data/edge.db"
+  backup_enabled: true
+  backup_interval_hours: 24
+  backup_retention_days: 30
+  max_data_age_days: 90
+  compression_enabled: true
+
+# AI Configuration
+ai:
+  enabled: true
+  model_path: "/opt/smartwatts/models"
+  models:
+    energy_forecast: "energy_forecast.tflite"
+    anomaly_detection: "anomaly_detection.tflite"
+    load_prediction: "load_prediction.tflite"
+    efficiency_optimization: "efficiency_optimization.tflite"
+  inference_interval_seconds: 60
+  batch_size: 32
+  confidence_threshold: 0.8
+  enable_gpu: true
+
+# Device Discovery Configuration
+device_discovery:
+  enabled: true
+  scan_interval_seconds: 30
+  discovery_timeout_seconds: 10
+  protocols: ["mqtt", "modbus", "http", "coap"]
+  auto_register: true
+  device_types: ["smart_plug", "inverter", "battery", "meter", "sensor", "controller", "gateway"]
+
+# Data Sync Configuration
+data_sync:
+  enabled: true
+  sync_interval_seconds: 300
+  batch_size: 1000
+  retry_attempts: 3
+  retry_delay_seconds: 60
+  offline_mode: true
+  conflict_resolution: "edge_priority"
+
+# Security Configuration
+security:
+  enable_authentication: true
+  jwt_secret: "your-secret-key-change-in-production"
+  jwt_expiry_hours: 24
+  enable_encryption: true
+  encryption_key: "your-encryption-key-change-in-production"
+  allowed_ips: ["127.0.0.1", "192.168.1.0/24"]
+  rate_limit_requests_per_minute: 100
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_path: "/opt/smartwatts/logs/edge_gateway.log"
+  max_file_size_mb: 100
+  backup_count: 5
+  enable_console: true
+  enable_file: true

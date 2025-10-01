@@ -1,0 +1,121 @@
+# SmartWatts Alerting Rules
+
+groups:
+  - name: smartwatts_services
+    rules:
+      # Service Down Alerts
+      - alert: ServiceDown
+        expr: up{job=~"smartwatts-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "SmartWatts service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High error rate detected in {{ $labels.job }}"
+          description: "Error rate is {{ $value }} errors per second for service {{ $labels.job }}"
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High response time in {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s for service {{ $labels.job }}"
+
+  - name: smartwatts_infrastructure
+    rules:
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for {{ $labels.instance }}"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 85% for {{ $labels.instance }}"
+
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space is running low"
+          description: "Disk usage is above 90% for {{ $labels.instance }} on {{ $labels.mountpoint }}"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionIssues
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL database is unreachable"
+          description: "Cannot connect to PostgreSQL database"
+
+      # Redis Connection Issues
+      - alert: RedisConnectionIssues
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis cache is unreachable"
+          description: "Cannot connect to Redis cache"
+
+  - name: smartwatts_business
+    rules:
+      # High Energy Consumption
+      - alert: HighEnergyConsumption
+        expr: smartwatts_energy_consumption_kwh > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unusually high energy consumption detected"
+          description: "Energy consumption is {{ $value }} kWh, which is above normal threshold"
+
+      # Low Solar Generation
+      - alert: LowSolarGeneration
+        expr: smartwatts_solar_generation_kwh < 100
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low solar generation detected"
+          description: "Solar generation is {{ $value }} kWh, which is below expected levels"
+
+      # High Energy Costs
+      - alert: HighEnergyCosts
+        expr: smartwatts_energy_cost_ngn > 50000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High energy costs detected"
+          description: "Energy costs are {{ $value }} NGN, which is above normal threshold"

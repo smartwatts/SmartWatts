@@ -1,0 +1,246 @@
+SmartWatts Portable Installation Guide
+
+Table of Contents
+1. Overview
+2. Requirements
+3. Creating Portable Installation
+4. Using Portable Installation
+5. Configuration
+6. Troubleshooting
+7. Support
+
+1. Overview
+
+SmartWatts Portable Installation allows you to run the complete SmartWatts platform from a USB flash drive on any computer with Docker installed. This plug-and-play solution is perfect for demonstrations, testing, and temporary installations.
+
+The portable installation includes:
+- Complete SmartWatts platform
+- All necessary configuration files
+- Automated startup and shutdown scripts
+- Cross-platform support (Windows, Mac, Linux)
+- Hardware integration capabilities
+- Documentation and examples
+
+2. Requirements
+
+Minimum Requirements:
+- 4GB RAM
+- 2GB free disk space
+- Docker Desktop (Windows/Mac) or Docker Engine (Linux)
+- Java 17 or later
+- USB 3.0 flash drive (8GB or larger recommended)
+
+Supported Operating Systems:
+- Windows 10/11
+- macOS 10.15 or later
+- Ubuntu 18.04 or later
+- CentOS 7 or later
+- Debian 9 or later
+
+3. Creating Portable Installation
+
+3.1 Prerequisites
+
+Before creating the portable installation, ensure you have:
+- A USB flash drive with at least 8GB free space
+- Docker installed on your development machine
+- Git installed
+- SmartWatts source code
+
+3.2 Creating the Installation
+
+1. Insert your USB flash drive
+2. Note the mount point (e.g., /media/usb on Linux, /Volumes/USB on Mac, D:\ on Windows)
+3. Run the portable installation creator:
+
+   ./scripts/create-portable-install.sh /path/to/flash/drive
+
+   Example:
+   ./scripts/create-portable-install.sh /media/usb
+
+4. Wait for the installation to complete
+5. Safely eject the flash drive
+
+3.3 Installation Contents
+
+The portable installation includes:
+- SmartWatts application files
+- Configuration templates
+- Startup and shutdown scripts
+- Documentation
+- Data directories
+- Log directories
+
+4. Using Portable Installation
+
+4.1 First Time Setup
+
+1. Insert the SmartWatts flash drive into any computer
+2. Navigate to the flash drive directory
+3. Run the installer script:
+
+   Linux/Mac:
+   ./install.sh
+
+   Windows:
+   install.bat
+
+4. Follow the on-screen instructions
+5. Restart your computer if prompted
+
+4.2 Starting SmartWatts
+
+Linux/Mac:
+1. Open terminal
+2. Navigate to the flash drive directory
+3. Run: ./start-smartwatts.sh
+
+Windows:
+1. Open Command Prompt or PowerShell
+2. Navigate to the flash drive directory
+3. Run: start-smartwatts.bat
+
+4.3 Stopping SmartWatts
+
+Linux/Mac:
+./stop-smartwatts.sh
+
+Windows:
+stop-smartwatts.bat
+
+4.4 Viewing Logs
+
+Linux/Mac:
+./view-logs.sh
+
+Windows:
+view-logs.bat
+
+5. Configuration
+
+5.1 Hardware Configuration
+
+Edit the configuration file:
+config/edge-gateway.yml
+
+Example for SMA Sunny Boy Inverter:
+rs485:
+  devices:
+    sma-sunny-boy:
+      port: "/dev/ttyUSB0"
+      baud-rate: 9600
+      unit-id: 1
+      start-address: 40000
+      register-count: 20
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "SMA"
+      model: "Sunny Boy 3.0"
+      enabled: true
+
+5.2 MQTT Configuration
+
+Edit the MQTT configuration:
+config/mqtt/mosquitto.conf
+
+Default settings:
+- Port: 1883 (MQTT)
+- Port: 9001 (WebSocket)
+- Anonymous access enabled
+- Persistence enabled
+
+5.3 Data Storage
+
+Data is stored in the following directories:
+- data/postgres/ - Database files
+- data/redis/ - Cache files
+- data/mqtt/ - MQTT persistence
+- logs/ - Application logs
+
+6. Troubleshooting
+
+6.1 Common Issues
+
+Docker Not Running:
+Error: Docker is not running
+Solution: Start Docker Desktop (Windows/Mac) or Docker service (Linux)
+
+Java Not Installed:
+Error: Java is not installed
+Solution: Install Java 17 or later from https://adoptium.net/
+
+Permission Denied:
+Error: Permission denied
+Solution: Run as administrator (Windows) or with sudo (Linux)
+
+Port Already in Use:
+Error: Port already in use
+Solution: Stop conflicting services or change port configuration
+
+6.2 Service Health Checks
+
+Check API Gateway:
+curl http://localhost:8080/actuator/health
+
+Check Edge Gateway:
+curl http://localhost:8088/actuator/health
+
+Check Frontend:
+curl http://localhost:3000
+
+6.3 Log Analysis
+
+View all logs:
+docker-compose -f docker-compose.hardware.yml logs -f
+
+View specific service logs:
+docker logs smartwatts-api-gateway -f
+docker logs smartwatts-edge-gateway -f
+docker logs smartwatts-mqtt -f
+
+6.4 Hardware Issues
+
+Serial Port Not Found:
+- Check device connections
+- Verify port permissions
+- Test with minicom or similar tool
+
+Device Not Responding:
+- Verify device configuration
+- Check baud rate settings
+- Test with Modbus tools
+
+Network Issues:
+- Check network connectivity
+- Verify firewall settings
+- Test with ping and telnet
+
+7. Support
+
+Documentation:
+- Hardware Integration Guide
+- Quick Start Guide
+- API Documentation
+
+Community Support:
+- GitHub Issues
+- Discord Community
+- Email Support
+
+Professional Support:
+- Installation Services
+- Custom Configuration
+- Training and Consulting
+
+Contact Information:
+- Email: support@smartwatts.ng
+- GitHub: https://github.com/your-repo/smartwatts
+- Website: https://smartwatts.ng
+
+Version: 1.0.0
+Last Updated: January 2025
+
+Notes:
+- This portable installation is designed for demonstration and testing purposes
+- For production use, consider a permanent installation
+- Always backup your data before making configuration changes
+- Keep the installation updated for security and feature improvements

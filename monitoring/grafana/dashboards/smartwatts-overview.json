@@ -1,7 +1,7 @@
 {
   "dashboard": {
     "id": null,
-    "title": "SmartWatts Platform Overview",
+    "title": "SmartWatts - System Overview",
     "tags": ["smartwatts", "overview"],
     "style": "dark",
     "timezone": "browser",
@@ -12,8 +12,8 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "up",
-            "legendFormat": "{{ job }}"
+            "expr": "up{job=~\"smartwatts-.*\"}",
+            "refId": "A"
           }
         ],
         "fieldConfig": {
@@ -23,13 +23,24 @@
             },
             "thresholds": {
               "steps": [
-                {"color": "red", "value": 0},
-                {"color": "green", "value": 1}
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
               ]
             }
           }
         },
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
       },
       {
         "id": 2,
@@ -38,22 +49,32 @@
         "targets": [
           {
             "expr": "rate(http_requests_total[5m])",
-            "legendFormat": "{{ job }} - {{ method }} {{ handler }}"
+            "refId": "A"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
       },
       {
         "id": 3,
-        "title": "Response Time (95th percentile)",
+        "title": "Response Time",
         "type": "graph",
         "targets": [
           {
             "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "{{ job }}"
+            "refId": "A"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
       },
       {
         "id": 4,
@@ -62,44 +83,21 @@
         "targets": [
           {
             "expr": "rate(http_requests_total{status=~\"5..\"}[5m])",
-            "legendFormat": "{{ job }} - {{ status }}"
+            "refId": "A"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
-      },
-      {
-        "id": 5,
-        "title": "JVM Memory Usage",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "jvm_memory_used_bytes / jvm_memory_max_bytes",
-            "legendFormat": "{{ job }} - {{ area }}"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
-      },
-      {
-        "id": 6,
-        "title": "Database Connections",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "hikaricp_connections_active",
-            "legendFormat": "{{ job }} - Active"
-          },
-          {
-            "expr": "hikaricp_connections_max",
-            "legendFormat": "{{ job }} - Max"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
       }
     ],
     "time": {
       "from": "now-1h",
       "to": "now"
     },
-    "refresh": "30s"
+    "refresh": "5s"
   }
 }

@@ -1,23 +1,84 @@
+# SmartWatts - Comprehensive .gitignore
+
+# ===========================================
+# Operating System Files
+# ===========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# ===========================================
+# IDE and Editor Files
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.iml
+*.ipr
+*.iws
+
+# ===========================================
+# Java and Spring Boot
+# ===========================================
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ===========================================
+# Node.js and Frontend
+# ===========================================
 # Dependencies
 node_modules/
-*/node_modules/
-
-# Production builds
-build/
-dist/
-out/
-.next/
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Logs
-logs
-*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -35,6 +96,18 @@ coverage/
 
 # nyc test coverage
 .nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
 
 # Dependency directories
 jspm_packages/
@@ -63,12 +136,20 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# parcel-bundler cache (https://parceljs.org/)
+# dotenv environment variables file
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# parcel-bundler cache
 .cache
 .parcel-cache
 
 # Next.js build output
-.next
+.next/
+out/
 
 # Nuxt.js build / generate output
 .nuxt
@@ -82,122 +163,89 @@ public
 .out
 .storybook-out
 
-# Temporary folders
-tmp/
-temp/
-
-# Editor directories and files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Java
-*.class
-*.jar
-*.war
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# Maven
-target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-dependency-reduced-pom.xml
-buildNumber.properties
-.mvn/timing.properties
-.mvn/wrapper/maven-wrapper.jar
-
-# Gradle
-.gradle
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-# IntelliJ IDEA
-.idea/
-*.iws
-*.iml
-*.ipr
-
-# Eclipse
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-# NetBeans
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-# VS Code
-.vscode/
-
-# Docker
-.dockerignore
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Application specific
-application-local.yml
-application-dev.yml
-application-prod.yml
-
-# Logs
-logs/
-*.log
-
-# Temporary files
-*.tmp
-*.temp
-
-# Backup files
-*.bak
-*.backup
-
-# Documentation build
-docs/_build/
-docs/build/
-
-# Python
+# ===========================================
+# Python and Edge Gateway
+# ===========================================
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
 
 # pyenv
 .python-version
@@ -208,7 +256,7 @@ Pipfile.lock
 # PEP 582
 __pypackages__/
 
-# Celery
+# Celery stuff
 celerybeat-schedule
 celerybeat.pid
 
@@ -242,7 +290,209 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# SmartWatts specific
-portable-install/
-*.docx
-*.pdf
+# ===========================================
+# Database Files
+# ===========================================
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL
+*.dump
+*.sql
+
+# MySQL
+*.sql
+
+# ===========================================
+# Docker and Containers
+# ===========================================
+# Docker volumes
+docker-volumes/
+postgres-data/
+redis-data/
+
+# Docker compose override files
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ===========================================
+# SSL and Certificates
+# ===========================================
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# Let's Encrypt
+letsencrypt/
+
+# ===========================================
+# Logs and Monitoring
+# ===========================================
+# Log files
+logs/
+*.log
+*.log.*
+
+# Prometheus data
+prometheus-data/
+
+# Grafana data
+grafana-data/
+
+# ===========================================
+# Backup and Temporary Files
+# ===========================================
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+
+# Temporary files
+temp/
+tmp/
+.tmp/
+
+# ===========================================
+# Documentation Build
+# ===========================================
+# Generated documentation
+docs/build/
+docs/_build/
+site/
+
+# ===========================================
+# Testing and QA
+# ===========================================
+# Test results
+test-results/
+coverage/
+.nyc_output/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# ===========================================
+# Environment and Configuration
+# ===========================================
+# Environment files
+.env*
+!.env.example
+
+# Configuration files with secrets
+config/secrets.yml
+config/production.yml
+config/local.yml
+
+# ===========================================
+# IDE and Editor Specific
+# ===========================================
+# VSCode
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# IntelliJ IDEA
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/shelf
+
+# Eclipse
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+
+# ===========================================
+# OS Specific
+# ===========================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# ===========================================
+# Project Specific
+# ===========================================
+# SmartWatts specific files
+data/
+backups/
+uploads/
+downloads/
+
+# Edge Gateway specific
+edge-gateway/data/
+edge-gateway/logs/
+edge-gateway/models/
+edge-gateway/backups/
+
+# QA Automation
+qa-automation/venv/
+qa-automation/test-results/
+qa-automation/coverage/
+
+# Monitoring
+monitoring/data/
+monitoring/logs/
+
+# ===========================================
+# Keep Important Files
+# ===========================================
+# Keep example files
+!.env.example
+!docker-compose.example.yml
+!config.example.yml
+
+# Keep documentation
+!README.md
+!LICENSE
+!CONTRIBUTING.md
+
+# Keep CI/CD files
+!.github/
+!azure-pipelines.yml
+!sonar-project.properties

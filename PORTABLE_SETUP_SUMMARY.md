@@ -165,3 +165,5 @@ start-smartwatts.bat
 The SmartWatts portable installation provides a complete, professional solution for hardware integration that can be easily deployed and maintained across different environments.
 
 
+
+

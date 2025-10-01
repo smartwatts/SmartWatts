@@ -318,3 +318,5 @@ echo ""
 echo "Your Raspberry Pi is ready for SmartWatts! 🍓⚡"
 
 
+
+

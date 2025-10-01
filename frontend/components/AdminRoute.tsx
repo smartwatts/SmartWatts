@@ -11,8 +11,8 @@ export default function AdminRoute({ children }: AdminRouteProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
 
-  // Check if user is admin (ROLE_ADMIN or ROLE_ENTERPRISE_ADMIN has admin access)
-  const isAdmin = user?.role === 'ROLE_ADMIN' || user?.role === 'ROLE_ENTERPRISE_ADMIN'
+  // Check if user is enterprise admin (only ROLE_ENTERPRISE_ADMIN has admin access)
+  const isAdmin = user?.role === 'ROLE_ENTERPRISE_ADMIN'
   
   // Add debugging
   console.log('AdminRoute - loading:', loading, 'user:', user, 'isAdmin:', isAdmin)

@@ -1,0 +1,529 @@
+Raspberry Pi 5 Setup Guide for SmartWatts
+
+Table of Contents
+1. Overview
+2. Hardware Requirements
+3. Step 1: Install Raspberry Pi OS 64-bit Lite
+4. Step 2: Initial System Configuration
+5. Step 3: Install Docker and Dependencies
+6. Step 4: Install MQTT Broker
+7. Step 5: Install Database Backend
+8. Step 6: Install Python Environment
+9. Step 7: Install SmartWatts
+10. Step 8: Configure Hardware Access
+11. Step 9: Enable Auto-Start Services
+12. Step 10: Testing and Validation
+13. Troubleshooting
+14. Performance Optimization
+15. Security Configuration
+16. Maintenance and Updates
+
+1. Overview
+
+This guide provides a complete setup process for installing SmartWatts on a Raspberry Pi 5. The setup includes all necessary components for a production-ready edge computing device capable of running the SmartWatts platform with real hardware integration.
+
+The Raspberry Pi 5 is an excellent choice for SmartWatts deployment due to its:
+- ARM64 architecture support
+- Sufficient processing power for edge ML
+- Multiple USB ports for hardware connections
+- GPIO pins for direct device integration
+- Low power consumption
+- Compact form factor
+
+2. Hardware Requirements
+
+Minimum Requirements:
+- Raspberry Pi 5 (4GB or 8GB RAM recommended)
+- 32GB+ microSD card (Class 10 or better)
+- Power supply (5V/3A minimum)
+- Ethernet cable or WiFi connection
+- USB-to-RS485 adapter (for hardware integration)
+- Case with cooling fan (recommended)
+
+Optional but Recommended:
+- 64GB+ microSD card for better performance
+- USB 3.0 hub for multiple device connections
+- Heat sink and cooling fan
+- UPS (Uninterruptible Power Supply)
+- External storage for data backup
+
+3. Step 1: Install Raspberry Pi OS 64-bit Lite
+
+3.1 Download Raspberry Pi Imager
+Download Raspberry Pi Imager from:
+https://www.raspberrypi.org/downloads/
+
+3.2 Flash the OS
+1. Insert microSD card into your computer
+2. Open Raspberry Pi Imager
+3. Select "Raspberry Pi OS Lite (64-bit)"
+4. Choose your microSD card
+5. Click "Write" and wait for completion
+
+3.3 Enable SSH and Configure WiFi (Optional)
+Before ejecting the card:
+1. Create empty file named "ssh" in boot partition
+2. Create "wpa_supplicant.conf" file with WiFi credentials:
+
+country=US
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+
+network={
+    ssid="YourWiFiName"
+    psk="YourWiFiPassword"
+}
+
+3.4 Eject and Boot
+1. Safely eject the microSD card
+2. Insert into Raspberry Pi 5
+3. Connect power supply and boot
+
+4. Step 2: Initial System Configuration
+
+4.1 First Boot and Login
+Default credentials:
+- Username: pi
+- Password: raspberry
+
+4.2 Update System
+sudo apt update && sudo apt upgrade -y
+
+4.3 Change Default Password
+passwd
+
+4.4 Configure Hostname
+sudo hostnamectl set-hostname smartwatts-pi
+
+4.5 Enable SSH (if not already enabled)
+sudo systemctl enable ssh
+sudo systemctl start ssh
+
+4.6 Configure Static IP (Optional but Recommended)
+Edit network configuration:
+sudo nano /etc/dhcpcd.conf
+
+Add at the end:
+interface eth0
+static ip_address=192.168.1.100/24
+static routers=192.168.1.1
+static domain_name_servers=8.8.8.8 8.8.4.4
+
+5. Step 3: Install Docker and Dependencies
+
+5.1 Install Required Packages
+sudo apt install -y \
+    curl \
+    wget \
+    git \
+    vim \
+    htop \
+    tree \
+    unzip \
+    software-properties-common \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release
+
+5.2 Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker pi
+rm get-docker.sh
+
+5.3 Install Docker Compose
+sudo apt install -y docker-compose
+
+5.4 Verify Docker Installation
+docker --version
+docker-compose --version
+
+5.5 Configure Docker to Start on Boot
+sudo systemctl enable docker
+sudo systemctl start docker
+
+6. Step 4: Install MQTT Broker
+
+6.1 Install Mosquitto MQTT Broker
+sudo apt install -y mosquitto mosquitto-clients
+
+6.2 Configure Mosquitto
+sudo nano /etc/mosquitto/mosquitto.conf
+
+Add configuration:
+listener 1883
+protocol mqtt
+
+listener 9001
+protocol websockets
+
+allow_anonymous true
+persistence true
+persistence_location /var/lib/mosquitto/
+
+log_dest file /var/log/mosquitto/mosquitto.log
+log_type error
+log_type warning
+log_type notice
+log_type information
+
+6.3 Start and Enable Mosquitto
+sudo systemctl enable mosquitto
+sudo systemctl start mosquitto
+
+6.4 Test MQTT
+mosquitto_pub -h localhost -t "test/topic" -m "Hello MQTT"
+mosquitto_sub -h localhost -t "test/topic"
+
+7. Step 5: Install Database Backend
+
+7.1 Install PostgreSQL
+sudo apt install -y postgresql postgresql-contrib
+
+7.2 Configure PostgreSQL
+sudo -u postgres psql
+
+Create databases:
+CREATE DATABASE smartwatts;
+CREATE DATABASE smartwatts_users;
+CREATE DATABASE smartwatts_energy;
+CREATE DATABASE smartwatts_devices;
+CREATE DATABASE smartwatts_analytics;
+CREATE DATABASE smartwatts_billing;
+CREATE DATABASE smartwatts_facility360;
+
+Create user:
+CREATE USER smartwatts WITH PASSWORD 'smartwatts123';
+GRANT ALL PRIVILEGES ON DATABASE smartwatts TO smartwatts;
+GRANT ALL PRIVILEGES ON DATABASE smartwatts_users TO smartwatts;
+GRANT ALL PRIVILEGES ON DATABASE smartwatts_energy TO smartwatts;
+GRANT ALL PRIVILEGES ON DATABASE smartwatts_devices TO smartwatts;
+GRANT ALL PRIVILEGES ON DATABASE smartwatts_analytics TO smartwatts;
+GRANT ALL PRIVILEGES ON DATABASE smartwatts_billing TO smartwatts;
+GRANT ALL PRIVILEGES ON DATABASE smartwatts_facility360 TO smartwatts;
+
+Exit:
+\q
+
+7.3 Configure PostgreSQL for Remote Access
+sudo nano /etc/postgresql/15/main/postgresql.conf
+
+Uncomment and modify:
+listen_addresses = 'localhost'
+
+sudo nano /etc/postgresql/15/main/pg_hba.conf
+
+Add:
+local   all             smartwatts                              md5
+
+7.4 Start and Enable PostgreSQL
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+
+8. Step 6: Install Python Environment
+
+8.1 Install Python 3.11
+sudo apt install -y python3.11 python3.11-pip python3.11-venv python3.11-dev
+
+8.2 Install Additional Python Packages
+sudo apt install -y \
+    python3-numpy \
+    python3-pandas \
+    python3-matplotlib \
+    python3-scipy \
+    python3-sklearn \
+    python3-serial \
+    python3-paho-mqtt
+
+8.3 Create Virtual Environment
+python3.11 -m venv /home/pi/smartwatts-env
+source /home/pi/smartwatts-env/bin/activate
+
+8.4 Install Python Dependencies
+pip install --upgrade pip
+pip install \
+    paho-mqtt \
+    pyserial \
+    numpy \
+    pandas \
+    matplotlib \
+    scikit-learn \
+    requests \
+    flask \
+    fastapi \
+    uvicorn
+
+9. Step 7: Install SmartWatts
+
+9.1 Clone SmartWatts Repository
+cd /home/pi
+git clone https://github.com/your-repo/smartwatts.git
+cd smartwatts
+
+9.2 Set Permissions
+sudo chown -R pi:pi /home/pi/smartwatts
+chmod +x scripts/*.sh
+
+9.3 Configure for Raspberry Pi
+cp config/edge-gateway.yml config/edge-gateway-pi.yml
+
+Edit configuration:
+nano config/edge-gateway-pi.yml
+
+Update for Raspberry Pi:
+server:
+  port: 8088
+
+spring:
+  application:
+    name: edge-gateway
+  profiles:
+    active: pi
+
+# Raspberry Pi specific configuration
+rs485:
+  default-port: "/dev/ttyUSB0"
+  devices:
+    # Configure your hardware here
+    sma-inverter:
+      port: "/dev/ttyUSB0"
+      baud-rate: 9600
+      unit-id: 1
+      start-address: 40000
+      register-count: 20
+      device-type: "SOLAR_INVERTER"
+      manufacturer: "SMA"
+      model: "Sunny Boy"
+      enabled: true
+
+10. Step 8: Configure Hardware Access
+
+10.1 Enable Serial Port
+sudo raspi-config
+
+Navigate to:
+- Interfacing Options
+- Serial Port
+- Would you like a login shell to be accessible over serial? No
+- Would you like the serial port hardware to be enabled? Yes
+
+10.2 Add User to Dialout Group
+sudo usermod -aG dialout pi
+
+10.3 Set Serial Port Permissions
+sudo chmod 666 /dev/ttyUSB0
+sudo chmod 666 /dev/ttyACM0
+
+10.4 Create udev Rules for USB Devices
+sudo nano /etc/udev/rules.d/99-usb-serial.rules
+
+Add:
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="ttyUSB%n", MODE="0666"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="ttyUSB%n", MODE="0666"
+
+10.5 Reload udev Rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+11. Step 9: Enable Auto-Start Services
+
+11.1 Create Systemd Service for SmartWatts
+sudo nano /etc/systemd/system/smartwatts-edge.service
+
+Add:
+[Unit]
+Description=SmartWatts Edge Gateway
+After=network.target docker.service postgresql.service mosquitto.service
+Requires=docker.service postgresql.service mosquitto.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/smartwatts
+ExecStart=/usr/bin/docker-compose -f docker-compose.hardware.yml up
+Restart=always
+RestartSec=10
+Environment=SMARTWATTS_CONFIG_DIR=/home/pi/smartwatts/config
+
+[Install]
+WantedBy=multi-user.target
+
+11.2 Enable Services
+sudo systemctl daemon-reload
+sudo systemctl enable smartwatts-edge
+sudo systemctl enable postgresql
+sudo systemctl enable mosquitto
+
+12. Step 10: Testing and Validation
+
+12.1 Test System Services
+sudo systemctl status postgresql
+sudo systemctl status mosquitto
+sudo systemctl status docker
+
+12.2 Test Hardware Access
+ls -la /dev/ttyUSB*
+ls -la /dev/ttyACM*
+
+12.3 Test MQTT
+mosquitto_pub -h localhost -t "test/pi" -m "Raspberry Pi MQTT Test"
+mosquitto_sub -h localhost -t "test/pi"
+
+12.4 Test Database Connection
+psql -h localhost -U smartwatts -d smartwatts -c "SELECT version();"
+
+12.5 Start SmartWatts
+cd /home/pi/smartwatts
+docker-compose -f docker-compose.hardware.yml up -d
+
+12.6 Verify SmartWatts Services
+curl http://localhost:8080/actuator/health
+curl http://localhost:8088/actuator/health
+curl http://localhost:3000
+
+13. Troubleshooting
+
+13.1 Common Issues
+
+Docker Permission Denied:
+sudo usermod -aG docker pi
+newgrp docker
+
+Serial Port Not Found:
+sudo chmod 666 /dev/ttyUSB0
+sudo usermod -aG dialout pi
+
+Database Connection Failed:
+sudo systemctl restart postgresql
+sudo -u postgres psql -c "ALTER USER smartwatts PASSWORD 'smartwatts123';"
+
+MQTT Not Working:
+sudo systemctl restart mosquitto
+sudo systemctl status mosquitto
+
+13.2 Log Analysis
+View SmartWatts logs:
+docker-compose -f docker-compose.hardware.yml logs -f
+
+View system logs:
+sudo journalctl -u smartwatts-edge -f
+sudo journalctl -u postgresql -f
+sudo journalctl -u mosquitto -f
+
+13.3 Performance Monitoring
+htop
+df -h
+free -h
+docker stats
+
+14. Performance Optimization
+
+14.1 Increase Swap Space
+sudo dphys-swapfile swapoff
+sudo nano /etc/dphys-swapfile
+
+Set:
+CONF_SWAPSIZE=2048
+
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
+
+14.2 Optimize Docker
+sudo nano /etc/docker/daemon.json
+
+Add:
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2"
+}
+
+sudo systemctl restart docker
+
+14.3 Optimize PostgreSQL
+sudo nano /etc/postgresql/15/main/postgresql.conf
+
+Modify:
+shared_buffers = 256MB
+effective_cache_size = 1GB
+maintenance_work_mem = 64MB
+checkpoint_completion_target = 0.9
+wal_buffers = 16MB
+default_statistics_target = 100
+
+sudo systemctl restart postgresql
+
+15. Security Configuration
+
+15.1 Configure Firewall
+sudo ufw enable
+sudo ufw allow ssh
+sudo ufw allow 1883  # MQTT
+sudo ufw allow 8080  # API Gateway
+sudo ufw allow 8088  # Edge Gateway
+sudo ufw allow 3000  # Frontend
+
+15.2 Secure SSH
+sudo nano /etc/ssh/sshd_config
+
+Modify:
+PermitRootLogin no
+PasswordAuthentication yes
+PubkeyAuthentication yes
+
+sudo systemctl restart ssh
+
+15.3 Create Backup User
+sudo useradd -m -s /bin/bash smartwatts-backup
+sudo usermod -aG docker smartwatts-backup
+
+16. Maintenance and Updates
+
+16.1 Create Update Script
+nano /home/pi/update-smartwatts.sh
+
+Add:
+#!/bin/bash
+cd /home/pi/smartwatts
+git pull origin main
+docker-compose -f docker-compose.hardware.yml down
+docker-compose -f docker-compose.hardware.yml pull
+docker-compose -f docker-compose.hardware.yml up -d
+
+chmod +x /home/pi/update-smartwatts.sh
+
+16.2 Create Backup Script
+nano /home/pi/backup-smartwatts.sh
+
+Add:
+#!/bin/bash
+BACKUP_DIR="/home/pi/backups/$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$BACKUP_DIR"
+
+# Backup databases
+pg_dump -h localhost -U smartwatts smartwatts > "$BACKUP_DIR/smartwatts.sql"
+pg_dump -h localhost -U smartwatts smartwatts_users > "$BACKUP_DIR/smartwatts_users.sql"
+pg_dump -h localhost -U smartwatts smartwatts_energy > "$BACKUP_DIR/smartwatts_energy.sql"
+
+# Backup configuration
+cp -r /home/pi/smartwatts/config "$BACKUP_DIR/"
+
+echo "Backup completed: $BACKUP_DIR"
+
+chmod +x /home/pi/backup-smartwatts.sh
+
+16.3 Schedule Automatic Updates
+crontab -e
+
+Add:
+0 2 * * 0 /home/pi/update-smartwatts.sh
+0 3 * * 0 /home/pi/backup-smartwatts.sh
+
+This completes the comprehensive setup for your Raspberry Pi 5. The system will be ready to run SmartWatts with full hardware integration capabilities.
+
+Version: 1.0.0
+Last Updated: January 2025

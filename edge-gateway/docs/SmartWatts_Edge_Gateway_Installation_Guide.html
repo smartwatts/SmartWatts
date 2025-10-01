@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartWatts Edge Gateway Installation Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #7f8c8d;
+            margin-top: 25px;
+        }
+        h4 {
+            color: #95a5a6;
+            margin-top: 20px;
+        }
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e74c3c;
+        }
+        pre {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        pre code {
+            background-color: transparent;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        .checkmark {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .warning {
+            background-color: #f39c12;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #3498db;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background-color: #27ae60;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        .toc {
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .toc h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 5px 0;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #3498db;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        @media print {
+            body {
+                max-width: none;
+                margin: 0;
+                padding: 15px;
+            }
+            h1, h2, h3, h4 {
+                page-break-after: avoid;
+            }
+            pre {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>SmartWatts Edge Gateway Installation Guide</h1>
+    <p><strong>Complete Step-by-Step Guide for Beginners</strong></p>
+    
+    <div class="info">
+        <strong>Version:</strong> 1.0<br>
+        <strong>Date:</strong> January 2025<br>
+        <strong>Target Hardware:</strong> R501 RK3588 Edge AI Box (and other edge devices)
+    </div>
+
+    <div class="toc">
+        <h3>Table of Contents</h3>
+        <ul>
+            <li><a href="#prerequisites">1. Prerequisites</a></li>
+            <li><a href="#hardware-requirements">2. Hardware Requirements</a></li>
+            <li><a href="#software-requirements">3. Software Requirements</a></li>
+            <li><a href="#installation-methods">4. Installation Methods</a></li>
+            <li><a href="#method-1-direct-installation">5. Method 1: Direct Installation (Recommended)</a></li>
+            <li><a href="#method-2-docker-installation">6. Method 2: Docker Installation</a></li>
+            <li><a href="#configuration">7. Configuration</a></li>
+            <li><a href="#testing-the-installation">8. Testing the Installation</a></li>
+            <li><a href="#connecting-devices">9. Connecting Devices</a></li>
+            <li><a href="#troubleshooting">10. Troubleshooting</a></li>
+            <li><a href="#maintenance">11. Maintenance</a></li>
+            <li><a href="#support">12. Support</a></li>
+        </ul>
+    </div>
+
+    <h2 id="prerequisites">Prerequisites</h2>
+    
+    <h3>What You Need to Know</h3>
+    <ul>
+        <li>Basic understanding of Linux commands</li>
+        <li>Access to your edge device (R501 RK3588 or similar)</li>
+        <li>Internet connection for downloading software</li>
+        <li>Basic understanding of energy monitoring concepts</li>
+    </ul>
+
+    <h3>What You Don't Need to Know</h3>
+    <ul>
+        <li>Advanced programming</li>
+        <li>Complex system administration</li>
+        <li>Deep networking knowledge</li>
+    </ul>
+
+    <h2 id="hardware-requirements">Hardware Requirements</h2>
+    
+    <h3>Minimum Requirements</h3>
+    <ul>
+        <li><strong>CPU:</strong> 4 cores (ARM64 or x86_64)</li>
+        <li><strong>RAM:</strong> 4GB</li>
+        <li><strong>Storage:</strong> 32GB microSD card or eMMC</li>
+        <li><strong>Network:</strong> Ethernet or WiFi</li>
+        <li><strong>Power:</strong> 5V/3A power supply</li>
+    </ul>
+
+    <h3>Recommended Requirements</h3>
+    <ul>
+        <li><strong>CPU:</strong> 8 cores (ARM64 or x86_64)</li>
+        <li><strong>RAM:</strong> 8GB</li>
+        <li><strong>Storage:</strong> 64GB+ microSD card or eMMC</li>
+        <li><strong>Network:</strong> Gigabit Ethernet</li>
+        <li><strong>Power:</strong> 5V/5A power supply</li>
+    </ul>
+
+    <h3>Supported Devices</h3>
+    <ul>
+        <li><span class="checkmark">✅</span> R501 RK3588 Edge AI Box</li>
+        <li><span class="checkmark">✅</span> Raspberry Pi 4/5</li>
+        <li><span class="checkmark">✅</span> Orange Pi 5/5 Plus</li>
+        <li><span class="checkmark">✅</span> Jetson Nano/Orin</li>
+        <li><span class="checkmark">✅</span> Intel NUC</li>
+        <li><span class="checkmark">✅</span> BeagleBone</li>
+        <li><span class="checkmark">✅</span> Any Linux-based edge device</li>
+    </ul>
+
+    <h2 id="software-requirements">Software Requirements</h2>
+    
+    <h3>Operating System</h3>
+    <ul>
+        <li><strong>Ubuntu Server 20.04 LTS</strong> or newer</li>
+        <li><strong>Raspberry Pi OS</strong> (for Raspberry Pi)</li>
+        <li><strong>Any Debian-based Linux distribution</strong></li>
+    </ul>
+
+    <h3>Required Software</h3>
+    <ul>
+        <li>Python 3.11+</li>
+        <li>Git</li>
+        <li>Docker (optional)</li>
+        <li>MQTT Broker (Mosquitto)</li>
+        <li>SQLite3</li>
+    </ul>
+
+    <h2 id="installation-methods">Installation Methods</h2>
+    
+    <p>You have two options for installation:</p>
+    <ol>
+        <li><strong>Direct Installation</strong> (Recommended for beginners)</li>
+        <li><strong>Docker Installation</strong> (For advanced users)</li>
+    </ol>
+
+    <h2 id="method-1-direct-installation">Method 1: Direct Installation (Recommended)</h2>
+    
+    <h3>Step 1: Prepare Your Edge Device</h3>
+    
+    <h4>1.1 Connect to Your Device</h4>
+    <pre><code># If using SSH (recommended)
+ssh username@your-device-ip
+
+# If using direct connection
+# Connect keyboard, mouse, and monitor to your device</code></pre>
+
+    <h4>1.2 Update Your System</h4>
+    <pre><code># Update package lists
+sudo apt update
+
+# Upgrade existing packages
+sudo apt upgrade -y
+
+# Install essential tools
+sudo apt install -y curl wget git vim nano htop</code></pre>
+
+    <h4>1.3 Check Your Hardware</h4>
+    <pre><code># Check CPU information
+lscpu
+
+# Check memory
+free -h
+
+# Check storage
+df -h
+
+# Check network
+ip addr show</code></pre>
+
+    <div class="info">
+        <strong>Expected Output:</strong><br>
+        CPU: 8 cores (for R501 RK3588)<br>
+        Memory: 8GB available<br>
+        Storage: At least 32GB free space<br>
+        Network: Ethernet or WiFi connected
+    </div>
+
+    <h3>Step 2: Download SmartWatts Edge Gateway</h3>
+    
+    <h4>2.1 Create Installation Directory</h4>
+    <pre><code># Create directory for SmartWatts
+sudo mkdir -p /opt/smartwatts
+sudo chown $USER:$USER /opt/smartwatts
+cd /opt/smartwatts</code></pre>
+
+    <h4>2.2 Download the Software</h4>
+    <pre><code># Method A: If you have the files on your computer
+# Copy the edge-gateway folder to your device using SCP:
+# scp -r edge-gateway/ username@your-device-ip:/opt/smartwatts/
+
+# Method B: If downloading from repository
+git clone https://github.com/your-repo/smartwatts-edge-gateway.git
+cd smartwatts-edge-gateway</code></pre>
+
+    <h4>2.3 Verify Files</h4>
+    <pre><code># Check that all files are present
+ls -la
+
+# You should see:
+# - main.py
+# - requirements.txt
+# - config/
+# - services/
+# - deploy/
+# - README.md</code></pre>
+
+    <h3>Step 3: Run the Installation Script</h3>
+    
+    <h4>3.1 Make Script Executable</h4>
+    <pre><code># Navigate to the edge-gateway directory
+cd edge-gateway
+
+# Make installation script executable
+sudo chmod +x deploy/install.sh</code></pre>
+
+    <h4>3.2 Run the Installation</h4>
+    <pre><code># Run the installation script
+sudo ./deploy/install.sh</code></pre>
+
+    <div class="info">
+        <strong>What the script does:</strong><br>
+        • Installs all required software packages<br>
+        • Creates a dedicated user account<br>
+        • Sets up the MQTT broker<br>
+        • Installs Python dependencies<br>
+        • Creates systemd service<br>
+        • Configures logging<br>
+        • Sets up backup system
+    </div>
+
+    <h4>3.3 Monitor Installation Progress</h4>
+    <p>The installation will show progress messages like:</p>
+    <pre><code>🚀 SmartWatts Edge Gateway Installation for R501 RK3588
+============================================================
+📦 Updating system packages...
+📦 Installing system dependencies...
+👤 Creating service user...
+📁 Creating installation directory...
+📥 Installing SmartWatts Edge Gateway...
+🐍 Creating Python virtual environment...
+📦 Installing Python dependencies...
+📡 Configuring MQTT broker...
+⚙️ Creating systemd service...
+✅ SmartWatts Edge Gateway started successfully!</code></pre>
+
+    <h3>Step 4: Verify Installation</h3>
+    
+    <h4>4.1 Check Service Status</h4>
+    <pre><code># Check if the service is running
+sudo systemctl status smartwatts-edge</code></pre>
+
+    <div class="success">
+        <strong>Expected Output:</strong><br>
+        ● smartwatts-edge.service - SmartWatts Edge Gateway<br>
+        &nbsp;&nbsp;&nbsp;Loaded: loaded (/etc/systemd/system/smartwatts-edge.service; enabled)<br>
+        &nbsp;&nbsp;&nbsp;Active: active (running) since [timestamp]<br>
+        &nbsp;&nbsp;&nbsp;Main PID: [process_id]<br>
+        &nbsp;&nbsp;&nbsp;Tasks: [number] (limit: [limit])<br>
+        &nbsp;&nbsp;&nbsp;Memory: [memory_usage]<br>
+        &nbsp;&nbsp;&nbsp;CGroup: /system.slice/smartwatts-edge.service
+    </div>
+
+    <h4>4.2 Check API Health</h4>
+    <pre><code># Test the API health endpoint
+curl http://localhost:8080/api/v1/health</code></pre>
+
+    <div class="success">
+        <strong>Expected Output:</strong><br>
+        {<br>
+        &nbsp;&nbsp;"status": "healthy",<br>
+        &nbsp;&nbsp;"timestamp": "2025-01-XX...",<br>
+        &nbsp;&nbsp;"version": "1.0.0",<br>
+        &nbsp;&nbsp;"hardware": "R501_RK3588",<br>
+        &nbsp;&nbsp;"services": {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"mqtt": true,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"modbus": true,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"storage": true,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"device_discovery": true,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"ai_inference": true,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;"data_sync": true<br>
+        &nbsp;&nbsp;}<br>
+        }
+    </div>
+
+    <h4>4.3 Check MQTT Broker</h4>
+    <pre><code># Test MQTT broker
+mosquitto_pub -h localhost -t test -m "Hello World"
+mosquitto_sub -h localhost -t test</code></pre>
+
+    <div class="success">
+        <strong>Expected Output:</strong><br>
+        Hello World
+    </div>
+
+    <h3>Step 5: Access the Web Interface</h3>
+    
+    <h4>5.1 Open Web Browser</h4>
+    <p>Open your web browser and navigate to:</p>
+    <ul>
+        <li><strong>API Health:</strong> http://your-device-ip:8080/api/v1/health</li>
+        <li><strong>API Status:</strong> http://your-device-ip:8080/api/v1/status</li>
+        <li><strong>Prometheus Metrics:</strong> http://your-device-ip:9090/metrics</li>
+    </ul>
+
+    <h4>5.2 Test API Endpoints</h4>
+    <pre><code># Get system status
+curl http://localhost:8080/api/v1/status
+
+# Get device list
+curl http://localhost:8080/api/v1/devices
+
+# Get MQTT statistics
+curl http://localhost:8080/api/v1/mqtt/stats</code></pre>
+
+    <h2 id="method-2-docker-installation">Method 2: Docker Installation</h2>
+    
+    <h3>Step 1: Install Docker</h3>
+    
+    <h4>1.1 Install Docker</h4>
+    <pre><code># Download and install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Add your user to docker group
+sudo usermod -aG docker $USER
+
+# Log out and log back in for changes to take effect</code></pre>
+
+    <h4>1.2 Install Docker Compose</h4>
+    <pre><code># Install Docker Compose
+sudo apt install docker-compose-plugin</code></pre>
+
+    <h4>1.3 Verify Docker Installation</h4>
+    <pre><code># Check Docker version
+docker --version
+
+# Check Docker Compose version
+docker compose version</code></pre>
+
+    <h3>Step 2: Deploy with Docker</h3>
+    
+    <h4>2.1 Navigate to Deploy Directory</h4>
+    <pre><code>cd /opt/smartwatts/edge-gateway/deploy</code></pre>
+
+    <h4>2.2 Start Services</h4>
+    <pre><code># Start all services
+docker compose up -d
+
+# Check service status
+docker compose ps</code></pre>
+
+    <h4>2.3 Monitor Logs</h4>
+    <pre><code># View logs
+docker compose logs -f
+
+# View specific service logs
+docker compose logs -f edge-gateway</code></pre>
+
+    <h2 id="configuration">Configuration</h2>
+    
+    <h3>Step 1: Basic Configuration</h3>
+    
+    <h4>1.1 Edit Configuration File</h4>
+    <pre><code># Open configuration file
+sudo nano /opt/smartwatts/config/edge-config.yml</code></pre>
+
+    <h4>1.2 Update Network Settings</h4>
+    <pre><code>network:
+  host: "0.0.0.0"  # Listen on all interfaces
+  port: 8080       # API port
+  cloud_api_url: "https://api.smartwatts.com"  # Your cloud API
+  cloud_api_key: "your-api-key-here"  # Your API key</code></pre>
+
+    <h4>1.3 Update MQTT Settings</h4>
+    <pre><code>mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  username: null  # Set if authentication required
+  password: null  # Set if authentication required</code></pre>
+
+    <h3>Step 2: Device Configuration</h3>
+    
+    <h4>2.1 Add Modbus Devices</h4>
+    <pre><code>modbus:
+  enabled: true
+  devices:
+    - name: "Solar Inverter"
+      type: "inverter"
+      address: 1
+      protocol: "tcp"
+      host: "192.168.1.101"  # Your inverter IP
+      port: 502
+      enabled: true
+    - name: "Energy Meter"
+      type: "meter"
+      address: 2
+      protocol: "rtu"
+      port: "/dev/ttyUSB0"  # Serial port
+      baudrate: 9600
+      enabled: true</code></pre>
+
+    <h4>2.2 Add MQTT Devices</h4>
+    <p>MQTT devices are automatically discovered. No configuration needed.</p>
+
+    <h3>Step 3: AI Model Configuration</h3>
+    
+    <h4>3.1 Download AI Models</h4>
+    <pre><code># Create models directory
+sudo mkdir -p /opt/smartwatts/models
+
+# Download models (if available)
+# Place .tflite model files in this directory</code></pre>
+
+    <h4>3.2 Configure AI Settings</h4>
+    <pre><code>ai:
+  enabled: true
+  model_path: "/opt/smartwatts/models"
+  inference_interval_seconds: 60
+  batch_size: 32
+  confidence_threshold: 0.8</code></pre>
+
+    <h3>Step 4: Restart Services</h3>
+    
+    <h4>4.1 Restart Edge Gateway</h4>
+    <pre><code># Restart the service
+sudo systemctl restart smartwatts-edge
+
+# Check status
+sudo systemctl status smartwatts-edge</code></pre>
+
+    <h2 id="testing-the-installation">Testing the Installation</h2>
+    
+    <h3>Step 1: Test API Endpoints</h3>
+    
+    <h4>1.1 Health Check</h4>
+    <pre><code>curl http://localhost:8080/api/v1/health</code></pre>
+
+    <h4>1.2 System Status</h4>
+    <pre><code>curl http://localhost:8080/api/v1/status</code></pre>
+
+    <h4>1.3 Device Discovery</h4>
+    <pre><code>curl http://localhost:8080/api/v1/devices/discovered</code></pre>
+
+    <h3>Step 2: Test MQTT Communication</h3>
+    
+    <h4>2.1 Publish Test Message</h4>
+    <pre><code># Publish a test message
+curl -X POST http://localhost:8080/api/v1/mqtt/publish \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "test/energy",
+    "message": {"power": 1000, "voltage": 240}
+  }'</code></pre>
+
+    <h4>2.2 Subscribe to Messages</h4>
+    <pre><code># Subscribe to test topic
+mosquitto_sub -h localhost -t "test/energy"</code></pre>
+
+    <h3>Step 3: Test Data Storage</h3>
+    
+    <h4>3.1 Store Energy Reading</h4>
+    <pre><code>curl -X POST http://localhost:8080/api/v1/energy/readings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_id": "test_device_01",
+    "device_type": "inverter",
+    "power": 2500.5,
+    "voltage": 240.2,
+    "current": 10.4
+  }'</code></pre>
+
+    <h4>3.2 Retrieve Energy Readings</h4>
+    <pre><code>curl "http://localhost:8080/api/v1/energy/readings?device_id=test_device_01"</code></pre>
+
+    <h2 id="connecting-devices">Connecting Devices</h2>
+    
+    <h3>Step 1: Connect Modbus Devices</h3>
+    
+    <h4>1.1 Physical Connection</h4>
+    <ul>
+        <li>Connect RS485/USB adapter to your device</li>
+        <li>Connect Modbus devices to the adapter</li>
+        <li>Note the device IP addresses and serial ports</li>
+    </ul>
+
+    <h4>1.2 Configure in Edge Gateway</h4>
+    <pre><code>modbus:
+  devices:
+    - name: "Your Inverter"
+      type: "inverter"
+      address: 1
+      protocol: "tcp"
+      host: "192.168.1.101"
+      port: 502
+      enabled: true</code></pre>
+
+    <h4>1.3 Test Connection</h4>
+    <pre><code># Test Modbus device
+curl http://localhost:8080/api/v1/modbus/read/Your_Inverter</code></pre>
+
+    <h3>Step 2: Connect MQTT Devices</h3>
+    
+    <h4>2.1 Configure Device</h4>
+    <p>Configure your MQTT device to connect to:</p>
+    <ul>
+        <li><strong>Broker:</strong> Your edge device IP</li>
+        <li><strong>Port:</strong> 1883</li>
+        <li><strong>Topics:</strong> smartwatts/energy/{device_id}/data</li>
+    </ul>
+
+    <h4>2.2 Verify Connection</h4>
+    <pre><code># Check discovered devices
+curl http://localhost:8080/api/v1/devices/discovered</code></pre>
+
+    <h3>Step 3: Connect Smart Plugs and Sensors</h3>
+    
+    <h4>3.1 WiFi Configuration</h4>
+    <ul>
+        <li>Connect devices to your WiFi network</li>
+        <li>Ensure they can reach your edge device</li>
+    </ul>
+
+    <h4>3.2 MQTT Configuration</h4>
+    <ul>
+        <li>Configure devices to publish to MQTT broker</li>
+        <li>Use topic format: smartwatts/energy/{device_id}/data</li>
+    </ul>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+    
+    <h3>Common Issues and Solutions</h3>
+    
+    <h4>Issue 1: Service Won't Start</h4>
+    <pre><code># Check service status
+sudo systemctl status smartwatts-edge
+
+# Check logs
+sudo journalctl -u smartwatts-edge -f
+
+# Common solutions:
+sudo systemctl restart smartwatts-edge
+sudo systemctl daemon-reload</code></pre>
+
+    <h4>Issue 2: API Not Responding</h4>
+    <pre><code># Check if port is open
+sudo netstat -tlnp | grep 8080
+
+# Check firewall
+sudo ufw status
+
+# Allow port 8080
+sudo ufw allow 8080</code></pre>
+
+    <h4>Issue 3: MQTT Broker Issues</h4>
+    <pre><code># Check MQTT broker status
+sudo systemctl status mosquitto
+
+# Check MQTT logs
+sudo journalctl -u mosquitto -f
+
+# Restart MQTT broker
+sudo systemctl restart mosquitto</code></pre>
+
+    <h4>Issue 4: Database Issues</h4>
+    <pre><code># Check database file
+ls -la /opt/smartwatts/data/
+
+# Check database integrity
+sqlite3 /opt/smartwatts/data/edge.db ".schema"
+
+# Repair database if needed
+sqlite3 /opt/smartwatts/data/edge.db ".recover" | sqlite3 /opt/smartwatts/data/edge_recovered.db</code></pre>
+
+    <h4>Issue 5: Permission Issues</h4>
+    <pre><code># Fix ownership
+sudo chown -R smartwatts:smartwatts /opt/smartwatts
+
+# Fix permissions
+sudo chmod -R 755 /opt/smartwatts</code></pre>
+
+    <h3>Getting Help</h3>
+    
+    <h4>Check Logs</h4>
+    <pre><code># Edge Gateway logs
+sudo journalctl -u smartwatts-edge -f
+
+# MQTT broker logs
+sudo journalctl -u mosquitto -f
+
+# System logs
+sudo journalctl -f</code></pre>
+
+    <h4>Monitor System Resources</h4>
+    <pre><code># CPU and memory usage
+htop
+
+# Disk usage
+df -h
+
+# Network connections
+netstat -tlnp</code></pre>
+
+    <h2 id="maintenance">Maintenance</h2>
+    
+    <h3>Daily Tasks</h3>
+    
+    <h4>Check Service Status</h4>
+    <pre><code># Quick status check
+sudo systemctl status smartwatts-edge
+
+# Detailed monitoring
+/opt/smartwatts/monitor.sh</code></pre>
+
+    <h4>Check Logs</h4>
+    <pre><code># Recent errors
+sudo journalctl -u smartwatts-edge --since "1 hour ago" | grep ERROR
+
+# Recent warnings
+sudo journalctl -u smartwatts-edge --since "1 hour ago" | grep WARNING</code></pre>
+
+    <h3>Weekly Tasks</h3>
+    
+    <h4>Backup Data</h4>
+    <pre><code># Manual backup
+/opt/smartwatts/backup.sh
+
+# Check backup status
+ls -la /opt/smartwatts/backups/</code></pre>
+
+    <h4>Update System</h4>
+    <pre><code># Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Restart services
+sudo systemctl restart smartwatts-edge</code></pre>
+
+    <h3>Monthly Tasks</h3>
+    
+    <h4>Clean Old Data</h4>
+    <pre><code># Clean data older than 30 days
+curl -X POST http://localhost:8080/api/v1/maintenance/cleanup?days=30</code></pre>
+
+    <h4>Check Disk Space</h4>
+    <pre><code># Check disk usage
+df -h
+
+# Clean up if needed
+sudo apt autoremove -y
+sudo apt autoclean</code></pre>
+
+    <h3>Update SmartWatts Edge Gateway</h3>
+    
+    <h4>Update Code</h4>
+    <pre><code># Navigate to installation directory
+cd /opt/smartwatts
+
+# Stop service
+sudo systemctl stop smartwatts-edge
+
+# Backup current installation
+./backup.sh
+
+# Update code (if using git)
+git pull origin main
+
+# Update dependencies
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Start service
+sudo systemctl start smartwatts-edge</code></pre>
+
+    <h2 id="support">Support</h2>
+    
+    <h3>Documentation</h3>
+    <ul>
+        <li><strong>README:</strong> /opt/smartwatts/README.md</li>
+        <li><strong>API Documentation:</strong> http://your-device-ip:8080/docs</li>
+        <li><strong>Configuration:</strong> /opt/smartwatts/config/edge-config.yml</li>
+    </ul>
+
+    <h3>Monitoring Tools</h3>
+    <ul>
+        <li><strong>System Monitor:</strong> /opt/smartwatts/monitor.sh</li>
+        <li><strong>Prometheus Metrics:</strong> http://your-device-ip:9090/metrics</li>
+        <li><strong>Grafana Dashboard:</strong> http://your-device-ip:3000</li>
+    </ul>
+
+    <h3>Getting Help</h3>
+    <ol>
+        <li>Check the troubleshooting section above</li>
+        <li>Review the logs for error messages</li>
+        <li>Check the system resources</li>
+        <li>Contact support with specific error messages</li>
+    </ol>
+
+    <h3>Useful Commands</h3>
+    <pre><code># Service management
+sudo systemctl start smartwatts-edge
+sudo systemctl stop smartwatts-edge
+sudo systemctl restart smartwatts-edge
+sudo systemctl status smartwatts-edge
+
+# Log viewing
+sudo journalctl -u smartwatts-edge -f
+sudo journalctl -u mosquitto -f
+
+# Monitoring
+/opt/smartwatts/monitor.sh
+htop
+df -h
+free -h
+
+# API testing
+curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/api/v1/status</code></pre>
+
+    <h2>Conclusion</h2>
+    
+    <div class="success">
+        <strong>Congratulations!</strong> You have successfully installed and configured the SmartWatts Edge Gateway. Your edge device is now ready to:
+        <ul>
+            <li><span class="checkmark">✅</span> Monitor energy consumption</li>
+            <li><span class="checkmark">✅</span> Connect to smart devices</li>
+            <li><span class="checkmark">✅</span> Run AI inference</li>
+            <li><span class="checkmark">✅</span> Sync data with the cloud</li>
+            <li><span class="checkmark">✅</span> Provide real-time insights</li>
+        </ul>
+    </div>
+
+    <p>The system is designed to be robust and self-maintaining, but regular monitoring and maintenance will ensure optimal performance.</p>
+
+    <p>For additional support or questions, please refer to the troubleshooting section or contact the support team.</p>
+
+    <hr>
+    <p><em><strong>End of Installation Guide</strong></em></p>
+</body>
+</html>
