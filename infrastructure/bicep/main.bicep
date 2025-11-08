@@ -95,7 +95,7 @@ resource publicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = {
   name: '${vmName}-pip'
   location: location
   sku: {
-    name: 'Basic'
+    name: 'Standard'  // Changed from Basic - Standard SKU is free for first 12 months and has higher quotas
     tier: 'Regional'
   }
   properties: {

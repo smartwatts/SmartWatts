@@ -30,6 +30,15 @@ jobs:
           --location ${{ env.LOCATION }} \
           --output none
 
+    - name: Register Required Resource Providers
+      run: |
+        az provider register --namespace microsoft.operationalinsights --wait
+        az provider register --namespace microsoft.devices --wait
+        az provider register --namespace microsoft.storage --wait
+        az provider register --namespace microsoft.web --wait
+        az provider register --namespace microsoft.keyvault --wait
+        az provider register --namespace microsoft.network --wait
+
     - name: Deploy Infrastructure (Bicep)
       run: |
         az deployment group create \

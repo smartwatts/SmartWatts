@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "2301838567217322878"
+      "templateHash": "14478876008429155682"
     }
   },
   "parameters": {
@@ -133,7 +133,7 @@
       "name": "[format('{0}-pip', variables('vmName'))]",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "Basic",
+        "name": "Standard",
         "tier": "Regional"
       },
       "properties": {
