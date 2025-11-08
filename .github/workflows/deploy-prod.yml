@@ -59,23 +59,28 @@ jobs:
     - name: Setup SSH Key
       run: |
         mkdir -p ~/.ssh
-        # Write SSH private key using heredoc to preserve exact format
-        # This method works best with GitHub Actions multiline secrets
-        # Note: No quotes on EOF to allow secret expansion
-        cat > ~/.ssh/id_rsa << EOF
-        ${{ secrets.VM_SSH_PRIVATE_KEY_PROD }}
-        EOF
+        # Write SSH private key - use printf to preserve exact format without indentation
+        # Store secret in variable first to avoid heredoc indentation issues
+        SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_PROD }}"
+        # Remove any leading/trailing whitespace and write to file
+        echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         # Verify key format - check if it starts with BEGIN and ends with END
         # Check for both RSA and OPENSSH formats
         if ! grep -qE "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa || ! grep -qE "END.*PRIVATE KEY" ~/.ssh/id_rsa; then
           echo "Error: SSH key format is invalid - missing BEGIN/END markers"
           echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
-          echo "First 50 characters (masked):"
-          head -c 50 ~/.ssh/id_rsa | sed 's/./*/g'
+          echo "Number of lines: $(wc -l < ~/.ssh/id_rsa)"
+          echo "First line (first 50 chars):"
+          head -n 1 ~/.ssh/id_rsa | head -c 50
           echo ""
-          echo "Last 50 characters (masked):"
-          tail -c 50 ~/.ssh/id_rsa | sed 's/./*/g'
+          echo "Last line (last 50 chars):"
+          tail -n 1 ~/.ssh/id_rsa | tail -c 50
+          echo ""
+          echo "Checking for BEGIN marker:"
+          grep -i "BEGIN" ~/.ssh/id_rsa | head -n 1 || echo "No BEGIN marker found"
+          echo "Checking for END marker:"
+          grep -i "END" ~/.ssh/id_rsa | tail -n 1 || echo "No END marker found"
           exit 1
         fi
         # Verify key can be read by ssh-keygen
