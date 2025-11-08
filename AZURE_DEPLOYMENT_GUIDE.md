@@ -125,6 +125,9 @@ After completing Azure Infrastructure Setup (above), configure the following sec
 3. **`VM_SSH_PRIVATE_KEY_STAGING`**
    - Copy the entire private key from `~/.ssh/smartwatts-staging`
    - Include `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` lines
+   - **Important**: When pasting into GitHub Secrets, ensure all newlines are preserved
+   - The key should be exactly as shown when you run `cat ~/.ssh/smartwatts-staging`
+   - Do not add or remove any characters, spaces, or line breaks
 
 4. **`AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING`**
    - Get from Step 4 in Azure Infrastructure Setup
@@ -140,6 +143,10 @@ After completing Azure Infrastructure Setup (above), configure the following sec
 
 3. **`VM_SSH_PRIVATE_KEY_PROD`**
    - Copy the entire private key from `~/.ssh/smartwatts-prod`
+   - Include `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` lines
+   - **Important**: When pasting into GitHub Secrets, ensure all newlines are preserved
+   - The key should be exactly as shown when you run `cat ~/.ssh/smartwatts-prod`
+   - Do not add or remove any characters, spaces, or line breaks
 
 4. **`AZURE_STATIC_WEB_APPS_API_TOKEN_PROD`**
    - Get from Step 4 in Azure Infrastructure Setup

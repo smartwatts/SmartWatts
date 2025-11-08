@@ -57,15 +57,27 @@ jobs:
         echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
 
     - name: Setup SSH Key
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}
       run: |
         mkdir -p ~/.ssh
-        # Write SSH private key preserving newlines using heredoc (no quotes to allow expansion)
-        cat > ~/.ssh/id_rsa << KEYFILE
-        ${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}
-        KEYFILE
+        # Write SSH private key preserving exact format
+        # Use echo with -e to preserve newlines from the secret
+        echo -e "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        # Verify key format
-        ssh-keygen -l -f ~/.ssh/id_rsa || echo "Warning: SSH key format check failed"
+        # Verify key format - check if it starts with BEGIN and ends with END
+        if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa || ! grep -q "END.*PRIVATE KEY" ~/.ssh/id_rsa; then
+          echo "Error: SSH key format is invalid - missing BEGIN/END markers"
+          echo "First 3 lines of key:"
+          head -n 3 ~/.ssh/id_rsa
+          exit 1
+        fi
+        # Verify key can be read by ssh-keygen
+        if ! ssh-keygen -l -f ~/.ssh/id_rsa > /dev/null 2>&1; then
+          echo "Error: SSH key cannot be read by ssh-keygen"
+          echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
+          exit 1
+        fi
         ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
         # Extract public key
         ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
