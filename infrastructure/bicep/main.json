@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "14478876008429155682"
+      "templateHash": "1521365635280830874"
     }
   },
   "parameters": {
@@ -137,7 +137,7 @@
         "tier": "Regional"
       },
       "properties": {
-        "publicIPAllocationMethod": "Dynamic",
+        "publicIPAllocationMethod": "Static",
         "publicIPAddressVersion": "IPv4"
       }
     },
@@ -250,7 +250,7 @@
         "networkRuleSets": {
           "defaultAction": "Allow",
           "ipRules": [],
-          "applyToBuiltInEventHubEndpoint": true
+          "applyToBuiltInEventHubEndpoint": false
         },
         "routing": {
           "endpoints": {

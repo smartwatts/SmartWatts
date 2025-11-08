@@ -99,7 +99,7 @@ resource publicIp 'Microsoft.Network/publicIPAddresses@2023-05-01' = {
     tier: 'Regional'
   }
   properties: {
-    publicIPAllocationMethod: 'Dynamic'
+    publicIPAllocationMethod: 'Static'  // Standard SKU requires static allocation
     publicIPAddressVersion: 'IPv4'
   }
 }
@@ -210,7 +210,7 @@ resource iotHub 'Microsoft.Devices/IotHubs@2021-07-02' = {
     networkRuleSets: {
       defaultAction: 'Allow'
       ipRules: []
-      applyToBuiltInEventHubEndpoint: true
+      applyToBuiltInEventHubEndpoint: false  // Must be false for Free tier IoT Hubs
     }
     routing: {
       endpoints: {
