@@ -59,13 +59,26 @@ jobs:
     - name: Setup SSH Key
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.VM_SSH_PRIVATE_KEY_PROD }}" > ~/.ssh/id_rsa
+        # Write SSH private key preserving newlines using heredoc (no quotes to allow expansion)
+        cat > ~/.ssh/id_rsa << KEYFILE
+        ${{ secrets.VM_SSH_PRIVATE_KEY_PROD }}
+        KEYFILE
         chmod 600 ~/.ssh/id_rsa
+        # Verify key format
+        ssh-keygen -l -f ~/.ssh/id_rsa || echo "Warning: SSH key format check failed"
         ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
+        # Extract public key
+        ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+        # Add public key to VM using Azure CLI
+        az vm user update \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name sw-prod-vm \
+          --username azureuser \
+          --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" || echo "Note: Could not add public key via Azure CLI (may already exist)"
 
     - name: Deploy Application to VM
       run: |
-        ssh -o StrictHostKeyChecking=no azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
           # Install Docker if not present
           if ! command -v docker &> /dev/null; then
             curl -fsSL https://get.docker.com -o get-docker.sh
