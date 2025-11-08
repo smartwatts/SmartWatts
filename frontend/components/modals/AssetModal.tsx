@@ -105,10 +105,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Asset Code *
           </label>
           <input
+            id="asset-code"
             type="text"
             name="assetCode"
             value={formData.assetCode}
@@ -119,10 +120,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Name *
           </label>
           <input
+            id="asset-name"
             type="text"
             name="name"
             value={formData.name}
@@ -133,10 +135,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Description
           </label>
           <textarea
+            id="asset-description"
             name="description"
             value={formData.description}
             onChange={handleChange}
@@ -146,10 +149,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Asset Type *
           </label>
           <select
+            id="asset-type"
             name="assetType"
             value={formData.assetType}
             onChange={handleChange}
@@ -165,10 +169,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Status *
           </label>
           <select
+            id="asset-status"
             name="status"
             value={formData.status}
             onChange={handleChange}
@@ -184,10 +189,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Location *
           </label>
           <input
+            id="asset-location"
             type="text"
             name="location"
             value={formData.location}
@@ -198,10 +204,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-building" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Building
           </label>
           <input
+            id="asset-building"
             type="text"
             name="building"
             value={formData.building}
@@ -211,10 +218,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-floor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Floor
           </label>
           <input
+            id="asset-floor"
             type="text"
             name="floor"
             value={formData.floor}
@@ -224,10 +232,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-room" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Room
           </label>
           <input
+            id="asset-room"
             type="text"
             name="room"
             value={formData.room}
@@ -237,10 +246,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-manufacturer" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Manufacturer
           </label>
           <input
+            id="asset-manufacturer"
             type="text"
             name="manufacturer"
             value={formData.manufacturer}
@@ -250,10 +260,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Model
           </label>
           <input
+            id="asset-model"
             type="text"
             name="model"
             value={formData.model}
@@ -263,10 +274,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-serial-number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Serial Number
           </label>
           <input
+            id="asset-serial-number"
             type="text"
             name="serialNumber"
             value={formData.serialNumber}
@@ -276,10 +288,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-installation-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Installation Date
           </label>
           <input
+            id="asset-installation-date"
             type="date"
             name="installationDate"
             value={formData.installationDate}
@@ -289,10 +302,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="purchase-cost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Purchase Cost
           </label>
           <input
+            id="purchase-cost"
             type="number"
             name="purchaseCost"
             value={formData.purchaseCost}
@@ -304,10 +318,11 @@ const AssetModal: React.FC<AssetModalProps> = ({ asset, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="asset-current-value" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Current Value
           </label>
           <input
+            id="asset-current-value"
             type="number"
             name="currentValue"
             value={formData.currentValue}

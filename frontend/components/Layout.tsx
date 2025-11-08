@@ -5,6 +5,8 @@ import { useAuth } from '../hooks/useAuth'
 import { useFeatureFlags } from '../hooks/useFeatureFlags'
 import ThemeSelector from './ThemeSelector'
 import { DashboardThemeProvider } from '../contexts/DashboardThemeContext'
+import OfflineIndicator from './OfflineIndicator'
+import InstallPrompt from './InstallPrompt'
 import {
   HomeIcon,
   BoltIcon,
@@ -35,17 +37,8 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, loading, logout } = useAuth()
-  // Temporarily disable useFeatureFlags to test route loading
-  // const { isFeatureEnabled } = useFeatureFlags()
+  const { isFeatureEnabled } = useFeatureFlags()
   const router = useRouter()
-  
-  // Debug logging - only log when user changes to reduce noise
-  React.useEffect(() => {
-    console.log('Layout render - user:', user, 'loading:', loading)
-  }, [user, loading])
-  
-  // Mock isFeatureEnabled function for testing
-  const isFeatureEnabled = (feature: string) => true
 
 
   // Dynamic navigation based on feature flags - memoized to prevent re-renders
@@ -127,24 +120,7 @@ export default function Layout({ children }: LayoutProps) {
     )
   }
 
-  // Additional token check - TEMPORARILY DISABLED
-  // const token = localStorage.getItem('token')
-  // if (!token || token.length < 10) {
-  //   console.log('Layout: No valid token, blocking render')
-  //   localStorage.removeItem('token')
-  //   router.replace('/login')
-  //   return null
-  // }
-
-  // Add debugging to see when routes change
-  // console.log('Layout rendering for path:', router.pathname)
-
-  // For testing purposes, create a mock user if none exists
-  const currentUser = user || {
-    firstName: 'Test',
-    lastName: 'User',
-    email: 'test@example.com'
-  }
+  const currentUser = user
 
   if (!currentUser) {
     return (
@@ -456,6 +432,9 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
+        {/* PWA Components */}
+        <OfflineIndicator />
+        <InstallPrompt />
       </div>
     </DashboardThemeProvider>
   )

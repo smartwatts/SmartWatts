@@ -93,10 +93,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fleet-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Name *
           </label>
           <input
+            id="fleet-name"
             type="text"
             name="name"
             value={formData.name}
@@ -107,10 +108,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fleet-type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Type *
           </label>
           <select
+            id="fleet-type"
             name="type"
             value={formData.type}
             onChange={handleChange}
@@ -126,10 +128,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fleet-make" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Make *
           </label>
           <input
+            id="fleet-make"
             type="text"
             name="make"
             value={formData.make}
@@ -140,10 +143,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fleet-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Model *
           </label>
           <input
+            id="fleet-model"
             type="text"
             name="model"
             value={formData.model}
@@ -154,10 +158,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fleet-model-year" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Model Year *
           </label>
           <input
+            id="fleet-model-year"
             type="number"
             name="modelYear"
             value={formData.modelYear}
@@ -170,10 +175,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fleet-license-plate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             License Plate *
           </label>
           <input
+            id="fleet-license-plate"
             type="text"
             name="licensePlate"
             value={formData.licensePlate}
@@ -184,10 +190,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fleet-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Status *
           </label>
           <select
+            id="fleet-status"
             name="status"
             value={formData.status}
             onChange={handleChange}
@@ -203,10 +210,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="current-fuel-level" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Current Fuel Level (L) *
           </label>
           <input
+            id="current-fuel-level"
             type="number"
             name="currentFuelLevel"
             value={formData.currentFuelLevel}
@@ -218,10 +226,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="fuel-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Fuel Capacity (L) *
           </label>
           <input
+            id="fuel-capacity"
             type="number"
             name="fuelCapacity"
             value={formData.fuelCapacity}
@@ -233,10 +242,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="next-maintenance-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Next Maintenance Date
           </label>
           <input
+            id="next-maintenance-date"
             type="date"
             name="nextMaintenanceDate"
             value={formData.nextMaintenanceDate}
@@ -246,10 +256,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="insurance-expiry-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Insurance Expiry Date
           </label>
           <input
+            id="insurance-expiry-date"
             type="date"
             name="insuranceExpiryDate"
             value={formData.insuranceExpiryDate}
@@ -259,10 +270,11 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="registration-expiry-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Registration Expiry Date
           </label>
           <input
+            id="registration-expiry-date"
             type="date"
             name="registrationExpiryDate"
             value={formData.registrationExpiryDate}
@@ -272,8 +284,9 @@ const FleetModal: React.FC<FleetModalProps> = ({ fleet, onSave, onCancel }) => {
         </div>
 
         <div className="md:col-span-2">
-          <label className="flex items-center">
+          <label htmlFor="fleet-active" className="flex items-center">
             <input
+              id="fleet-active"
               type="checkbox"
               name="isActive"
               checked={formData.isActive}

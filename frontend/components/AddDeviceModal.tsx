@@ -177,6 +177,7 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white transition-colors"
+              aria-label="Close"
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
@@ -193,10 +194,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="device-name" className="block text-sm font-medium text-gray-300 mb-2">
                   Device Name *
                 </label>
                 <input
+                  id="device-name"
                   type="text"
                   name="name"
                   value={formData.name}
@@ -208,10 +210,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="device-id" className="block text-sm font-medium text-gray-300 mb-2">
                   Device ID
                 </label>
                 <input
+                  id="device-id"
                   type="text"
                   name="deviceId"
                   value={formData.deviceId}
@@ -223,10 +226,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="serial-number" className="block text-sm font-medium text-gray-300 mb-2">
                   Serial Number
                 </label>
                 <input
+                  id="serial-number"
                   type="text"
                   name="serialNumber"
                   value={formData.serialNumber}
@@ -237,10 +241,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="manufacturer" className="block text-sm font-medium text-gray-300 mb-2">
                   Manufacturer
                 </label>
                 <input
+                  id="manufacturer"
                   type="text"
                   name="manufacturer"
                   value={formData.manufacturer}
@@ -252,10 +257,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="model" className="block text-sm font-medium text-gray-300 mb-2">
                   Model
                 </label>
                 <input
+                  id="model"
                   type="text"
                   name="model"
                   value={formData.model}
@@ -266,10 +272,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="device-type" className="block text-sm font-medium text-gray-300 mb-2">
                   Device Type *
                 </label>
                 <select
+                  id="device-type"
                   name="deviceType"
                   value={formData.deviceType}
                   onChange={handleInputChange}
@@ -285,10 +292,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="location" className="block text-sm font-medium text-gray-300 mb-2">
                   Location
                 </label>
                 <input
+                  id="location"
                   type="text"
                   name="location"
                   value={formData.location}
@@ -299,10 +307,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="notes" className="block text-sm font-medium text-gray-300 mb-2">
                   Notes
                 </label>
                 <textarea
+                  id="notes"
                   name="notes"
                   value={formData.notes}
                   onChange={handleInputChange}
@@ -320,10 +329,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
               </h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="protocol" className="block text-sm font-medium text-gray-300 mb-2">
                   Protocol *
                 </label>
                 <select
+                  id="protocol"
                   name="protocol"
                   value={formData.protocol}
                   onChange={handleInputChange}
@@ -417,10 +427,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
             {verificationRequired && (
               <>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label htmlFor="sample-payload" className="block text-sm font-medium text-gray-300 mb-2">
                     Sample Payload <span className="text-red-500">*</span>
                   </label>
                   <textarea
+                    id="sample-payload"
                     name="samplePayload"
                     value={formData.samplePayload}
                     onChange={handleInputChange}
@@ -435,10 +446,11 @@ export default function AddDeviceModal({ isOpen, onClose, onDeviceAdded }: AddDe
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label htmlFor="verification-notes" className="block text-sm font-medium text-gray-300 mb-2">
                     Verification Notes
                   </label>
                   <textarea
+                    id="verification-notes"
                     name="verificationNotes"
                     value={formData.verificationNotes}
                     onChange={handleInputChange}

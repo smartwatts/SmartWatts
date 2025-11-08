@@ -14,6 +14,13 @@ import httpx
 from core.config import EdgeConfig, DataSyncConfig
 from services.storage_service import StorageService
 
+# Azure IoT Hub imports (optional - only if configured)
+try:
+    from azure.iot.device import IoTHubDeviceClient, Message
+    AZURE_IOT_HUB_AVAILABLE = True
+except ImportError:
+    AZURE_IOT_HUB_AVAILABLE = False
+
 class SyncStatus(Enum):
     """Data synchronization status."""
     PENDING = "pending"
@@ -51,6 +58,9 @@ class DataSyncService:
         # Cloud API client
         self.cloud_client: Optional[httpx.AsyncClient] = None
         
+        # Azure IoT Hub client (optional)
+        self.iot_hub_client: Optional[Any] = None
+        
         # Statistics
         self.stats = {
             "total_synced": 0,
@@ -70,8 +80,12 @@ class DataSyncService:
                 self.logger.info("⚠️ Data synchronization is disabled")
                 return
             
-            # Initialize cloud API client
+            # Initialize cloud API client (HTTP REST)
             await self._initialize_cloud_client()
+            
+            # Initialize Azure IoT Hub client (if configured)
+            if self.sync_config.use_azure_iot_hub:
+                await self._initialize_iot_hub_client()
             
             # Start periodic sync
             if self.sync_config.sync_interval_seconds > 0:
@@ -102,6 +116,10 @@ class DataSyncService:
             # Close cloud client
             if self.cloud_client:
                 await self.cloud_client.aclose()
+            
+            # Close IoT Hub client
+            if self.iot_hub_client:
+                await self.iot_hub_client.disconnect()
             
             self.logger.info("✅ Data sync service stopped")
             
@@ -145,6 +163,30 @@ class DataSyncService:
                 self.logger.warning(f"⚠️ Cloud API health check returned {response.status_code}")
         except Exception as e:
             self.logger.warning(f"⚠️ Cloud API connection test failed: {e}")
+    
+    async def _initialize_iot_hub_client(self):
+        """Initialize Azure IoT Hub MQTT client."""
+        try:
+            if not AZURE_IOT_HUB_AVAILABLE:
+                self.logger.error("❌ Azure IoT Hub SDK not available. Install azure-iot-device package.")
+                return
+            
+            connection_string = self.config.network.azure_iot_hub_connection_string
+            if not connection_string:
+                self.logger.warning("⚠️ Azure IoT Hub connection string not configured")
+                return
+            
+            # Create IoT Hub device client
+            self.iot_hub_client = IoTHubDeviceClient.create_from_connection_string(connection_string)
+            
+            # Connect to IoT Hub
+            await self.iot_hub_client.connect()
+            
+            self.logger.info("✅ Azure IoT Hub client initialized and connected")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize IoT Hub client: {e}")
+            self.iot_hub_client = None
     
     async def _sync_loop(self):
         """Main synchronization loop."""
@@ -330,8 +372,13 @@ class DataSyncService:
             return []
     
     async def _send_to_cloud(self, table_name: str, data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Send data to cloud API."""
+        """Send data to cloud API (HTTP REST or Azure IoT Hub MQTT)."""
         try:
+            # If Azure IoT Hub is enabled, use MQTT publishing
+            if self.sync_config.use_azure_iot_hub and self.iot_hub_client:
+                return await self._send_to_iot_hub(table_name, data)
+            
+            # Otherwise, use HTTP REST API
             if not self.cloud_client:
                 return {"success": False, "error": "Cloud client not initialized"}
             
@@ -363,6 +410,40 @@ class DataSyncService:
         except httpx.ConnectError:
             return {"success": False, "error": "Connection failed"}
         except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def _send_to_iot_hub(self, table_name: str, data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Send data to Azure IoT Hub via MQTT."""
+        try:
+            if not self.iot_hub_client:
+                return {"success": False, "error": "IoT Hub client not initialized"}
+            
+            # Prepare message payload
+            message_payload = {
+                "table": table_name,
+                "data": data,
+                "timestamp": datetime.now().isoformat(),
+                "source": "edge_gateway",
+                "device_id": self.sync_config.azure_iot_hub_device_id or "edge-gateway"
+            }
+            
+            # Create IoT Hub message
+            message = Message(json.dumps(message_payload))
+            message.content_encoding = "utf-8"
+            message.content_type = "application/json"
+            
+            # Add custom properties
+            message.custom_properties["table"] = table_name
+            message.custom_properties["record_count"] = str(len(data))
+            
+            # Send message to IoT Hub
+            await self.iot_hub_client.send_message(message)
+            
+            self.logger.debug(f"✅ Sent {len(data)} records to IoT Hub for table {table_name}")
+            return {"success": True, "method": "iot_hub", "record_count": len(data)}
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error sending to IoT Hub: {e}")
             return {"success": False, "error": str(e)}
     
     async def _handle_sync_conflict(self, table_name: str, data: List[Dict[str, Any]], conflict_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -430,6 +511,8 @@ class DataSyncService:
     
     def is_connected(self) -> bool:
         """Check if data sync service is connected to cloud."""
+        if self.sync_config.use_azure_iot_hub:
+            return self.iot_hub_client is not None and self.iot_hub_client.connected
         return self.cloud_client is not None
     
     def get_stats(self) -> Dict[str, Any]:

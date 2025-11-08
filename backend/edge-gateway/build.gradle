@@ -67,6 +67,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'com.h2database:h2' // For edge local storage
     
+    // Sentry
+    implementation 'io.sentry:sentry-spring-boot-starter:7.0.0'
+    implementation 'io.sentry:sentry-logback:7.0.0'
+    
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     compileOnly 'org.projectlombok:lombok'
@@ -81,4 +85,64 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy jacocoTestReport
 }
+
+// JaCoCo Code Coverage
+apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        csv.required = false
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco/html')
+    }
+    
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/dto/**',
+                '**/model/**',
+                '**/entity/**',
+                '**/config/**',
+                '**/exception/**',
+                '*Application.class'
+            ])
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 1.00 // 100% minimum coverage
+            }
+        }
+        rule {
+            element = 'CLASS'
+            excludes = [
+                '*.dto.*',
+                '*.model.*',
+                '*.entity.*',
+                '*.config.*',
+                '*.exception.*',
+                '*Application'
+            ]
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -22,7 +20,7 @@ services:
     image: redis:7-alpine
     container_name: smartwatts-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"  # Changed to 6380 to avoid conflict with existing Redis
     environment:
       REDIS_PASSWORD: ""
     volumes:
@@ -77,6 +75,11 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_users
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: smartwatts_users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       SPRING_CLOUD_NETFLIX_EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery:8761/eureka/
     command: ["java", "-Xmx1g", "-Xms512m", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
     depends_on:
@@ -95,8 +98,13 @@ services:
       - "8082:8082"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
-    command: ["java", "-Xmx1g", "-Xms512m", "-jar", "/app/app.jar"]
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_energy
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: smartwatts_energy
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    command: ["java", "-Xmx1g", "-Xms512m", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
     depends_on:
       - service-discovery
       - postgres
@@ -113,8 +121,13 @@ services:
       - "8083:8083"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
-    command: ["java", "-Xmx1g", "-Xms512m", "-jar", "/app/app.jar"]
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_devices
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: smartwatts_devices
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    command: ["java", "-Xmx1g", "-Xms512m", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
     depends_on:
       - service-discovery
       - postgres
@@ -131,9 +144,14 @@ services:
       - "8084:8084"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_analytics
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: smartwatts_analytics
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       OPENWEATHER_API_KEY: demo-key
-    command: ["java", "-Xmx1g", "-Xms512m", "-jar", "/app/app.jar"]
+    command: ["java", "-Xmx1g", "-Xms512m", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
     depends_on:
       - service-discovery
       - postgres
@@ -150,7 +168,13 @@ services:
       - "8085:8085"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_billing
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: smartwatts_billing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    command: ["java", "-Xmx1g", "-Xms512m", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
     depends_on:
       - service-discovery
       - postgres
@@ -168,6 +192,11 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/smartwatts_facility360
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: smartwatts_facility360
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     command: ["java", "-Xmx1g", "-Xms512m", "-Dspring.profiles.active=docker", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/", "-jar", "/app/app.jar"]
     depends_on:
       - service-discovery

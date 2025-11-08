@@ -172,8 +172,9 @@ const CommunityLeaderboardWidget: React.FC<CommunityLeaderboardWidgetProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex items-center justify-center h-32" role="status" aria-live="polite" aria-busy="true">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" aria-hidden="true"></div>
+            <span className="sr-only">Loading leaderboard...</span>
           </div>
         </CardContent>
       </Card>
@@ -233,7 +234,7 @@ const CommunityLeaderboardWidget: React.FC<CommunityLeaderboardWidgetProps> = ({
               <div>
                 <h4 className="font-medium text-blue-900">Your Ranking</h4>
                 <p className={`text-sm ${getRankingColor(userRanking.ranking)}`}>
-                  {userRanking.ranking.replace('_', ' ')} in {region}
+                  {userRanking.ranking.replace(/_/g, ' ')} in {region}
                 </p>
                 <p className="text-xs text-blue-700">
                   {userRanking.percentile}th percentile

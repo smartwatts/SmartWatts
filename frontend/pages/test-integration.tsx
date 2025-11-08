@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
 import { useAuth } from '../hooks/useAuth'
 import Layout from '../components/Layout'
 import { userApi, energyApi, deviceApi, analyticsApi, billingApi } from '../utils/api'
@@ -13,9 +14,22 @@ interface TestResult {
 }
 
 export default function TestIntegration() {
+  const router = useRouter()
   const { user } = useAuth()
   const [testResults, setTestResults] = useState<TestResult[]>([])
   const [isRunning, setIsRunning] = useState(false)
+  
+  // Gate this page from production - only allow in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') {
+      router.replace('/dashboard')
+    }
+  }, [router])
+  
+  // Don't render in production
+  if (process.env.NODE_ENV === 'production') {
+    return null
+  }
 
   const runTests = async () => {
     setIsRunning(true)

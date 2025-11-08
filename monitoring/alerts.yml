@@ -1,121 +1,93 @@
-# SmartWatts Alerting Rules
-
 groups:
-  - name: smartwatts_services
+  - name: smartwatts_alerts
+    interval: 30s
     rules:
-      # Service Down Alerts
+      # Service Availability Alerts
       - alert: ServiceDown
-        expr: up{job=~"smartwatts-.*"} == 0
+        expr: up{job=~".*-service"} == 0
         for: 1m
         labels:
           severity: critical
-          service: "{{ $labels.job }}"
         annotations:
-          summary: "SmartWatts service {{ $labels.job }} is down"
-          description: "Service {{ $labels.job }} has been down for more than 1 minute."
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute"
 
-      # High Error Rate
+      # High Error Rate Alerts
       - alert: HighErrorRate
-        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
-        for: 2m
-        labels:
-          severity: warning
-          service: "{{ $labels.job }}"
-        annotations:
-          summary: "High error rate detected in {{ $labels.job }}"
-          description: "Error rate is {{ $value }} errors per second for service {{ $labels.job }}"
-
-      # High Response Time
-      - alert: HighResponseTime
-        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) > 0.1
         for: 5m
         labels:
           severity: warning
-          service: "{{ $labels.job }}"
+        annotations:
+          summary: "High error rate in {{ $labels.job }}"
+          description: "Error rate is {{ $value }} errors per second in {{ $labels.job }}"
+
+      # High Response Time Alerts
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
         annotations:
           summary: "High response time in {{ $labels.job }}"
-          description: "95th percentile response time is {{ $value }}s for service {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s in {{ $labels.job }}"
 
-  - name: smartwatts_infrastructure
-    rules:
-      # High CPU Usage
-      - alert: HighCPUUsage
-        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolExhausted
+        expr: hikari_connections_active / hikari_connections_max > 0.9
         for: 5m
         labels:
-          severity: warning
+          severity: critical
         annotations:
-          summary: "High CPU usage detected"
-          description: "CPU usage is above 80% for {{ $labels.instance }}"
+          summary: "Database connection pool nearly exhausted in {{ $labels.job }}"
+          description: "{{ $value }}% of database connections are in use in {{ $labels.job }}"
 
       # High Memory Usage
       - alert: HighMemoryUsage
-        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        expr: jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.9
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "High memory usage detected"
-          description: "Memory usage is above 85% for {{ $labels.instance }}"
+          summary: "High memory usage in {{ $labels.job }}"
+          description: "{{ $value }}% of heap memory is in use in {{ $labels.job }}"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: process_cpu_usage > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage in {{ $labels.job }}"
+          description: "CPU usage is {{ $value }}% in {{ $labels.job }}"
 
       # Disk Space Low
       - alert: DiskSpaceLow
-        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        expr: disk_usage_percent > 90
         for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
-          summary: "Disk space is running low"
-          description: "Disk usage is above 90% for {{ $labels.instance }} on {{ $labels.mountpoint }}"
-
-      # Database Connection Issues
-      - alert: DatabaseConnectionIssues
-        expr: up{job="postgresql"} == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "PostgreSQL database is unreachable"
-          description: "Cannot connect to PostgreSQL database"
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
 
       # Redis Connection Issues
       - alert: RedisConnectionIssues
-        expr: up{job="redis"} == 0
+        expr: redis_connected_clients == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Redis cache is unreachable"
-          description: "Cannot connect to Redis cache"
+          summary: "Redis connection issues"
+          description: "No clients connected to Redis"
 
-  - name: smartwatts_business
-    rules:
-      # High Energy Consumption
-      - alert: HighEnergyConsumption
-        expr: smartwatts_energy_consumption_kwh > 1000
-        for: 5m
+      # PostgreSQL Connection Issues
+      - alert: PostgreSQLConnectionIssues
+        expr: pg_up == 0
+        for: 1m
         labels:
-          severity: warning
+          severity: critical
         annotations:
-          summary: "Unusually high energy consumption detected"
-          description: "Energy consumption is {{ $value }} kWh, which is above normal threshold"
-
-      # Low Solar Generation
-      - alert: LowSolarGeneration
-        expr: smartwatts_solar_generation_kwh < 100
-        for: 10m
-        labels:
-          severity: info
-        annotations:
-          summary: "Low solar generation detected"
-          description: "Solar generation is {{ $value }} kWh, which is below expected levels"
-
-      # High Energy Costs
-      - alert: HighEnergyCosts
-        expr: smartwatts_energy_cost_ngn > 50000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High energy costs detected"
-          description: "Energy costs are {{ $value }} NGN, which is above normal threshold"
+          summary: "PostgreSQL connection issues"
+          description: "PostgreSQL is not accessible"

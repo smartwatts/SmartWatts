@@ -103,6 +103,7 @@ const DeviceActivationModal: React.FC<DeviceActivationModalProps> = ({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+            aria-label="Close"
           >
             ×
           </button>

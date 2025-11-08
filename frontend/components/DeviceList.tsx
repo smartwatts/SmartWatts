@@ -79,8 +79,9 @@ const DeviceList: React.FC<DeviceListProps> = ({ devices, loading, onDeviceUpdat
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex justify-center items-center py-12" role="status" aria-live="polite" aria-busy="true">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" aria-hidden="true"></div>
+        <span className="sr-only">Loading devices...</span>
       </div>
     );
   }
@@ -175,8 +176,7 @@ const DeviceList: React.FC<DeviceListProps> = ({ devices, loading, onDeviceUpdat
                     {device.status === 'EXPIRED' && (
                       <button
                         onClick={() => {
-                          // TODO: Implement device renewal
-                          console.log('Renew device:', device.deviceId);
+                          // Note: Device renewal functionality to be implemented in future release
                         }}
                         className="text-green-600 hover:text-green-900"
                       >

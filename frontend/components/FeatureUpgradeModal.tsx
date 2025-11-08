@@ -68,6 +68,7 @@ export default function FeatureUpgradeModal({
             <button
               onClick={onClose}
               className="rounded-md bg-gray-100 dark:bg-gray-700 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              aria-label="Close"
             >
               <XMarkIcon className="h-5 w-5" />
             </button>

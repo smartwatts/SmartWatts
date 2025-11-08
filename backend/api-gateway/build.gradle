@@ -32,10 +32,15 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
     
     // Prometheus metrics
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    
+    // Sentry
+    implementation 'io.sentry:sentry-spring-boot-starter:7.0.0'
+    implementation 'io.sentry:sentry-logback:7.0.0'
     
     // Web client for proxy
     implementation 'org.springframework:spring-webflux'
@@ -56,4 +61,64 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy jacocoTestReport
 }
+
+// JaCoCo Code Coverage
+apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        csv.required = false
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco/html')
+    }
+    
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/dto/**',
+                '**/model/**',
+                '**/entity/**',
+                '**/config/**',
+                '**/exception/**',
+                '*Application.class'
+            ])
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 1.00 // 100% minimum coverage
+            }
+        }
+        rule {
+            element = 'CLASS'
+            excludes = [
+                '*.dto.*',
+                '*.model.*',
+                '*.entity.*',
+                '*.config.*',
+                '*.exception.*',
+                '*Application'
+            ]
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification

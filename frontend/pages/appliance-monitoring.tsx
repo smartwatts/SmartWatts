@@ -108,6 +108,7 @@ export default function ApplianceMonitoring() {
     if (user && isFeatureEnabled('APPLIANCE_MONITORING')) {
       loadApplianceData()
       loadWeatherData()
+      loadReadingsData()
     }
   }, [user, router]) // Removed isFeatureEnabled from dependencies to prevent infinite loop
 
@@ -132,23 +133,72 @@ export default function ApplianceMonitoring() {
         setAppliances(data)
       } else {
         console.error('Failed to load appliance data:', response.status, response.statusText)
-        // Set mock data as fallback
-        setAppliances([
-          { id: '1', applianceName: 'Refrigerator', applianceType: 'REFRIGERATOR', manufacturer: 'LG', model: 'LFXS28566S', location: 'Kitchen', ratedPowerWatts: 150, isActive: true },
-          { id: '2', applianceName: 'Air Conditioner', applianceType: 'AIR_CONDITIONER', manufacturer: 'Samsung', model: 'AR12TXHAAWK', location: 'Living Room', ratedPowerWatts: 2000, isActive: false },
-          { id: '3', applianceName: 'Washing Machine', applianceType: 'WASHING_MACHINE', manufacturer: 'Whirlpool', model: 'WED4815EW', location: 'Laundry Room', ratedPowerWatts: 500, isActive: true }
-        ])
+        setAppliances([])
       }
     } catch (error) {
       console.error('Error loading appliance data:', error)
-      // Set mock data as fallback
-      setAppliances([
-        { id: '1', applianceName: 'Refrigerator', applianceType: 'REFRIGERATOR', manufacturer: 'LG', model: 'LFXS28566S', location: 'Kitchen', ratedPowerWatts: 150, isActive: true },
-        { id: '2', applianceName: 'Air Conditioner', applianceType: 'AIR_CONDITIONER', manufacturer: 'Samsung', model: 'AR12TXHAAWK', location: 'Living Room', ratedPowerWatts: 2000, isActive: false },
-        { id: '3', applianceName: 'Washing Machine', applianceType: 'WASHING_MACHINE', manufacturer: 'Whirlpool', model: 'WED4815EW', location: 'Laundry Room', ratedPowerWatts: 500, isActive: true }
-      ])
+      setAppliances([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadReadingsData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      
+      // First get all appliances for the user
+      const appliancesResponse = await fetch(`/api/proxy?service=appliance-monitoring&path=/appliances/user/${user?.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (appliancesResponse.ok) {
+        const appliances = await appliancesResponse.json()
+        
+        // Get readings for each appliance
+        const readingsPromises = appliances.map(async (appliance: any) => {
+          const now = new Date()
+          const startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000) // Last 24 hours
+          
+          try {
+            const readingsResponse = await fetch(
+              `/api/proxy?service=appliance-monitoring&path=/appliances/${appliance.id}/readings?startTime=${startTime.toISOString()}&endTime=${now.toISOString()}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            )
+            
+            if (readingsResponse.ok) {
+              const readings = await readingsResponse.json()
+              return readings.map((reading: any) => ({
+                ...reading,
+                applianceId: appliance.id,
+                applianceName: appliance.applianceName
+              }))
+            }
+            return []
+          } catch (error) {
+            console.error(`Error loading readings for appliance ${appliance.id}:`, error)
+            return []
+          }
+        })
+        
+        const allReadings = await Promise.all(readingsPromises)
+        const flatReadings = allReadings.flat()
+        setReadings(flatReadings)
+      } else {
+        console.error('Failed to load appliances:', appliancesResponse.status, appliancesResponse.statusText)
+        setReadings([])
+      }
+    } catch (error) {
+      console.error('Error loading readings data:', error)
+      setReadings([])
     }
   }
 
@@ -168,27 +218,11 @@ export default function ApplianceMonitoring() {
         setWeatherData(data)
       } else {
         console.error('Failed to load weather data:', response.status, response.statusText)
-        // Set mock weather data as fallback
-        setWeatherData({
-          temperatureCelsius: 28,
-          humidityPercentage: 75,
-          solarIrradianceWm2: 800,
-          weatherCondition: 'Partly Cloudy',
-          energyImpactScore: 0.8,
-          seasonalAdjustmentFactor: 1.2
-        })
+        setWeatherData(null)
       }
     } catch (error) {
       console.error('Error loading weather data:', error)
-      // Set mock weather data as fallback
-      setWeatherData({
-        temperatureCelsius: 28,
-        humidityPercentage: 75,
-        solarIrradianceWm2: 800,
-        weatherCondition: 'Partly Cloudy',
-        energyImpactScore: 0.8,
-        seasonalAdjustmentFactor: 1.2
-      })
+      setWeatherData(null)
     }
   }
 

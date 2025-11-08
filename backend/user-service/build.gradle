@@ -53,6 +53,22 @@ dependencies {
     implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'io.micrometer:micrometer-core'
     
+    // Sentry
+    implementation 'io.sentry:sentry-spring-boot-starter:7.0.0'
+    implementation 'io.sentry:sentry-logback:7.0.0'
+    
+    // Email (SendGrid)
+    implementation 'com.sendgrid:sendgrid-java:4.10.1'
+    
+    // SMS (Twilio)
+    implementation 'com.twilio.sdk:twilio:9.14.0'
+    
+    // WebSocket
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
@@ -65,7 +81,67 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy jacocoTestReport
 }
+
+// JaCoCo Code Coverage
+apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        csv.required = false
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco/html')
+    }
+    
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/dto/**',
+                '**/model/**',
+                '**/entity/**',
+                '**/config/**',
+                '**/exception/**',
+                '**/SmartWatts*Application.class'
+            ])
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 1.00 // 100% minimum coverage
+            }
+        }
+        rule {
+            element = 'CLASS'
+            excludes = [
+                '*.dto.*',
+                '*.model.*',
+                '*.entity.*',
+                '*.config.*',
+                '*.exception.*',
+                '*Application'
+            ]
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification
 
 dependencyManagement {
     imports {

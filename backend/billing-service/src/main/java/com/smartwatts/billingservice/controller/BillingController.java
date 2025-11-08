@@ -3,6 +3,7 @@ package com.smartwatts.billingservice.controller;
 import com.smartwatts.billingservice.dto.BillDto;
 import com.smartwatts.billingservice.dto.BillItemDto;
 import com.smartwatts.billingservice.dto.TariffDto;
+import com.smartwatts.billingservice.dto.TokenPurchaseRequest;
 import com.smartwatts.billingservice.model.Bill;
 import com.smartwatts.billingservice.model.Tariff;
 import com.smartwatts.billingservice.service.BillingService;
@@ -21,7 +22,10 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 
 @RestController
 @RequestMapping("/api/v1/billing")
@@ -370,5 +374,55 @@ public class BillingController {
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Billing Service is running");
+    }
+    
+    // Nigerian-specific endpoints
+    @GetMapping("/prepaid-tokens/{userId}")
+    @Operation(summary = "Get prepaid token balance", description = "Retrieves current prepaid token balance and consumption rate")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('BILLING_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getTokenBalance(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching prepaid token balance for user: {}", userId);
+        Map<String, Object> balance = billingService.getTokenBalance(userId);
+        return ResponseEntity.ok(balance);
+    }
+    
+    @PostMapping("/prepaid-tokens/purchase")
+    @Operation(summary = "Purchase prepaid token", description = "Processes prepaid token purchase")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('BILLING_MANAGER')")
+    public ResponseEntity<Map<String, Object>> purchaseToken(
+            @Valid @RequestBody TokenPurchaseRequest request) {
+        log.info("Processing token purchase for user: {}", request.getUserId());
+        Map<String, Object> result = billingService.purchaseToken(request);
+        return ResponseEntity.ok(result);
+    }
+    
+    @GetMapping("/prepaid-tokens/{userId}/history")
+    @Operation(summary = "Get token purchase history", description = "Retrieves prepaid token purchase history")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('BILLING_MANAGER')")
+    public ResponseEntity<List<Map<String, Object>>> getTokenHistory(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching token purchase history for user: {}", userId);
+        List<Map<String, Object>> history = billingService.getTokenHistory(userId);
+        return ResponseEntity.ok(history);
+    }
+    
+    @GetMapping("/myto-tariff/{customerClass}")
+    @Operation(summary = "Get MYTO tariff rates", description = "Retrieves NERC-approved MYTO tariff rates by customer class")
+    public ResponseEntity<Map<String, Object>> getMytoTariff(
+            @Parameter(description = "Customer class (R1, R2, R3, C1, C2, etc.)") @PathVariable String customerClass) {
+        log.info("Fetching MYTO tariff for customer class: {}", customerClass);
+        Map<String, Object> tariff = billingService.getMytoTariff(customerClass);
+        return ResponseEntity.ok(tariff);
+    }
+    
+    @GetMapping("/disco-billing/{userId}")
+    @Operation(summary = "Get DisCo billing info", description = "Retrieves DisCo-specific billing information")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('BILLING_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getDiscoBilling(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching DisCo billing info for user: {}", userId);
+        Map<String, Object> billing = billingService.getDiscoBilling(userId);
+        return ResponseEntity.ok(billing);
     }
 } 

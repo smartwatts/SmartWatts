@@ -32,6 +32,7 @@ public class EnergyService {
     private final EnergyAlertRepository energyAlertRepository;
     private final AlertService alertService;
     private final DataIngestionSecurityService dataIngestionSecurityService;
+    private final DiscoMonitoringService discoMonitoringService;
     
     @Transactional
     public EnergyReadingDto saveEnergyReading(EnergyReadingDto readingDto) {
@@ -317,5 +318,21 @@ public class EnergyService {
         powerQuality.put("harmonics", 0.0);
         powerQuality.put("quality", "Good");
         return powerQuality;
+    }
+    
+    public Map<String, Object> getSourceBreakdown(UUID userId) {
+        return discoMonitoringService.getSourceBreakdown(userId);
+    }
+    
+    public Map<String, Object> getDiscoStatus(UUID userId) {
+        return discoMonitoringService.getDiscoStatus(userId);
+    }
+    
+    public Map<String, Object> getGridStability() {
+        return discoMonitoringService.getGridStability();
+    }
+    
+    public Map<String, Object> getVoltageQuality(UUID userId) {
+        return discoMonitoringService.getVoltageQuality(userId);
     }
 } 

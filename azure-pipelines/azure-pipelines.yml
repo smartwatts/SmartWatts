@@ -94,9 +94,55 @@ stages:
         toolName: 'Trivy'
         allTools: false
 
+  - job: FrontendTests
+    displayName: 'Frontend Unit & Integration Tests'
+    dependsOn: CodeQuality
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: NodeTool@0
+      displayName: 'Install Node.js'
+      inputs:
+        versionSpec: '18.x'
+
+    - task: Cache@2
+      displayName: 'Cache npm dependencies'
+      inputs:
+        key: 'npm | "$(Agent.OS)" | frontend/package-lock.json'
+        restoreKeys: |
+          npm | "$(Agent.OS)"
+        path: 'frontend/node_modules'
+
+    - script: |
+        cd frontend
+        npm ci
+      displayName: 'Install frontend dependencies'
+
+    - script: |
+        cd frontend
+        npm run test -- --coverage --ci
+      displayName: 'Run frontend unit tests'
+      continueOnError: false
+
+    - script: |
+        cd frontend
+        npm run test:coverage
+      displayName: 'Generate frontend coverage report'
+      continueOnError: true
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish frontend coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: 'frontend/coverage/cobertura-coverage.xml'
+        reportDirectory: 'frontend/coverage'
+      condition: always()
+
   - job: BuildAndTest
     displayName: 'Build & Test Services'
-    dependsOn: CodeQuality
+    dependsOn: 
+    - CodeQuality
+    - FrontendTests
     pool:
       vmImage: 'ubuntu-latest'
     strategy:
@@ -299,9 +345,44 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                # Add smoke test commands here
                 Write-Host "Running smoke tests against staging environment..."
-                # Example: Invoke-WebRequest -Uri "https://staging-api.smartwatts.com/actuator/health"
+                $services = @(
+                  "http://localhost:8080/actuator/health",
+                  "http://localhost:8081/actuator/health",
+                  "http://localhost:8082/actuator/health",
+                  "http://localhost:8083/actuator/health",
+                  "http://localhost:8084/actuator/health",
+                  "http://localhost:8085/actuator/health"
+                )
+                foreach ($service in $services) {
+                  try {
+                    $response = Invoke-WebRequest -Uri $service -UseBasicParsing
+                    if ($response.StatusCode -eq 200) {
+                      Write-Host "✓ $service is healthy"
+                    } else {
+                      Write-Host "✗ $service returned status code $($response.StatusCode)"
+                      exit 1
+                    }
+                  } catch {
+                    Write-Host "✗ $service is unhealthy: $_"
+                    exit 1
+                  }
+                }
+
+          - task: NodeTool@0
+            displayName: 'Install Node.js for E2E tests'
+            inputs:
+              versionSpec: '18.x'
+
+          - task: PowerShell@2
+            displayName: 'Run E2E tests'
+            inputs:
+              targetType: 'inline'
+              script: |
+                cd frontend
+                npm ci
+                npx playwright install --with-deps
+                npm run test:e2e -- --config=playwright.config.staging.ts
 
 - stage: DeployProduction
   displayName: 'Deploy to Production'

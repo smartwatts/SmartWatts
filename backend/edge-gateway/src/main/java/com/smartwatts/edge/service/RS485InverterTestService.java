@@ -79,7 +79,7 @@ public class RS485InverterTestService {
                 errorResult.setErrorMessage(e.getMessage());
                 results.put(port, errorResult);
             }
-        });
+        }
         
         logger.info("Completed RS485 inverter testing. {} inverters tested", results.size());
         return results;
@@ -110,8 +110,11 @@ public class RS485InverterTestService {
             String inverterType = identifyInverterType(port);
             result.setInverterType(inverterType);
             
+            // Create a basic test config from the port
+            InverterTestConfig testConfig = createTestConfigFromPort(port, inverterType);
+            
             // Test Modbus RTU communication
-            boolean modbusWorking = testModbusRTUCommunication(port);
+            boolean modbusWorking = testModbusRTUCommunication(testConfig);
             result.setModbusWorking(modbusWorking);
             
             if (!modbusWorking) {
@@ -121,16 +124,16 @@ public class RS485InverterTestService {
             }
             
             // Test register reading
-            List<DeviceReading> readings = testRegisterReading(port);
+            List<DeviceReading> readings = testRegisterReading(testConfig);
             result.setReadingsCount(readings.size());
             result.setTestReadings(readings);
             
             // Test data parsing
-            boolean dataParsing = testDataParsing(readings, port);
+            boolean dataParsing = testDataParsing(readings, testConfig);
             result.setDataParsingWorking(dataParsing);
             
             // Test continuous polling
-            boolean continuousPolling = testContinuousPolling(port);
+            boolean continuousPolling = testContinuousPolling(testConfig);
             result.setContinuousPollingWorking(continuousPolling);
             
             // Overall success
@@ -162,6 +165,24 @@ public class RS485InverterTestService {
             logger.debug("Could not identify inverter type on port {}: {}", port, e.getMessage());
             return "UNKNOWN";
         }
+    }
+
+    /**
+     * Create a basic test configuration from a port
+     */
+    private InverterTestConfig createTestConfigFromPort(String port, String inverterType) {
+        // Create a default configuration for testing discovered inverters
+        // These are default values that should work for most inverters
+        return new InverterTestConfig(
+            "DISCOVERED",
+            inverterType,
+            port,
+            9600,  // Default baud rate
+            1,     // Default unit ID
+            0,     // Default start address
+            10,    // Default register count
+            "INVERTER"
+        );
     }
 
     /**

@@ -51,3 +51,16 @@ logging:
     com.smartwatts.facilityservice: DEBUG
     org.springframework.web: DEBUG
     org.hibernate.SQL: DEBUG
+
+# Sentry Configuration
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:${spring.profiles.active:development}}
+  release: ${SENTRY_RELEASE:${spring.application.name}@${project.version}}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:1.0}
+  send-default-pii: false
+  filter:
+    enabled: true
+    ignore-exceptions:
+      - org.springframework.security.access.AccessDeniedException
+      - org.springframework.web.HttpRequestMethodNotSupportedException

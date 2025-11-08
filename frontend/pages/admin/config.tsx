@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Layout from '../../components/Layout'
+import AdminRoute from '../../components/AdminRoute'
 import { CogIcon, ServerStackIcon, BellIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 
 interface SystemConfig {
@@ -24,9 +25,11 @@ interface ServiceConfig {
 
 export default function SystemConfiguration() {
   return (
-    <Layout>
-      <SystemConfigurationContent />
-    </Layout>
+    <AdminRoute>
+      <Layout>
+        <SystemConfigurationContent />
+      </Layout>
+    </AdminRoute>
   )
 }
 

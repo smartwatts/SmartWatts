@@ -66,7 +66,7 @@ analytics:
     generation-interval: 3600  # 1 hour
   weather:
     enabled: true
-    api-key: ${OPENWEATHER_API_KEY:demo-key}
+    api-key: ${OPENWEATHER_API_KEY:}
     base-url: https://api.openweathermap.org/data/2.5
     update-interval: 1800  # 30 minutes
     locations:
@@ -78,4 +78,17 @@ analytics:
         lon: 7.3986
       - name: "Kano"
         lat: 11.9914
-        lon: 8.5313 
+        lon: 8.5313
+
+# Sentry Configuration
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:${spring.profiles.active:development}}
+  release: ${SENTRY_RELEASE:${spring.application.name}@${project.version}}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:1.0}
+  send-default-pii: false
+  filter:
+    enabled: true
+    ignore-exceptions:
+      - org.springframework.security.access.AccessDeniedException
+      - org.springframework.web.HttpRequestMethodNotSupportedException

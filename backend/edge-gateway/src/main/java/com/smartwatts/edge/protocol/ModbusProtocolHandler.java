@@ -3,7 +3,6 @@ package com.smartwatts.edge.protocol;
 import com.smartwatts.edge.model.DeviceReading;
 import com.smartwatts.edge.model.DeviceCommand;
 import com.smartwatts.edge.service.RS485SerialService;
-import com.smartwatts.edge.config.RS485Configuration;
 // Modbus dependencies will be available at runtime
 // import com.digitalpetri.modbus.master.ModbusTcpMaster;
 // import com.digitalpetri.modbus.master.ModbusRtuMaster;
@@ -24,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.CompletableFuture;
 
 @Component
 public class ModbusProtocolHandler {
@@ -54,6 +52,8 @@ public class ModbusProtocolHandler {
     
     // Modbus masters for different protocols (will be initialized at runtime)
     private Object tcpMaster;
+    // Note: rtuMaster field reserved for future RTU master implementation
+    @SuppressWarnings("unused")
     private Object rtuMaster;
     
     @PostConstruct
@@ -271,7 +271,6 @@ public class ModbusProtocolHandler {
             }
             
             // Validate response
-            int unitId = response[0] & 0xFF;
             int functionCode = response[1] & 0xFF;
             int byteCount = response[2] & 0xFF;
             

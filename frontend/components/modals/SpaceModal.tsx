@@ -81,10 +81,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Name *
           </label>
           <input
+            id="space-name"
             type="text"
             name="name"
             value={formData.name}
@@ -95,10 +96,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Type *
           </label>
           <select
+            id="space-type"
             name="type"
             value={formData.type}
             onChange={handleChange}
@@ -114,10 +116,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Status *
           </label>
           <select
+            id="space-status"
             name="status"
             value={formData.status}
             onChange={handleChange}
@@ -133,10 +136,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-building" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Building *
           </label>
           <input
+            id="space-building"
             type="text"
             name="building"
             value={formData.building}
@@ -147,10 +151,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-floor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Floor *
           </label>
           <input
+            id="space-floor"
             type="text"
             name="floor"
             value={formData.floor}
@@ -161,10 +166,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-room" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Room *
           </label>
           <input
+            id="space-room"
             type="text"
             name="room"
             value={formData.room}
@@ -175,10 +181,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Capacity *
           </label>
           <input
+            id="space-capacity"
             type="number"
             name="capacity"
             value={formData.capacity}
@@ -190,10 +197,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({ space, onSave, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="space-area" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Area (sq ft) *
           </label>
           <input
+            id="space-area"
             type="number"
             name="area"
             value={formData.area}

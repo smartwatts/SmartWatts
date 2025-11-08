@@ -110,60 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         router.push('/login')
       }
     }
-    
-    // Add a timeout to prevent infinite loading
-    // TEMPORARILY DISABLED to fix login redirect conflicts
-    // const timeout = setTimeout(() => {
-    //   if (loading) {
-    //     console.warn('Auth check timeout, setting loading to false')
-    //     setLoading(false)
-    //     // Redirect to login if still loading after timeout
-    //     const protectedRoutes = ['/dashboard', '/energy', '/analytics', '/devices', '/billing', '/profile', '/partner-services']
-    //     if (protectedRoutes.includes(router.pathname)) {
-    //       router.push('/login')
-    //     }
-    //   }
-    // }, 10000) // 10 second timeout
-    
-    // return () => clearTimeout(timeout)
   }, []) // Only run once on mount
-
-  // Global authentication state check - runs on every route change
-  // TEMPORARILY DISABLED to fix login redirect conflicts
-  // useEffect(() => {
-  //   const handleRouteChange = () => {
-  //     console.log('Global auth check: Route changed, validating authentication')
-      
-  //     // Check if we're on a protected route
-  //     const protectedRoutes = ['/dashboard', '/energy', '/analytics', '/devices', '/billing', '/profile', '/partner-services', '/admin', '/testing-dashboard']
-  //     const isOnProtectedRoute = protectedRoutes.some(route => router.pathname.startsWith(route))
-      
-  //     if (isOnProtectedRoute) {
-  //       const token = localStorage.getItem('token')
-  //       if (!token || token.length < 10) {
-  //         console.log('Global auth check: No valid token on protected route, redirecting')
-  //         localStorage.removeItem('token')
-  //         setUser(null)
-  //         router.replace('/login')
-  //         return
-  //       }
-        
-  //       // Re-validate with backend
-  //       checkAuth()
-  //     }
-  //   }
-
-  //   // Listen for all route changes
-  //   router.events.on('routeChangeStart', handleRouteChange)
-  //   router.events.on('routeChangeComplete', handleRouteChange)
-  //   router.events.on('beforeHistoryChange', handleRouteChange)
-
-  //   return () => {
-  //     router.events.off('routeChangeStart', handleRouteChange)
-  //     router.events.off('routeChangeComplete', handleRouteChange)
-  //     router.events.off('beforeHistoryChange', handleRouteChange)
-  //   }
-  // }, [router])
 
   const checkAuth = async () => {
     try {
@@ -265,15 +212,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('token', accessToken)
       
       // Set admin email for admin override if applicable
-      if (userEmail === 'admin@smartwatts.ng') {
+      if (userEmail === 'admin@mysmartwatts.com') {
         localStorage.setItem('adminEmail', userEmail)
       }
       
       setUser(userData)
       
       toast.success('Login successful!')
-      
-      console.log('Login successful, attempting redirect to dashboard...')
       
       // Force redirect using window.location for immediate effect
       window.location.href = '/dashboard'

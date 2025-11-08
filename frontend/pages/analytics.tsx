@@ -38,6 +38,9 @@ export default function Analytics() {
   const { user } = useAuth()
   const router = useRouter()
   const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('30d')
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData[]>([])
+  const [trends, setTrends] = useState<TrendData[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     // Redirect super admins to admin dashboard
@@ -50,80 +53,180 @@ export default function Analytics() {
   if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
     return null
   }
-  
-  // Generate data based on selected period
-  const generateAnalyticsData = (period: string): AnalyticsData[] => {
-    const baseData = {
-      '7d': [
-        { period: 'Mon', consumption: 12.1, generation: 8.2, efficiency: 89, cost: 42.30 },
-        { period: 'Tue', consumption: 11.8, generation: 7.9, efficiency: 87, cost: 41.60 },
-        { period: 'Wed', consumption: 13.2, generation: 9.1, efficiency: 91, cost: 46.20 },
-        { period: 'Thu', consumption: 12.5, generation: 8.5, efficiency: 88, cost: 43.75 },
-        { period: 'Fri', consumption: 14.1, generation: 6.8, efficiency: 85, cost: 49.35 },
-        { period: 'Sat', consumption: 10.9, generation: 7.2, efficiency: 86, cost: 38.15 },
-        { period: 'Sun', consumption: 9.8, generation: 8.8, efficiency: 92, cost: 34.30 },
-      ],
-      '30d': [
-        { period: 'Week 1', consumption: 45.2, generation: 28.5, efficiency: 87, cost: 156.80 },
-        { period: 'Week 2', consumption: 42.8, generation: 31.2, efficiency: 89, cost: 148.40 },
-        { period: 'Week 3', consumption: 48.1, generation: 26.8, efficiency: 85, cost: 168.20 },
-        { period: 'Week 4', consumption: 44.6, generation: 29.4, efficiency: 88, cost: 154.60 },
-      ],
-      '90d': [
-        { period: 'Month 1', consumption: 180.5, generation: 115.2, efficiency: 88, cost: 632.75 },
-        { period: 'Month 2', consumption: 175.3, generation: 128.7, efficiency: 91, cost: 614.05 },
-        { period: 'Month 3', consumption: 182.1, generation: 112.4, efficiency: 86, cost: 637.35 },
-      ],
-      '1y': [
-        { period: 'Q1', consumption: 540.2, generation: 340.8, efficiency: 88, cost: 1890.70 },
-        { period: 'Q2', consumption: 520.1, generation: 385.2, efficiency: 91, cost: 1820.35 },
-        { period: 'Q3', consumption: 535.8, generation: 320.5, efficiency: 87, cost: 1875.30 },
-        { period: 'Q4', consumption: 510.3, generation: 295.7, efficiency: 89, cost: 1786.05 },
-      ],
+
+  // Fetch analytics data from API
+  const fetchAnalyticsData = async (period: string) => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('token')
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+      
+      // Calculate date range based on period
+      const now = new Date()
+      let startDate: Date
+      
+      switch (period) {
+        case '7d':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          break
+        case '30d':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          break
+        case '90d':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+          break
+        case '1y':
+          startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+          break
+        default:
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      }
+
+      // Convert to LocalDateTime format (remove timezone info)
+      const formatForBackend = (date: Date) => {
+        return date.toISOString().replace('Z', '')
+      }
+      
+      const startDateStr = formatForBackend(startDate)
+      const endDateStr = formatForBackend(now)
+      
+      const response = await fetch(
+        `/api/proxy?service=analytics&path=/analytics/energy-analytics/user/${user?.id}/date-range&startDate=${encodeURIComponent(startDateStr)}&endDate=${encodeURIComponent(endDateStr)}`,
+        { headers: authHeaders }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        const analytics = data || []
+        
+        // Transform analytics data to chart format
+        const chartData: AnalyticsData[] = analytics.map((item: any) => ({
+          period: new Date(item.timestamp).toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric' 
+          }),
+          consumption: item.consumption || 0,
+          generation: item.generation || 0,
+          efficiency: item.efficiency || 0,
+          cost: item.cost || 0
+        }))
+        
+        setAnalyticsData(chartData)
+      } else {
+        throw new Error(`Analytics API returned error: ${response.status} ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Error fetching analytics data:', error)
+      setAnalyticsData([])
+    } finally {
+      setLoading(false)
     }
-    return baseData[period as keyof typeof baseData] || baseData['30d']
   }
 
-  const generateTrendsData = (period: string): TrendData[] => {
-    const baseTrends = {
-      '7d': [
-        { metric: 'Energy Consumption', current: 9.8, previous: 14.1, change: -30.5, trend: 'down' as const },
-        { metric: 'Solar Generation', current: 8.8, previous: 6.8, change: 29.4, trend: 'up' as const },
-        { metric: 'Efficiency Score', current: 92, previous: 85, change: 8.2, trend: 'up' as const },
-        { metric: 'Energy Cost', current: 34.30, previous: 49.35, change: -30.5, trend: 'down' as const },
-      ],
-      '30d': [
-        { metric: 'Energy Consumption', current: 44.6, previous: 48.1, change: -7.3, trend: 'down' as const },
-        { metric: 'Solar Generation', current: 29.4, previous: 26.8, change: 9.7, trend: 'up' as const },
-        { metric: 'Efficiency Score', current: 88, previous: 85, change: 3.5, trend: 'up' as const },
-        { metric: 'Energy Cost', current: 154.60, previous: 168.20, change: -8.1, trend: 'down' as const },
-      ],
-      '90d': [
-        { metric: 'Energy Consumption', current: 182.1, previous: 175.3, change: 3.9, trend: 'up' as const },
-        { metric: 'Solar Generation', current: 112.4, previous: 128.7, change: -12.7, trend: 'down' as const },
-        { metric: 'Efficiency Score', current: 86, previous: 91, change: -5.5, trend: 'down' as const },
-        { metric: 'Energy Cost', current: 637.35, previous: 614.05, change: 3.8, trend: 'up' as const },
-      ],
-      '1y': [
-        { metric: 'Energy Consumption', current: 510.3, previous: 535.8, change: -4.8, trend: 'down' as const },
-        { metric: 'Solar Generation', current: 295.7, previous: 320.5, change: -7.7, trend: 'down' as const },
-        { metric: 'Efficiency Score', current: 89, previous: 87, change: 2.3, trend: 'up' as const },
-        { metric: 'Energy Cost', current: 1786.05, previous: 1875.30, change: -4.8, trend: 'down' as const },
-      ],
+  const calculateTrendsData = (): TrendData[] => {
+    if (!analyticsData || analyticsData.length < 2) {
+      return [
+        { metric: 'Energy Consumption', current: 0, previous: 0, change: 0, trend: 'stable' as const },
+        { metric: 'Solar Generation', current: 0, previous: 0, change: 0, trend: 'stable' as const },
+        { metric: 'Efficiency Score', current: 0, previous: 0, change: 0, trend: 'stable' as const },
+        { metric: 'Energy Cost', current: 0, previous: 0, change: 0, trend: 'stable' as const },
+      ]
     }
-    return baseTrends[period as keyof typeof baseTrends] || baseTrends['30d']
-  }
 
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData[]>(generateAnalyticsData(selectedPeriod))
-  const [trends, setTrends] = useState<TrendData[]>(generateTrendsData(selectedPeriod))
+    // Calculate current period (last half of data) vs previous period (first half of data)
+    const midPoint = Math.floor(analyticsData.length / 2)
+    const currentPeriod = analyticsData.slice(midPoint)
+    const previousPeriod = analyticsData.slice(0, midPoint)
+
+    const calculateMetricTrend = (currentData: AnalyticsData[], previousData: AnalyticsData[], metric: keyof AnalyticsData) => {
+      const current = currentData.reduce((sum, item) => sum + (item[metric] as number), 0)
+      const previous = previousData.reduce((sum, item) => sum + (item[metric] as number), 0)
+      const change = previous > 0 ? ((current - previous) / previous) * 100 : 0
+      const trend = change > 5 ? 'up' : change < -5 ? 'down' : 'stable'
+      return { current, previous, change: Math.round(change * 10) / 10, trend }
+    }
+
+    const consumptionTrend = calculateMetricTrend(currentPeriod, previousPeriod, 'consumption')
+    const generationTrend = calculateMetricTrend(currentPeriod, previousPeriod, 'generation')
+    const efficiencyTrend = calculateMetricTrend(currentPeriod, previousPeriod, 'efficiency')
+    const costTrend = calculateMetricTrend(currentPeriod, previousPeriod, 'cost')
+
+    return [
+      { 
+        metric: 'Energy Consumption', 
+        current: consumptionTrend.current, 
+        previous: consumptionTrend.previous, 
+        change: consumptionTrend.change, 
+        trend: consumptionTrend.trend as 'up' | 'down' | 'stable'
+      },
+      { 
+        metric: 'Solar Generation', 
+        current: generationTrend.current, 
+        previous: generationTrend.previous, 
+        change: generationTrend.change, 
+        trend: generationTrend.trend as 'up' | 'down' | 'stable'
+      },
+      { 
+        metric: 'Efficiency Score', 
+        current: efficiencyTrend.current, 
+        previous: efficiencyTrend.previous, 
+        change: efficiencyTrend.change, 
+        trend: efficiencyTrend.trend as 'up' | 'down' | 'stable'
+      },
+      { 
+        metric: 'Energy Cost', 
+        current: costTrend.current, 
+        previous: costTrend.previous, 
+        change: costTrend.change, 
+        trend: costTrend.trend as 'up' | 'down' | 'stable'
+      },
+    ]
+  }
 
   // Update data when period changes
   useEffect(() => {
-    const newData = generateAnalyticsData(selectedPeriod)
-    const newTrends = generateTrendsData(selectedPeriod)
-    setAnalyticsData(newData)
+    if (user?.id) {
+      fetchAnalyticsData(selectedPeriod)
+    }
+  }, [selectedPeriod, user?.id])
+
+  // Calculate trends when analytics data changes
+  useEffect(() => {
+    const newTrends = calculateTrendsData()
     setTrends(newTrends)
-  }, [selectedPeriod])
+  }, [analyticsData])
+
+  // Calculate dynamic KPI values based on current data
+  const calculateKPIs = () => {
+    if (!analyticsData || analyticsData.length === 0) {
+      return {
+        totalConsumption: 0,
+        solarGeneration: 0,
+        efficiencyScore: 0,
+        costSavings: 0
+      }
+    }
+
+    const totalConsumption = analyticsData.reduce((sum, item) => sum + item.consumption, 0)
+    const totalGeneration = analyticsData.reduce((sum, item) => sum + item.generation, 0)
+    const totalEfficiency = analyticsData.reduce((sum, item) => sum + item.efficiency, 0)
+    const totalCost = analyticsData.reduce((sum, item) => sum + item.cost, 0)
+    
+    // Calculate average efficiency score
+    const avgEfficiency = analyticsData.length > 0 ? totalEfficiency / analyticsData.length : 0
+    
+    // Calculate cost savings (assuming 20% savings from solar generation)
+    const costSavings = totalGeneration * 0.2 * 50 // Assuming ₦50 per kWh savings
+
+    return {
+      totalConsumption: totalConsumption,
+      solarGeneration: totalGeneration,
+      efficiencyScore: Math.round(avgEfficiency),
+      costSavings: costSavings
+    }
+  }
+
+  const kpiValues = calculateKPIs()
 
   const styles = usePageStyles()
 
@@ -188,7 +291,7 @@ export default function Analytics() {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-white/80">Total Consumption</p>
-              <p className="text-xl font-bold text-white">180.7 kWh</p>
+              <p className="text-xl font-bold text-white">{kpiValues.totalConsumption.toFixed(1)} kWh</p>
             </div>
           </div>
                   </div>
@@ -200,7 +303,7 @@ export default function Analytics() {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-white/80">Solar Generation</p>
-              <p className="text-xl font-bold text-white">115.9 kWh</p>
+              <p className="text-xl font-bold text-white">{kpiValues.solarGeneration.toFixed(1)} kWh</p>
                   </div>
                 </div>
               </div>
@@ -212,7 +315,7 @@ export default function Analytics() {
               </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-white/80">Efficiency Score</p>
-              <p className="text-xl font-bold text-white">87.3%</p>
+              <p className="text-xl font-bold text-white">{kpiValues.efficiencyScore}%</p>
             </div>
           </div>
                 </div>
@@ -224,7 +327,7 @@ export default function Analytics() {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-white/80">Cost Savings</p>
-              <p className="text-xl font-bold text-white">$64.20</p>
+              <p className="text-xl font-bold text-white">₦{kpiValues.costSavings.toFixed(2)}</p>
                 </div>
               </div>
             </div>

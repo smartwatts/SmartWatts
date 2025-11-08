@@ -1,6 +1,23 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartwatts-postgres
+    environment:
+      POSTGRES_DB: smartwatts
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_MULTIPLE_DATABASES: smartwatts_users,smartwatts_energy,smartwatts_devices,smartwatts_analytics,smartwatts_billing,smartwatts_facility360,smartwatts_feature_flags,smartwatts_device_verification,smartwatts_appliance_monitoring
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - smartwatts-network
+
   # Frontend Service
   frontend:
     build:
@@ -28,11 +45,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_users
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_users
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -47,6 +70,8 @@ services:
       - "8761:8761"
     environment:
       - SPRING_PROFILES_ACTIVE=azure
+    depends_on:
+      - postgres
     restart: unless-stopped
     networks:
       - smartwatts-network
@@ -61,11 +86,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_users
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_users
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -81,12 +112,18 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_energy
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_energy
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
       - AZURE_IOT_HUB_CONNECTION_STRING=${IOT_HUB_CONNECTION_STRING}
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -102,11 +139,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_devices
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_devices
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -122,11 +165,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_analytics
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_analytics
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -142,11 +191,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_billing
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_billing
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -162,11 +217,43 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_users
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_users
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - smartwatts-network
+
+  # Facility Service
+  facility-service:
+    build:
+      context: ../backend/facility-service
+      dockerfile: Dockerfile.azure
+    ports:
+      - "8087:8087"
+    environment:
+      - SPRING_PROFILES_ACTIVE=azure
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_facility360
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_facility360
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+    depends_on:
+      - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -182,12 +269,18 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_energy
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_energy
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
       - AZURE_IOT_HUB_CONNECTION_STRING=${IOT_HUB_CONNECTION_STRING}
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -214,11 +307,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_feature_flags
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_feature_flags
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -234,11 +333,17 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_device_verification
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_device_verification
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -254,17 +359,24 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=azure
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery:8761/eureka/
-      - SPRING_DATASOURCE_URL=${SQL_CONNECTION_STRING}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/smartwatts_appliance_monitoring
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=smartwatts_appliance_monitoring
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
     depends_on:
       - service-discovery
+      - postgres
       - redis
     restart: unless-stopped
     networks:
       - smartwatts-network
 
 volumes:
+  postgres_data:
   redis-data:
 
 networks:

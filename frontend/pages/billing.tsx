@@ -105,20 +105,28 @@ export default function Billing() {
   useEffect(() => {
     const loadBillingData = async () => {
       try {
+        const token = localStorage.getItem('token')
+        const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+        
         // Load real data from APIs
         const [devicesResponse, analyticsResponse, optimizationsResponse] = await Promise.all([
-          fetch('/api/proxy?service=device&endpoint=/api/v1/devices/hardware'),
-          fetch('/api/proxy?service=billing&endpoint=/api/v1/billing/analytics'),
-          fetch('/api/proxy?service=analytics&endpoint=/api/v1/analytics/cost-optimizations')
+          fetch('/api/proxy?service=device&path=/devices/hardware', { headers: authHeaders }),
+          fetch('/api/proxy?service=billing&path=/billing/analytics', { headers: authHeaders }),
+          fetch('/api/proxy?service=analytics&path=/analytics/cost-optimizations', { headers: authHeaders })
         ])
 
-        const devices: HardwareDevice[] = await devicesResponse.json()
-        const billingAnalytics: BillingAnalytics = await analyticsResponse.json()
-        const costOptimizations: CostOptimization[] = await optimizationsResponse.json()
+        const devices: HardwareDevice[] = devicesResponse.ok ? await devicesResponse.json() : []
+        const billingAnalytics: BillingAnalytics = analyticsResponse.ok ? await analyticsResponse.json() : {
+          monthlySpending: 0,
+          costSavings: 0,
+          energyEfficiency: 0,
+          carbonFootprint: 0
+        }
+        const costOptimizations: CostOptimization[] = optimizationsResponse.ok ? await optimizationsResponse.json() : []
 
         // Load usage metrics
-        const usageMetricsResponse = await fetch('/api/proxy?service=billing&endpoint=/api/v1/billing/usage-metrics')
-        const usageMetrics: UsageMetrics[] = await usageMetricsResponse.json()
+        const usageMetricsResponse = await fetch('/api/proxy?service=billing&path=/billing/usage-metrics', { headers: authHeaders })
+        const usageMetrics: UsageMetrics[] = usageMetricsResponse.ok ? await usageMetricsResponse.json() : []
 
         setHardwareDevices(devices)
         setBillingAnalytics(billingAnalytics)

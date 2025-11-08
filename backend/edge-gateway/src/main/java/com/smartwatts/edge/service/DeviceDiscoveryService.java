@@ -2,7 +2,6 @@ package com.smartwatts.edge.service;
 
 import com.fazecast.jSerialComm.SerialPort;
 import com.smartwatts.edge.config.RS485Configuration;
-import com.smartwatts.edge.model.DeviceReading;
 import com.smartwatts.edge.protocol.ModbusProtocolHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +28,13 @@ public class DeviceDiscoveryService {
     @Autowired
     private RS485SerialService rs485Service;
 
+    // Note: modbusHandler reserved for future Modbus protocol integration
+    @SuppressWarnings("unused")
     @Autowired
     private ModbusProtocolHandler modbusHandler;
 
+    // Note: rs485Config reserved for future RS485 configuration access
+    @SuppressWarnings("unused")
     @Autowired
     private RS485Configuration rs485Config;
 

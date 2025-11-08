@@ -98,8 +98,22 @@ verify_backup() {
 upload_to_cloud() {
     local backup_file=$1
     
-    # Check if AWS S3 is configured
-    if [ -n "$AWS_S3_BUCKET" ] && [ -n "$AWS_ACCESS_KEY_ID" ]; then
+    # Check if Azure Blob Storage is configured (REQUIRED for Azure deployment)
+    if [ -n "$AZURE_STORAGE_CONNECTION_STRING" ] || ([ -n "$AZURE_STORAGE_ACCOUNT" ] && [ -n "$AZURE_STORAGE_KEY" ]); then
+        log "Uploading backup to Azure Blob Storage: $backup_file"
+        
+        # Use backup-to-blob-storage.sh script if available
+        if [ -f "$(dirname "$0")/backup-to-blob-storage.sh" ]; then
+            if bash "$(dirname "$0")/backup-to-blob-storage.sh" "$backup_file" >> "$LOG_FILE" 2>&1; then
+                log "Backup uploaded successfully to Azure Blob Storage"
+            else
+                log "WARNING: Failed to upload backup to Azure Blob Storage"
+            fi
+        else
+            log "WARNING: backup-to-blob-storage.sh script not found. Skipping Azure Blob Storage upload."
+        fi
+    # Check if AWS S3 is configured (legacy support)
+    elif [ -n "$AWS_S3_BUCKET" ] && [ -n "$AWS_ACCESS_KEY_ID" ]; then
         log "Uploading backup to S3: $backup_file"
         
         if aws s3 cp "$backup_file" "s3://$AWS_S3_BUCKET/smartwatts/backups/" >> "$LOG_FILE" 2>&1; then

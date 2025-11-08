@@ -21,6 +21,11 @@ interface EdgeTestResult {
 }
 
 export default function EdgeGatewayTester() {
+  // Gate this component from production - only allow in development
+  if (process.env.NODE_ENV === 'production') {
+    return null
+  }
+  
   const [testResults, setTestResults] = useState<EdgeTestResult[]>([])
   const [isRunning, setIsRunning] = useState(false)
 

@@ -8,13 +8,16 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 
 import java.net.URI;
+import java.util.Objects;
 
 @Configuration
 public class SwaggerUiWebFluxConfig {
     
     @Bean
     public RouterFunction<ServerResponse> swaggerUiRouter() {
+        URI redirectUri = Objects.requireNonNull(URI.create("/swagger-ui/index.html"), 
+            "Redirect URI cannot be null");
         return route(GET("/swagger-ui.html"),
-            req -> ServerResponse.temporaryRedirect(URI.create("/swagger-ui/index.html")).build());
+            req -> ServerResponse.temporaryRedirect(redirectUri).build());
     }
 } 

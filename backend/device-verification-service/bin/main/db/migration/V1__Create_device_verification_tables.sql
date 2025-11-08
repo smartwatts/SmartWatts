@@ -127,23 +127,5 @@ INSERT INTO installers (installer_code, name, email, tier, auto_approval_limit) 
 ('CERTIFIED_BASIC', 'Basic Certified Installer', 'basic@installer.ng', 'BASIC', 10),
 ('CERTIFIED_PREMIUM', 'Premium Certified Installer', 'premium@installer.ng', 'PREMIUM', 100);
 
--- Insert sample device verification for testing
-INSERT INTO device_verifications (
-    device_id, 
-    device_type, 
-    hardware_id, 
-    trust_category, 
-    status, 
-    customer_type, 
-    activated_at, 
-    expires_at
-) VALUES (
-    'TEST-DEVICE-001',
-    'SMART_METER',
-    'HW-001-ABC-123',
-    'OEM_LOCKED',
-    'ACTIVE',
-    'RESIDENTIAL',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP + INTERVAL '1 year'
-);
+-- No sample data - production ready
+-- Device verifications will be created through the API

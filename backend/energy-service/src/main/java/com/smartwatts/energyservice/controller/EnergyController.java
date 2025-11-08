@@ -200,4 +200,42 @@ public class EnergyController {
         Map<String, Object> powerQuality = energyService.getPowerQuality();
         return ResponseEntity.ok(powerQuality);
     }
+    
+    @GetMapping("/source-breakdown/{userId}")
+    @Operation(summary = "Get energy source breakdown", description = "Retrieves breakdown of energy sources (Grid, Solar, Inverter, Generator)")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<Map<String, Object>> getSourceBreakdown(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching energy source breakdown for user: {}", userId);
+        Map<String, Object> breakdown = energyService.getSourceBreakdown(userId);
+        return ResponseEntity.ok(breakdown);
+    }
+    
+    @GetMapping("/disco-status/{userId}")
+    @Operation(summary = "Get DisCo availability status", description = "Retrieves real-time DisCo availability and outage history")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<Map<String, Object>> getDiscoStatus(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching DisCo status for user: {}", userId);
+        Map<String, Object> discoStatus = energyService.getDiscoStatus(userId);
+        return ResponseEntity.ok(discoStatus);
+    }
+    
+    @GetMapping("/grid-stability")
+    @Operation(summary = "Get grid stability metrics", description = "Retrieves grid stability metrics including voltage, frequency, and phase balance")
+    public ResponseEntity<Map<String, Object>> getGridStability() {
+        log.info("Fetching grid stability metrics");
+        Map<String, Object> stability = energyService.getGridStability();
+        return ResponseEntity.ok(stability);
+    }
+    
+    @GetMapping("/voltage-quality/{userId}")
+    @Operation(summary = "Get voltage quality data", description = "Retrieves voltage quality metrics including fluctuations, power factor, and harmonics")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<Map<String, Object>> getVoltageQuality(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching voltage quality for user: {}", userId);
+        Map<String, Object> voltageQuality = energyService.getVoltageQuality(userId);
+        return ResponseEntity.ok(voltageQuality);
+    }
 } 

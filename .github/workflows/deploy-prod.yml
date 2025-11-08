@@ -1,0 +1,111 @@
+name: Deploy Production (prod branch)
+
+on:
+  push:
+    branches: [ "prod" ]
+  workflow_dispatch:
+
+env:
+  AZURE_RESOURCE_GROUP: sw-prod-rg
+  ENVIRONMENT: prod
+  LOCATION: westeurope
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+
+    - name: Create Resource Group
+      run: |
+        az group create \
+          --name ${{ env.AZURE_RESOURCE_GROUP }} \
+          --location ${{ env.LOCATION }} \
+          --output none
+
+    - name: Deploy Infrastructure (Bicep)
+      run: |
+        az deployment group create \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --template-file infrastructure/bicep/main.bicep \
+          --parameters @infrastructure/bicep/params.prod.json \
+          --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_PROD }}"
+
+    - name: Get VM Public IP
+      id: get-vm-ip
+      run: |
+        VM_IP=$(az vm show -d \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name sw-prod-vm \
+          --query publicIps -o tsv)
+        echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
+
+    - name: Setup SSH Key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.VM_SSH_PRIVATE_KEY_PROD }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
+
+    - name: Deploy Application to VM
+      run: |
+        ssh -o StrictHostKeyChecking=no azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
+          # Install Docker if not present
+          if ! command -v docker &> /dev/null; then
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            sudo usermod -aG docker $USER
+          fi
+          
+          # Install Docker Compose if not present
+          if ! command -v docker-compose &> /dev/null; then
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+          
+          # Clone or update repository
+          if [ -d "smartwatts" ]; then
+            cd smartwatts
+            git pull
+          else
+            git clone https://github.com/${{ github.repository }}.git smartwatts
+            cd smartwatts
+          fi
+          
+          # Deploy with Docker Compose
+          cd azure-deployment
+          docker-compose -f docker-compose.azure.yml up -d --build
+        EOF
+
+    - name: Deploy Frontend to Static Web Apps
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "frontend"
+        output_location: ".next"
+        skip_app_build: false
+        skip_api_build: true
+
+    - name: Get Deployment Outputs
+      run: |
+        echo "VM Public IP: ${{ steps.get-vm-ip.outputs.vm_ip }}"
+        echo "Static Web App URL: $(az staticwebapp show \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name sw-prod-dashboard \
+          --query defaultHostname -o tsv)"
+
+    - name: Health Check
+      run: |
+        sleep 60  # Wait for services to start
+        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
+        curl -f http://$VM_IP:8080/actuator/health || exit 1
+

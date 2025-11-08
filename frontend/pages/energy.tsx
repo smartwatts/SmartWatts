@@ -34,50 +34,111 @@ export default function EnergyMonitor() {
   const { user } = useAuth()
   const router = useRouter()
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '24h' | '7d' | '30d'>('24h')
-  // Generate data based on selected timeframe
-  const generateEnergyData = (timeframe: string): EnergyData[] => {
-    const baseData = {
-      '1h': [
-        { time: '00:00', consumption: 2.1, generation: 0, cost: 0.42 },
-        { time: '00:15', consumption: 2.0, generation: 0, cost: 0.40 },
-        { time: '00:30', consumption: 1.9, generation: 0, cost: 0.38 },
-        { time: '00:45', consumption: 1.8, generation: 0, cost: 0.36 },
-      ],
-      '24h': [
-        { time: '00:00', consumption: 2.1, generation: 0, cost: 0.42 },
-        { time: '04:00', consumption: 1.8, generation: 0, cost: 0.36 },
-        { time: '08:00', consumption: 4.2, generation: 1.5, cost: 0.54 },
-        { time: '12:00', consumption: 5.8, generation: 3.2, cost: 0.52 },
-        { time: '16:00', consumption: 6.1, generation: 2.8, cost: 0.66 },
-        { time: '20:00', consumption: 4.9, generation: 0, cost: 0.98 },
-        { time: '24:00', consumption: 2.3, generation: 0, cost: 0.46 }
-      ],
-      '7d': [
-        { time: 'Mon', consumption: 45.2, generation: 28.5, cost: 156.80 },
-        { time: 'Tue', consumption: 42.8, generation: 31.2, cost: 148.40 },
-        { time: 'Wed', consumption: 48.1, generation: 26.8, cost: 168.20 },
-        { time: 'Thu', consumption: 44.6, generation: 29.4, cost: 154.60 },
-        { time: 'Fri', consumption: 46.3, generation: 27.1, cost: 161.05 },
-        { time: 'Sat', consumption: 38.9, generation: 22.3, cost: 135.15 },
-        { time: 'Sun', consumption: 41.2, generation: 25.7, cost: 143.20 }
-      ],
-      '30d': [
-        { time: 'Week 1', consumption: 315.4, generation: 199.5, cost: 1097.60 },
-        { time: 'Week 2', consumption: 299.6, generation: 218.4, cost: 1038.80 },
-        { time: 'Week 3', consumption: 336.7, generation: 187.6, cost: 1177.40 },
-        { time: 'Week 4', consumption: 312.2, generation: 205.8, cost: 1082.20 }
-      ]
-    }
-    return baseData[timeframe as keyof typeof baseData] || baseData['24h']
-  }
+  const [energyData, setEnergyData] = useState<EnergyData[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [energyData, setEnergyData] = useState<EnergyData[]>(generateEnergyData(selectedTimeframe))
+  // Fetch energy data from API
+  const fetchEnergyData = async (timeframe: string) => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('token')
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+      
+      // Calculate time range based on timeframe
+      const now = new Date()
+      let startTime: Date
+      
+      switch (timeframe) {
+        case '1h':
+          startTime = new Date(now.getTime() - 60 * 60 * 1000) // 1 hour ago
+          break
+        case '24h':
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000) // 24 hours ago
+          break
+        case '7d':
+          startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) // 7 days ago
+          break
+        case '30d':
+          startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
+          break
+        default:
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      }
+
+      // Convert to LocalDateTime format (remove timezone info)
+      const formatForBackend = (date: Date) => {
+        return date.toISOString().replace('Z', '')
+      }
+      
+      const response = await fetch(
+        `/api/proxy?service=energy&path=/energy/readings/user/${user?.id}/time-range&startTime=${encodeURIComponent(formatForBackend(startTime))}&endTime=${encodeURIComponent(formatForBackend(now))}`,
+        { headers: authHeaders }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        const readings = data || []
+        
+        // Transform readings to chart data format
+        const chartData: EnergyData[] = readings.map((reading: any) => ({
+          time: new Date(reading.timestamp).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+          }),
+          consumption: reading.consumption || 0,
+          generation: reading.generation || 0,
+          cost: reading.cost || 0
+        }))
+        
+        setEnergyData(chartData)
+      } else {
+        // Fallback to empty data if API fails
+        setEnergyData([])
+      }
+    } catch (error) {
+      console.error('Error fetching energy data:', error)
+      setEnergyData([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Update data when timeframe changes
   useEffect(() => {
-    const newData = generateEnergyData(selectedTimeframe)
-    setEnergyData(newData)
-  }, [selectedTimeframe])
+    if (user?.id) {
+      fetchEnergyData(selectedTimeframe)
+    }
+  }, [selectedTimeframe, user?.id])
+
+  // Calculate dynamic KPI values based on current data
+  const calculateKPIs = () => {
+    if (!energyData || energyData.length === 0) {
+      return {
+        currentConsumption: 0,
+        solarGeneration: 0,
+        monthlyCost: 0,
+        efficiencyScore: 0
+      }
+    }
+
+    const latestData = energyData[energyData.length - 1]
+    const totalConsumption = energyData.reduce((sum, item) => sum + item.consumption, 0)
+    const totalGeneration = energyData.reduce((sum, item) => sum + item.generation, 0)
+    const totalCost = energyData.reduce((sum, item) => sum + item.cost, 0)
+    
+    // Calculate efficiency score based on generation vs consumption
+    const efficiencyScore = totalConsumption > 0 ? Math.round((totalGeneration / totalConsumption) * 100) : 0
+
+    return {
+      currentConsumption: latestData.consumption,
+      solarGeneration: latestData.generation,
+      monthlyCost: totalCost,
+      efficiencyScore: Math.min(efficiencyScore, 100) // Cap at 100%
+    }
+  }
+
+  const kpiValues = calculateKPIs()
 
   const [alerts] = useState<EnergyAlert[]>([
     { id: '1', message: 'Peak demand approaching threshold', severity: 'warning', timestamp: '2 minutes ago' },
@@ -162,7 +223,7 @@ export default function EnergyMonitor() {
                       </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-white/80">Current Consumption</p>
-              <p className="text-xl font-bold text-white">4.2 kW</p>
+              <p className="text-xl font-bold text-white">{kpiValues.currentConsumption.toFixed(1)} kW</p>
                       </div>
                     </div>
                   </div>
@@ -174,7 +235,7 @@ export default function EnergyMonitor() {
                   </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-white/80">Solar Generation</p>
-              <p className="text-xl font-bold text-white">1.5 kW</p>
+              <p className="text-xl font-bold text-white">{kpiValues.solarGeneration.toFixed(1)} kW</p>
                     </div>
                   </div>
           </div>
@@ -185,8 +246,8 @@ export default function EnergyMonitor() {
               <ChartBarIcon className="h-5 w-5 text-white" />
             </div>
             <div className="ml-3">
-              <p className="text-xs font-medium text-white/80">Monthly Cost</p>
-              <p className="text-xl font-bold text-white">$245.60</p>
+              <p className="text-xs font-medium text-white/80">Total Cost</p>
+              <p className="text-xl font-bold text-white">₦{kpiValues.monthlyCost.toFixed(2)}</p>
             </div>
           </div>
                 </div>
@@ -198,7 +259,7 @@ export default function EnergyMonitor() {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-white/80">Efficiency Score</p>
-              <p className="text-xl font-bold text-white">87%</p>
+              <p className="text-xl font-bold text-white">{kpiValues.efficiencyScore}%</p>
                 </div>
               </div>
             </div>

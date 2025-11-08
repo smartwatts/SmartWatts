@@ -1,0 +1,313 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for Staging
+  postgres-staging:
+    image: postgres:15-alpine
+    container_name: smartwatts-postgres-staging
+    environment:
+      POSTGRES_DB: smartwatts_staging
+      POSTGRES_USER: ${STAGING_POSTGRES_USER:-smartwatts_staging}
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:-staging_password_123}
+      POSTGRES_MULTIPLE_DATABASES: smartwatts_users_staging,smartwatts_energy_staging,smartwatts_devices_staging,smartwatts_analytics_staging,smartwatts_billing_staging,smartwatts_facility360_staging,smartwatts_feature_flags_staging,smartwatts_device_verification_staging,smartwatts_appliance_monitoring_staging
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STAGING_POSTGRES_USER:-smartwatts_staging}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache for Staging
+  redis-staging:
+    image: redis:7-alpine
+    container_name: smartwatts-redis-staging
+    ports:
+      - "6380:6379"
+    environment:
+      REDIS_PASSWORD: ${STAGING_REDIS_PASSWORD:-staging_redis_123}
+    command: redis-server --requirepass ${STAGING_REDIS_PASSWORD:-staging_redis_123}
+    volumes:
+      - redis_staging_data:/data
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${STAGING_REDIS_PASSWORD:-staging_redis_123}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Service Discovery (Eureka Server) for Staging
+  service-discovery-staging:
+    build:
+      context: ./service-discovery
+      dockerfile: Dockerfile
+    container_name: smartwatts-service-discovery-staging
+    ports:
+      - "8762:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+    depends_on:
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway for Staging
+  api-gateway-staging:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: smartwatts-api-gateway-staging
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATA_REDIS_HOST: redis-staging
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${STAGING_REDIS_PASSWORD:-staging_redis_123}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery-staging:8761/eureka/
+      JAVA_OPTS: "-Xmx1g -Xms512m -Deureka.client.serviceUrl.defaultZone=http://service-discovery-staging:8761/eureka/"
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      redis-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # User Service for Staging
+  user-service-staging:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-user-service-staging
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-staging:5432/smartwatts_users_staging
+      SPRING_CLOUD_NETFLIX_EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: http://service-discovery-staging:8761/eureka/
+    command: ["java", "-Xmx1g", "-Xms512m", "-Deureka.client.serviceUrl.defaultZone=http://service-discovery-staging:8761/eureka/", "-jar", "/app/app.jar"]
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Energy Service for Staging
+  energy-service-staging:
+    build:
+      context: ./energy-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-energy-service-staging
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-staging:5432/smartwatts_energy_staging
+    command: ["java", "-Xmx512m", "-Xms256m", "-jar", "/app/app.jar"]
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Device Service for Staging
+  device-service-staging:
+    build:
+      context: ./backend/device-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-device-service-staging
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-staging:5432/smartwatts_devices_staging
+    command: ["java", "-Xmx512m", "-Xms256m", "-jar", "/app/app.jar"]
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Analytics Service for Staging
+  analytics-service-staging:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-analytics-service-staging
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-staging:5432/smartwatts_analytics_staging
+      OPENWEATHER_API_KEY: ${STAGING_OPENWEATHER_API_KEY:-test-key}
+    command: ["java", "-Xmx512m", "-Xms256m", "-jar", "/app/app.jar"]
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Billing Service for Staging
+  billing-service-staging:
+    build:
+      context: ./billing-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-billing-service-staging
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-staging:5432/smartwatts_billing_staging
+    command: ["java", "-Xmx512m", "-Xms256m", "-jar", "/app/app.jar"]
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Appliance Monitoring Service for Staging
+  appliance-monitoring-service-staging:
+    build:
+      context: ./backend/appliance-monitoring-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-appliance-monitoring-service-staging
+    ports:
+      - "8087:8092"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-staging:5432/smartwatts_appliance_monitoring_staging
+    command: ["java", "-Xmx512m", "-Xms256m", "-jar", "/app/app.jar"]
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Feature Flag Service for Staging
+  feature-flag-service-staging:
+    build:
+      context: ./backend/feature-flag-service
+      dockerfile: Dockerfile
+    container_name: smartwatts-feature-flag-service-staging
+    ports:
+      - "8090:8090"
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-staging:5432/smartwatts_feature_flags_staging
+    command: ["java", "-Xmx512m", "-Xms256m", "-jar", "/app/app.jar"]
+    depends_on:
+      service-discovery-staging:
+        condition: service_healthy
+      postgres-staging:
+        condition: service_healthy
+    networks:
+      - smartwatts-staging-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+volumes:
+  postgres_staging_data:
+  redis_staging_data:
+
+networks:
+  smartwatts-staging-network:
+    driver: bridge
+

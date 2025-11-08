@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { useDashboardTheme } from '../contexts/DashboardThemeContext'
+import { apiClient } from '../utils/api-client'
+import ErrorBoundary from './ErrorBoundary'
+import ServiceUnavailable from './ServiceUnavailable'
+import EmptyState, { EmptyStates } from './EmptyState'
 import {
   ChartBarIcon,
   BoltIcon,
@@ -231,6 +235,8 @@ export default function DashboardClient() {
   })
   const [efficiencyBenchmarks, setEfficiencyBenchmarks] = useState<EfficiencyBenchmark[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [serviceErrors, setServiceErrors] = useState<Record<string, boolean>>({})
 
   const { dashboardStyle } = useDashboardTheme()
   const { user } = useAuth()
@@ -306,31 +312,50 @@ export default function DashboardClient() {
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
+        setError(null)
+        setServiceErrors({})
+        
         // Get authentication token
         const token = localStorage.getItem('token')
         const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
         
-        // Load real data from APIs
-        const [energyResponse, statsResponse, optimizationsResponse] = await Promise.all([
-          fetch('/api/proxy?service=energy&path=/energy/readings', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/dashboard-stats', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/cost-optimizations', { headers: authHeaders })
+        // Load real data from APIs using the new API client
+        const [energyResponse, statsResponse, optimizationsResponse] = await Promise.allSettled([
+          apiClient.proxy('energy', `/energy/readings/user/${user?.id}`, { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/dashboard-stats', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/cost-optimizations', { method: 'GET', headers: authHeaders })
         ])
 
-        // Handle empty responses gracefully - services are running but no data yet
-        if (!energyResponse.ok && energyResponse.status !== 400) {
-          throw new Error('Failed to load energy data')
+        // Handle responses with proper error tracking
+        const energyResponseData = energyResponse.status === 'fulfilled' ? energyResponse.value : null
+        const statsData = statsResponse.status === 'fulfilled' ? statsResponse.value : null
+        const optimizationsData = optimizationsResponse.status === 'fulfilled' ? optimizationsResponse.value : null
+
+        // Track service errors
+        if (energyResponse.status === 'rejected') {
+          setServiceErrors(prev => ({ ...prev, energy: true }))
         }
-        if (!statsResponse.ok && statsResponse.status !== 400) {
-          throw new Error('Failed to load analytics data')
+        if (statsResponse.status === 'rejected') {
+          setServiceErrors(prev => ({ ...prev, analytics: true }))
         }
-        if (!optimizationsResponse.ok && optimizationsResponse.status !== 400) {
-          throw new Error('Failed to load optimization data')
+        if (optimizationsResponse.status === 'rejected') {
+          setServiceErrors(prev => ({ ...prev, analytics: true }))
         }
 
         // Parse responses or use default empty data
-        const energyResponseData = energyResponse.ok ? await energyResponse.json() : { content: [] }
-        const energyData: EnergyData[] = energyResponseData.content || []
+        const energyReadings = energyResponseData?.content || []
+        
+        // Transform energy readings to chart data format
+        const energyData: EnergyData[] = energyReadings.map((reading: any) => ({
+          time: new Date(reading.timestamp).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+          }),
+          consumption: reading.consumption || 0,
+          generation: reading.generation || 0,
+          cost: reading.cost || 0
+        }))
         
         // Ensure we have valid chart data even if empty
         const chartData: EnergyData[] = energyData.length > 0 ? energyData : [
@@ -341,74 +366,91 @@ export default function DashboardClient() {
           { time: '24:00', consumption: 0, generation: 0, cost: 0 }
         ]
         
-        const stats: DashboardStats = statsResponse.ok ? await statsResponse.json() : {
-          totalEnergyConsumption: 0,
-          totalEnergyGeneration: 0,
-          totalCost: 0,
-          totalSavings: 0,
-          efficiency: 0,
-          carbonFootprint: 0
+        const stats: DashboardStats = {
+          currentConsumption: energyData.length > 0 ? energyData[energyData.length - 1].consumption : 0,
+          totalEnergyConsumption: statsData?.totalEnergyConsumption || energyData.reduce((sum, item) => sum + item.consumption, 0),
+          monthlyCost: statsData?.monthlyCost || energyData.reduce((sum, item) => sum + item.cost, 0),
+          totalCost: statsData?.totalCost || energyData.reduce((sum, item) => sum + item.cost, 0),
+          solarGeneration: energyData.length > 0 ? energyData[energyData.length - 1].generation : 0,
+          totalEnergyGeneration: statsData?.totalEnergyGeneration || energyData.reduce((sum, item) => sum + item.generation, 0),
+          offPeakSavings: statsData?.offPeakSavings || 0,
+          costSavings: statsData?.costSavings || 0,
+          totalSavings: statsData?.totalSavings || 0,
+          peakDemand: statsData?.peakDemand || Math.max(...energyData.map(item => item.consumption), 0),
+          efficiencyScore: statsData?.efficiencyScore || 0,
+          efficiency: statsData?.efficiency || 0,
+          carbonFootprint: statsData?.carbonFootprint || 0
         }
-        const costOptimizations: CostOptimization[] = optimizationsResponse.ok ? await optimizationsResponse.json() : []
+        const costOptimizations: CostOptimization[] = optimizationsData || []
 
-        // Load additional data from APIs
-        const [efficienciesResponse, alertsResponse, forecastsResponse, recommendationsResponse, powerQualityResponse] = await Promise.all([
-          fetch('/api/proxy?service=analytics&path=/analytics/efficiency-metrics', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/alerts', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/forecasts', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/recommendations', { headers: authHeaders }),
-          fetch('/api/proxy?service=energy&path=/energy/power-quality', { headers: authHeaders })
+        // Load additional data from APIs using the new API client
+        const [efficienciesResponse, alertsResponse, forecastsResponse, recommendationsResponse, powerQualityResponse] = await Promise.allSettled([
+          apiClient.proxy('analytics', '/analytics/efficiency-metrics', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/alerts', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/forecasts', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/recommendations', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('energy', '/energy/power-quality', { method: 'GET', headers: authHeaders })
         ])
 
         // Parse additional responses or use default empty data
-        const energyEfficiencies: EnergyEfficiency[] = efficienciesResponse.ok ? await efficienciesResponse.json() : []
-        const energyAlerts: EnergyAlert[] = alertsResponse.ok ? await alertsResponse.json() : []
-        const energyForecasts: EnergyForecast[] = forecastsResponse.ok ? await forecastsResponse.json() : []
-        const smartRecommendations: SmartRecommendation[] = recommendationsResponse.ok ? await recommendationsResponse.json() : []
-        const powerQuality: PowerQuality = powerQualityResponse.ok ? await powerQualityResponse.json() : {
+        const energyEfficiencies: EnergyEfficiency[] = efficienciesResponse.status === 'fulfilled' ? efficienciesResponse.value : []
+        const energyAlerts: EnergyAlert[] = alertsResponse.status === 'fulfilled' ? alertsResponse.value : []
+        const energyForecasts: EnergyForecast[] = forecastsResponse.status === 'fulfilled' ? forecastsResponse.value : []
+        const smartRecommendations: SmartRecommendation[] = recommendationsResponse.status === 'fulfilled' ? recommendationsResponse.value : []
+        const powerQuality: PowerQuality = powerQualityResponse.status === 'fulfilled' ? powerQualityResponse.value : {
           voltage: 0,
           current: 0,
           frequency: 0,
           powerFactor: 0,
-          harmonics: 0,
-          quality: 'Good'
+          totalHarmonicDistortion: 0,
+          status: 'good'
         }
 
-        // Load additional analytics data
-        const [loadProfileResponse, carbonFootprintResponse, deviceConsumptionResponse, timeOfUseResponse, weatherImpactResponse, efficiencyBenchmarksResponse] = await Promise.all([
-          fetch('/api/proxy?service=analytics&path=/analytics/load-profile', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/carbon-footprint', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/device-consumption', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/time-of-use', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/weather-impact', { headers: authHeaders }),
-          fetch('/api/proxy?service=analytics&path=/analytics/efficiency-benchmarks', { headers: authHeaders })
+        // Load additional analytics data using the new API client
+        const [loadProfileResponse, carbonFootprintResponse, deviceConsumptionResponse, timeOfUseResponse, weatherImpactResponse, efficiencyBenchmarksResponse] = await Promise.allSettled([
+          apiClient.proxy('analytics', '/analytics/load-profile', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/carbon-footprint', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/device-consumption', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/time-of-use', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/weather-impact', { method: 'GET', headers: authHeaders }),
+          apiClient.proxy('analytics', '/analytics/efficiency-benchmarks', { method: 'GET', headers: authHeaders })
         ])
 
         // Parse final responses or use default empty data
-        const loadProfile: LoadProfile = loadProfileResponse.ok ? await loadProfileResponse.json() : {
-          hourly: [],
-          daily: [],
-          weekly: [],
-          monthly: []
+        const loadProfile: LoadProfile = loadProfileResponse.status === 'fulfilled' ? loadProfileResponse.value : {
+          peakDemand: 0,
+          offPeakDemand: 0,
+          baseLoad: 0,
+          peakHours: [],
+          offPeakHours: [],
+          loadFactor: 0
         }
-        const carbonFootprint: CarbonFootprint = carbonFootprintResponse.ok ? await carbonFootprintResponse.json() : {
-          total: 0,
-          renewable: 0,
-          nonRenewable: 0,
-          savings: 0
+        const carbonFootprint: CarbonFootprint = carbonFootprintResponse.status === 'fulfilled' ? carbonFootprintResponse.value : {
+          totalEmissions: 0,
+          renewablePercentage: 0,
+          carbonSaved: 0,
+          equivalentTrees: 0,
+          equivalentCars: 0
         }
-        const deviceConsumption: DeviceConsumption[] = deviceConsumptionResponse.ok ? await deviceConsumptionResponse.json() : []
-        const timeOfUseAnalysis: TimeOfUseAnalysis = timeOfUseResponse.ok ? await timeOfUseResponse.json() : {
-          peak: { consumption: 0, cost: 0 },
-          offPeak: { consumption: 0, cost: 0 },
-          savings: 0
+        const deviceConsumption: DeviceConsumption[] = deviceConsumptionResponse.status === 'fulfilled' ? deviceConsumptionResponse.value : []
+        const timeOfUseAnalysis: TimeOfUseAnalysis = timeOfUseResponse.status === 'fulfilled' ? timeOfUseResponse.value : {
+          peakRate: 0,
+          offPeakRate: 0,
+          peakHours: '',
+          offPeakHours: '',
+          peakConsumption: 0,
+          offPeakConsumption: 0,
+          potentialSavings: 0
         }
-        const weatherImpact: WeatherImpact = weatherImpactResponse.ok ? await weatherImpactResponse.json() : {
+        const weatherImpact: WeatherImpact = weatherImpactResponse.status === 'fulfilled' ? weatherImpactResponse.value : {
           temperature: 0,
           humidity: 0,
-          impact: 0
+          solarIrradiance: 0,
+          energyImpact: 0,
+          hvacLoad: 0,
+          solarEfficiency: 0
         }
-        const efficiencyBenchmarks: EfficiencyBenchmark[] = efficiencyBenchmarksResponse.ok ? await efficiencyBenchmarksResponse.json() : []
+        const efficiencyBenchmarks: EfficiencyBenchmark[] = efficiencyBenchmarksResponse.status === 'fulfilled' ? efficiencyBenchmarksResponse.value : []
 
         // Set all the real data
         setEnergyData(chartData)
@@ -428,6 +470,7 @@ export default function DashboardClient() {
         setIsLoading(false)
       } catch (error) {
         console.error('Error loading dashboard data:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load dashboard data')
         setIsLoading(false)
       }
     }
@@ -435,19 +478,49 @@ export default function DashboardClient() {
     loadDashboardData()
   }, [])
 
+  // Handle error states
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <ServiceUnavailable 
+          service="Dashboard" 
+          onRetry={() => {
+            setError(null)
+            setServiceErrors({})
+            setIsLoading(true)
+            // Trigger reload
+            window.location.reload()
+          }}
+        />
+      </div>
+    )
+  }
+
+  // Handle loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center" role="status" aria-live="polite" aria-busy="true">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-intelligence-500 mx-auto"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-intelligence-500 mx-auto" aria-hidden="true"></div>
           <p className="mt-4 text-xl text-surface-100">Loading your energy insights...</p>
         </div>
       </div>
     )
   }
 
+  // Handle empty data state
+  const hasNoData = energyData.length === 0 && stats.totalEnergyConsumption === 0 && deviceConsumption.length === 0
+  if (hasNoData) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <EmptyStates.EnergyData />
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       {/* Enhanced Header with 3D Effects */}
       <div className={themeStyles.header}>
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
@@ -1069,5 +1142,6 @@ export default function DashboardClient() {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

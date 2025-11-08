@@ -24,6 +24,7 @@
 - **Testing**: JUnit 5 with Mockito for unit testing
 - **Containerization**: Docker for service deployment
 - **Caching**: Redis 7.4.5 for rate limiting and caching
+- **Phone Verification**: Redis-based verification code storage with automatic expiration
 
 ### **🚀 PRODUCTION-READY EDGE GATEWAY TECHNOLOGY STACK** ✅ **COMPLETE**
 
@@ -616,6 +617,41 @@ environment:
 **Solution**: Use correct Spring Cloud Gateway filter names:
 - `RateLimiting` → `RequestRateLimiter`
 - `limit`/`window` → `redis-rate-limiter.replenishRate`/`redis-rate-limiter.burstCapacity`
+
+### Redis Configuration for User Service Phone Verification
+**Pattern**: Redis-based phone verification code storage with automatic expiration
+
+**Configuration**:
+```yaml
+# application.yml - User Service
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+        shutdown-timeout: 200ms
+```
+
+**Implementation**:
+- Created `RedisConfig.java` with `RedisConnectionFactory` and `RedisTemplate<String, String>` beans
+- Updated `UserService.java` to use Redis for verification code storage and validation
+- Made Redis optional using `@Autowired(required = false)` for graceful degradation
+- Implemented 10-minute expiration for verification codes
+- Key format: `phone_verification:{userId}`
+
+**Why This Pattern**:
+- Redis provides scalable, distributed storage for verification codes
+- Automatic expiration ensures codes don't persist indefinitely
+- Optional Redis dependency allows graceful degradation if Redis unavailable
+- String serialization ensures compatibility and easy debugging
 
 ## Notes for Future Development
 - All core technologies are production-ready and enterprise-grade

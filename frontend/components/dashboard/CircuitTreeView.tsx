@@ -200,8 +200,9 @@ const CircuitTreeView: React.FC<CircuitTreeViewProps> = ({ deviceId }) => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex items-center justify-center h-32" role="status" aria-live="polite" aria-busy="true">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" aria-hidden="true"></div>
+            <span className="sr-only">Loading circuit tree...</span>
           </div>
         </CardContent>
       </Card>

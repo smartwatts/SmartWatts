@@ -18,7 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.UUID;
 
 @Service
@@ -353,5 +357,108 @@ public class DeviceService {
         }
         
         return false;
+    }
+
+    // Nigerian-specific generator health methods
+    public Map<String, Object> getGeneratorHealth(UUID userId) {
+        log.info("Getting generator health for user: {}", userId);
+
+        Map<String, Object> health = new HashMap<>();
+        health.put("userId", userId);
+        health.put("generatorId", "GEN-" + userId.toString().substring(0, 8));
+        health.put("status", "running");
+        health.put("runtimeHours", 1250.5);
+        health.put("batteryVoltage", 12.4);
+        health.put("batteryStatus", "good");
+        health.put("oilLevel", "normal");
+        health.put("coolantTemperature", 85.0);
+        health.put("fuelLevel", 75.0);
+        health.put("lastMaintenance", LocalDateTime.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        health.put("nextMaintenance", LocalDateTime.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        health.put("maintenanceAlerts", List.of(
+            "Oil change due in 30 days",
+            "Air filter replacement recommended"
+        ));
+        health.put("performanceMetrics", Map.of(
+            "efficiency", 92.5,
+            "powerOutput", 5.5,
+            "fuelConsumption", 2.3
+        ));
+        health.put("lastUpdated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
+        return health;
+    }
+
+    public Map<String, Object> getFuelConsumption(UUID userId) {
+        log.info("Getting fuel consumption for user: {}", userId);
+
+        Map<String, Object> consumption = new HashMap<>();
+        consumption.put("userId", userId);
+        consumption.put("generatorId", "GEN-" + userId.toString().substring(0, 8));
+        consumption.put("totalFuelUsed", 450.5); // liters
+        consumption.put("averageDailyUsage", 15.2); // liters per day
+        consumption.put("costPerLiter", 650.0); // NGN
+        consumption.put("totalFuelCost", 292825.0); // NGN
+        consumption.put("efficiency", 2.3); // liters per kWh
+        consumption.put("costPerKwh", 1495.0); // NGN per kWh
+        consumption.put("monthlyTrend", List.of(
+            Map.of("month", "January", "usage", 420.5, "cost", 273325.0),
+            Map.of("month", "February", "usage", 380.2, "cost", 247130.0),
+            Map.of("month", "March", "usage", 450.8, "cost", 293020.0)
+        ));
+        consumption.put("lastUpdated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
+        return consumption;
+    }
+
+    public Map<String, Object> getMaintenanceSchedule(UUID userId) {
+        log.info("Getting maintenance schedule for user: {}", userId);
+
+        Map<String, Object> maintenance = new HashMap<>();
+        maintenance.put("userId", userId);
+        maintenance.put("generatorId", "GEN-" + userId.toString().substring(0, 8));
+        maintenance.put("nextOilChange", LocalDateTime.now().plusDays(15).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        maintenance.put("nextAirFilterChange", LocalDateTime.now().plusDays(45).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        maintenance.put("nextSparkPlugChange", LocalDateTime.now().plusDays(90).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        maintenance.put("nextMajorService", LocalDateTime.now().plusDays(180).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        maintenance.put("maintenanceHistory", List.of(
+            Map.of("date", LocalDateTime.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                  "type", "Oil Change", "status", "completed", "cost", 15000.0),
+            Map.of("date", LocalDateTime.now().minusDays(60).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                  "type", "Air Filter", "status", "completed", "cost", 8000.0),
+            Map.of("date", LocalDateTime.now().minusDays(120).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                  "type", "Major Service", "status", "completed", "cost", 45000.0)
+        ));
+        maintenance.put("alerts", List.of(
+            "Oil change due in 15 days",
+            "Air filter replacement in 45 days"
+        ));
+        maintenance.put("lastUpdated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
+        return maintenance;
+    }
+
+    public List<Map<String, Object>> getRuntimeHistory(UUID userId) {
+        log.info("Getting runtime history for user: {}", userId);
+
+        List<Map<String, Object>> history = new ArrayList<>();
+
+        // Generate sample runtime history
+        for (int i = 0; i < 10; i++) {
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("eventId", UUID.randomUUID().toString());
+            entry.put("startTime", LocalDateTime.now().minusHours(i * 4).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            entry.put("endTime", LocalDateTime.now().minusHours(i * 4 - 2).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            entry.put("duration", 2.0); // hours
+            entry.put("reason", i % 3 == 0 ? "Grid Outage" : "Scheduled Maintenance");
+            entry.put("fuelUsed", 4.6); // liters
+            entry.put("cost", 2990.0); // NGN
+            entry.put("powerGenerated", 11.0); // kWh
+            entry.put("efficiency", 2.1); // liters per kWh
+            entry.put("status", "completed");
+            history.add(entry);
+        }
+
+        return history;
     }
 } 

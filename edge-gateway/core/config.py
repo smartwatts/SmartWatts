@@ -30,6 +30,7 @@ class NetworkConfig(BaseModel):
     mqtt_password: Optional[str] = None
     cloud_api_url: str = "https://api.smartwatts.com"
     cloud_api_key: Optional[str] = None
+    azure_iot_hub_connection_string: Optional[str] = None  # Azure IoT Hub connection string
     enable_ssl: bool = False
     ssl_cert_path: Optional[str] = None
     ssl_key_path: Optional[str] = None
@@ -128,6 +129,8 @@ class DataSyncConfig(BaseModel):
     retry_delay_seconds: int = 60
     offline_mode: bool = True
     conflict_resolution: str = "edge_priority"  # edge_priority, cloud_priority, timestamp
+    use_azure_iot_hub: bool = False  # Enable Azure IoT Hub MQTT publishing
+    azure_iot_hub_device_id: Optional[str] = None  # Device ID for Azure IoT Hub
 
 class SecurityConfig(BaseModel):
     """Security configuration."""

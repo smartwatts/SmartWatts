@@ -89,6 +89,88 @@ environment:
 - Ensures consistent configuration across different Spring Boot versions
 - Works reliably in containerized environments
 
+### Redis Configuration Pattern for User Service
+**Critical Pattern**: Redis configuration for phone verification code storage
+
+```yaml
+# application.yml - User Service
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+        shutdown-timeout: 200ms
+```
+
+```java
+// RedisConfig.java - User Service
+@Configuration
+public class RedisConfig {
+    @Bean
+    public RedisConnectionFactory redisConnectionFactory() {
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
+        config.setHostName(redisHost);
+        config.setPort(redisPort);
+        if (redisPassword != null && !redisPassword.isEmpty()) {
+            config.setPassword(redisPassword);
+        }
+        return new LettuceConnectionFactory(config);
+    }
+
+    @Bean
+    public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, String> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashValueSerializer(new StringRedisSerializer());
+        template.afterPropertiesSet();
+        return template;
+    }
+}
+```
+
+**Usage Pattern**:
+```java
+// UserService.java - Phone Verification
+@Autowired(required = false)
+private RedisTemplate<String, String> redisTemplate;
+
+// Store verification code
+if (redisTemplate != null) {
+    String redisKey = "phone_verification:" + userId.toString();
+    ValueOperations<String, String> ops = redisTemplate.opsForValue();
+    ops.set(redisKey, verificationCode, Duration.ofMinutes(10));
+}
+
+// Validate verification code
+if (redisTemplate != null) {
+    String redisKey = "phone_verification:" + userId.toString();
+    ValueOperations<String, String> ops = redisTemplate.opsForValue();
+    String storedCode = ops.get(redisKey);
+    if (storedCode != null && storedCode.equals(verificationCode)) {
+        redisTemplate.delete(redisKey);
+        // Mark phone as verified
+    }
+}
+```
+
+**Why This Pattern**:
+- Redis provides scalable, distributed storage for verification codes
+- Automatic expiration (10 minutes) ensures codes don't persist indefinitely
+- Optional Redis dependency allows graceful degradation if Redis unavailable
+- String serialization ensures compatibility and easy debugging
+- Connection pooling optimizes Redis connection management
+
 ## Frontend Architecture Patterns
 
 ### Dashboard Component Architecture

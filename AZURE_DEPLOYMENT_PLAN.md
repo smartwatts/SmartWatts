@@ -2,9 +2,27 @@
 
 ## 🎯 **Deployment Overview**
 
-**Target**: Azure Free Tier (Barebones)  
+**Target**: Azure Free Tier (Hybrid Architecture)  
 **Cost**: $0/month  
-**Resources**: B1s VM, Azure SQL, IoT Hub, Blob Storage  
+**Architecture**: Spring Boot Microservices + Azure Services  
+**Resources**: B1s VM, PostgreSQL (on VM), IoT Hub, Blob Storage  
+
+---
+
+## 🏗️ **Hybrid Architecture Approach**
+
+This deployment uses a **hybrid approach** that combines:
+- **Spring Boot Microservices** (production-ready, 13 services) - Running on Azure VM
+- **PostgreSQL** (9 databases) - Running on Azure VM in Docker
+- **Azure IoT Hub** - For device ingestion (free tier)
+- **Azure Blob Storage** - For file storage (free tier)
+- **Azure Static Web Apps** - For frontend hosting (optional, free tier)
+
+**Why Hybrid?**
+- Keep production-ready Spring Boot services (no rewrite needed)
+- Use Azure free tier services for IoT and storage
+- Zero migration effort (keep existing PostgreSQL setup)
+- Best of both worlds: proven Spring Boot + Azure cloud services
 
 ---
 
@@ -15,12 +33,13 @@
 - **Hours**: 750 free hours/month
 - **OS**: Ubuntu 20.04 LTS
 - **Storage**: 30 GB SSD
+- **Usage**: Runs Spring Boot services + PostgreSQL + Redis + Frontend
 
 ### **Database**
-- **Service**: Azure SQL Database
-- **Tier**: Basic (S0)
-- **Storage**: 250 GB free
-- **DTU**: 10 DTUs
+- **Service**: PostgreSQL 15 (Docker container on VM)
+- **Databases**: 9 databases (smartwatts_users, smartwatts_energy, etc.)
+- **Storage**: Uses VM disk space (30 GB SSD)
+- **Cost**: $0/month (included in VM free tier)
 
 ### **IoT Services**
 - **Service**: Azure IoT Hub
@@ -38,7 +57,7 @@
 
 ## 🏗️ **Architecture Design**
 
-### **Single VM Deployment**
+### **Hybrid Architecture - Single VM Deployment**
 ```
 ┌─────────────────────────────────────┐
 │           Azure B1s VM              │
@@ -54,7 +73,13 @@
 │  │  └─────────────────────────────┘ │ │
 │  │  ┌─────────────────────────────┐ │ │
 │  │  │   Microservices (Spring)    │ │ │
-│  │  │   Ports 8081-8088           │ │ │
+│  │  │   Ports 8081-8092           │ │ │
+│  │  │   (13 services)             │ │ │
+│  │  └─────────────────────────────┘ │ │
+│  │  ┌─────────────────────────────┐ │ │
+│  │  │   PostgreSQL Container      │ │ │
+│  │  │   (9 databases)             │ │ │
+│  │  │   Port 5432                 │ │ │
 │  │  └─────────────────────────────┘ │ │
 │  │  ┌─────────────────────────────┐ │ │
 │  │  │   Redis Cache               │ │ │
@@ -65,22 +90,24 @@
            │
            ▼
 ┌─────────────────────────────────────┐
-│        Azure SQL Database           │
-│     (Replaces PostgreSQL)           │
+│         Azure IoT Hub (Free)       │
+│   For device ingestion              │
+│   8,000 messages/day               │
 └─────────────────────────────────────┘
            │
            ▼
 ┌─────────────────────────────────────┐
-│         Azure IoT Hub               │
-│    (Replaces MQTT Broker)           │
-└─────────────────────────────────────┘
-           │
-           ▼
-┌─────────────────────────────────────┐
-│       Azure Blob Storage            │
-│    (File Storage & Backups)         │
+│       Azure Blob Storage (Free)     │
+│   File storage & backups             │
+│   5 GB free                          │
 └─────────────────────────────────────┘
 ```
+
+**Key Points:**
+- **PostgreSQL runs on VM** (no migration needed)
+- **Spring Boot services unchanged** (production-ready)
+- **Azure IoT Hub** for device ingestion (optional enhancement)
+- **Azure Blob Storage** for file storage (optional enhancement)
 
 ---
 
@@ -89,21 +116,17 @@
 ### **Phase 1: Azure Infrastructure Setup**
 1. **Create Resource Group**
 2. **Deploy B1s VM with Ubuntu 20.04**
-3. **Create Azure SQL Database**
-4. **Set up Azure IoT Hub**
-5. **Create Storage Account**
+3. **Set up Azure IoT Hub** (optional, for device ingestion)
+4. **Create Storage Account** (optional, for file storage)
 
-### **Phase 2: Database Migration**
-1. **Convert PostgreSQL schemas to Azure SQL**
-2. **Update connection strings**
-3. **Migrate data (if any)**
-4. **Test database connectivity**
-
-### **Phase 3: Application Deployment**
+### **Phase 2: Application Deployment**
 1. **Install Docker on VM**
-2. **Deploy application containers**
-3. **Configure Azure IoT Hub integration**
-4. **Set up monitoring and logging**
+2. **Deploy application containers** (Spring Boot + PostgreSQL + Redis + Frontend)
+3. **Configure PostgreSQL** (9 databases, same as current setup)
+4. **Configure Azure IoT Hub integration** (optional, for edge gateway)
+5. **Set up monitoring and logging**
+
+**Note**: No database migration needed - PostgreSQL runs on VM in Docker container, same as current setup.
 
 ### **Phase 4: Testing & Optimization**
 1. **Test all services**
@@ -117,17 +140,22 @@
 
 ### **Free Tier Usage**
 - **VM**: 750 hours/month (24/7 = 744 hours) ✅
-- **SQL Database**: 250 GB (estimated usage: ~50 GB) ✅
-- **IoT Hub**: 8,000 messages/day (6 sites × 1 msg/65s = ~8,000/day) ✅
-- **Blob Storage**: 5 GB (estimated usage: ~2 GB) ✅
+  - Runs: Spring Boot services + PostgreSQL + Redis + Frontend
+- **PostgreSQL**: Included in VM (uses VM disk space) ✅
+  - 9 databases, estimated ~10-20 GB total
+- **IoT Hub**: 8,000 messages/day (optional) ✅
+  - For edge gateway device ingestion
+- **Blob Storage**: 5 GB (optional) ✅
+  - For file storage and backups
 
 ### **Potential Overages**
 - **VM**: $0.0052/hour if over 750 hours
-- **SQL Database**: $0.0208/GB/month if over 250 GB
-- **IoT Hub**: $0.10/1M messages if over 8,000/day
-- **Blob Storage**: $0.0184/GB/month if over 5 GB
+- **IoT Hub**: $0.10/1M messages if over 8,000/day (if used)
+- **Blob Storage**: $0.0184/GB/month if over 5 GB (if used)
 
 **Total Estimated Cost**: $0/month (within free tier limits)
+
+**Note**: PostgreSQL runs on the VM, so no separate database cost. All services run within the 750 free VM hours.
 
 ---
 
@@ -147,30 +175,20 @@ az vm create \
   --admin-username azureuser \
   --generate-ssh-keys
 
-# Create SQL Database
-az sql server create \
-  --resource-group smartwatts-rg \
-  --name smartwatts-sql-server \
-  --admin-user smartwattsadmin \
-  --admin-password SmartWatts2025!
-
-az sql db create \
-  --resource-group smartwatts-rg \
-  --server smartwatts-sql-server \
-  --name smartwatts-db \
-  --service-objective Basic
-
-# Create IoT Hub
+# Create IoT Hub (optional, for device ingestion)
 az iot hub create \
   --resource-group smartwatts-rg \
   --name smartwatts-iot-hub \
   --sku F1
 
-# Create Storage Account
+# Create Storage Account (optional, for file storage)
 az storage account create \
   --resource-group smartwatts-rg \
   --name smartwattsstorage \
   --sku Standard_LRS
+
+# Note: PostgreSQL will run in Docker container on the VM
+# No separate database service needed - uses existing PostgreSQL setup
 ```
 
 ### **2. VM Setup Script**
@@ -213,9 +231,10 @@ cd smartwatts
 - **SSL/TLS**: Let's Encrypt certificates for HTTPS
 
 ### **Database Security**
-- **Azure SQL Firewall**: Restrict to VM IP only
+- **PostgreSQL Firewall**: Restrict to VM internal network only
 - **Connection Encryption**: TLS 1.2+ required
-- **Authentication**: SQL authentication with strong passwords
+- **Authentication**: PostgreSQL authentication with strong passwords
+- **Network Isolation**: PostgreSQL only accessible from within VM
 
 ### **Application Security**
 - **JWT Tokens**: Secure token generation and validation
@@ -228,8 +247,8 @@ cd smartwatts
 
 ### **Azure Monitor**
 - **VM Metrics**: CPU, Memory, Disk usage
-- **SQL Metrics**: DTU usage, connection count
-- **IoT Hub Metrics**: Message count, device count
+- **PostgreSQL Metrics**: Connection count, query performance (via application logs)
+- **IoT Hub Metrics**: Message count, device count (if used)
 
 ### **Application Logging**
 - **Log Files**: Centralized logging to Azure Blob Storage
@@ -242,10 +261,11 @@ cd smartwatts
 
 ### **Must Have**
 - [ ] All services running on Azure VM
-- [ ] Azure SQL Database connected and working
-- [ ] Azure IoT Hub integrated for device communication
+- [ ] PostgreSQL container running with 9 databases
+- [ ] Spring Boot services connected to PostgreSQL
 - [ ] Frontend accessible via public IP
 - [ ] All consumer-grade features functional
+- [ ] Azure IoT Hub integrated (optional, for edge gateway)
 
 ### **Should Have**
 - [ ] SSL certificates configured
@@ -270,9 +290,9 @@ cd smartwatts
 
 ### **Free Tier Limits**
 - **VM Hours**: Monitor usage to stay within 750 hours
-- **SQL Storage**: Monitor database size
-- **IoT Messages**: Optimize message frequency
-- **Blob Storage**: Compress and clean up old files
+- **VM Disk Space**: Monitor PostgreSQL database size (30 GB total)
+- **IoT Messages**: Optimize message frequency (if using IoT Hub)
+- **Blob Storage**: Compress and clean up old files (if using Blob Storage)
 
 ---
 
@@ -280,7 +300,7 @@ cd smartwatts
 
 ### **Vertical Scaling**
 - Upgrade to B2s (2 vCPU, 4 GB RAM) if needed
-- Upgrade SQL Database tier if required
+- Increase VM disk size if PostgreSQL databases grow
 
 ### **Horizontal Scaling**
 - Add more VMs behind load balancer

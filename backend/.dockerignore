@@ -1,0 +1,52 @@
+# Test files and directories
+**/__tests__/
+**/test/
+**/tests/
+**/*Test.java
+**/*Tests.java
+**/*Test*.java
+**/test-*.sh
+**/fix-*.sh
+
+# Integration tests
+integration-tests/
+**/integration-tests/
+
+# Test scripts
+**/scripts/*test*.sh
+**/scripts/create-test-users.sh
+**/scripts/run-*-tests.sh
+
+# Development files
+**/.env.local
+**/.env.development
+**/.env.test
+**/.git/
+**/.gitignore
+**/.DS_Store
+
+# Build artifacts
+**/target/
+**/build/
+**/out/
+**/.gradle/
+**/.mvn/
+
+# IDE files
+**/.idea/
+**/.vscode/
+**/*.iml
+**/*.swp
+**/*.swo
+
+# Logs
+**/*.log
+**/logs/
+
+# Temporary files
+**/tmp/
+**/temp/
+
+# Documentation (optional)
+# **/*.md
+

@@ -188,4 +188,43 @@ public class UserController {
         userService.resetPassword(token, newPassword);
         return ResponseEntity.ok("Password reset successful");
     }
+    
+    @PostMapping("/{userId}/verify-email/send")
+    @Operation(summary = "Send email verification", description = "Sends email verification link to user")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<String> sendEmailVerification(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Sending email verification for user: {}", userId);
+        userService.sendEmailVerification(userId);
+        return ResponseEntity.ok("Email verification sent");
+    }
+    
+    @PostMapping("/verify-email")
+    @Operation(summary = "Verify email", description = "Verifies email using verification token")
+    public ResponseEntity<String> verifyEmail(@RequestParam String token) {
+        log.info("Verifying email with token");
+        userService.verifyEmail(token);
+        return ResponseEntity.ok("Email verified successfully");
+    }
+    
+    @PostMapping("/{userId}/verify-phone/send")
+    @Operation(summary = "Send phone verification", description = "Sends SMS verification code to user")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<String> sendPhoneVerification(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Sending phone verification for user: {}", userId);
+        userService.sendPhoneVerification(userId);
+        return ResponseEntity.ok("Phone verification code sent");
+    }
+    
+    @PostMapping("/{userId}/verify-phone")
+    @Operation(summary = "Verify phone", description = "Verifies phone using verification code")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<String> verifyPhone(
+            @Parameter(description = "User ID") @PathVariable UUID userId,
+            @RequestParam String code) {
+        log.info("Verifying phone for user: {}", userId);
+        userService.verifyPhone(userId, code);
+        return ResponseEntity.ok("Phone verified successfully");
+    }
 } 

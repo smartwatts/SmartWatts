@@ -1,0 +1,47 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: notification-service
+  main:
+    allow-circular-references: true
+
+  cloud:
+    netflix:
+      eureka:
+        client:
+          service-url:
+            defaultZone: http://service-discovery:8761/eureka/
+          register-with-eureka: true
+          fetch-registry: true
+        instance:
+          prefer-ip-address: true
+          instance-id: ${spring.application.name}:${server.port}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+
+logging:
+  level:
+    com.smartwatts.notificationservice: INFO
+    org.springframework.web: WARN
+
+# Push Notification Configuration
+smartwatts:
+  notifications:
+    push:
+      enabled: ${PUSH_NOTIFICATIONS_ENABLED:true}
+      fcm:
+        server-key: ${FCM_SERVER_KEY:}
+        url: ${FCM_URL:https://fcm.googleapis.com/fcm/send}
+
+

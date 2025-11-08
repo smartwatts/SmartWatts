@@ -56,6 +56,7 @@ export default function AdminDashboard() {
 
 function AdminDashboardContent() {
   const router = useRouter()
+  const [isMounted, setIsMounted] = useState(false)
   
   const [systemHealth, setSystemHealth] = useState<SystemHealth>({
     status: 'HEALTHY',
@@ -65,17 +66,40 @@ function AdminDashboardContent() {
     errorRate: 0.03
   })
 
+  // Handle component mounting/unmounting
+  useEffect(() => {
+    setIsMounted(true)
+    return () => {
+      setIsMounted(false)
+    }
+  }, [])
+
   // Quick Actions handlers
   const handleUserManagement = () => {
-    router.push('/admin/users')
+    if (!isMounted) return
+    try {
+      router.push('/admin/users')
+    } catch (error) {
+      console.error('Navigation error:', error)
+    }
   }
 
   const handleSecurityAudit = () => {
-    router.push('/admin/security')
+    if (!isMounted) return
+    try {
+      router.push('/admin/security')
+    } catch (error) {
+      console.error('Navigation error:', error)
+    }
   }
 
   const handleSystemSettings = () => {
-    router.push('/admin/config')
+    if (!isMounted) return
+    try {
+      router.push('/admin/config')
+    } catch (error) {
+      console.error('Navigation error:', error)
+    }
   }
 
   const [businessMetrics, setBusinessMetrics] = useState<BusinessMetrics>({

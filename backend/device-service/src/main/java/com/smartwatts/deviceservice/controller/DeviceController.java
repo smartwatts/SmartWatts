@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -255,5 +256,46 @@ public class DeviceController {
         log.info("Counting unresolved events for device: {}", deviceId);
         long count = deviceService.getUnresolvedEventCount(deviceId);
         return ResponseEntity.ok(count);
+    }
+    
+    // Nigerian-specific generator endpoints
+    @GetMapping("/generator/{userId}/health")
+    @Operation(summary = "Get generator health status", description = "Retrieves generator health metrics including runtime, battery status, and maintenance alerts")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<Map<String, Object>> getGeneratorHealth(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching generator health for user: {}", userId);
+        Map<String, Object> health = deviceService.getGeneratorHealth(userId);
+        return ResponseEntity.ok(health);
+    }
+    
+    @GetMapping("/generator/{userId}/fuel-consumption")
+    @Operation(summary = "Get fuel consumption data", description = "Retrieves fuel consumption metrics including usage, cost per kWh, and efficiency trends")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<Map<String, Object>> getFuelConsumption(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching fuel consumption for user: {}", userId);
+        Map<String, Object> consumption = deviceService.getFuelConsumption(userId);
+        return ResponseEntity.ok(consumption);
+    }
+    
+    @GetMapping("/generator/{userId}/maintenance")
+    @Operation(summary = "Get maintenance schedule", description = "Retrieves generator maintenance schedule including next oil change, service intervals, and alerts")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<Map<String, Object>> getMaintenanceSchedule(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching maintenance schedule for user: {}", userId);
+        Map<String, Object> maintenance = deviceService.getMaintenanceSchedule(userId);
+        return ResponseEntity.ok(maintenance);
+    }
+    
+    @GetMapping("/generator/{userId}/runtime-history")
+    @Operation(summary = "Get generator runtime history", description = "Retrieves generator runtime history including start/stop events, duration, and cost comparison")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.username")
+    public ResponseEntity<List<Map<String, Object>>> getRuntimeHistory(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching runtime history for user: {}", userId);
+        List<Map<String, Object>> history = deviceService.getRuntimeHistory(userId);
+        return ResponseEntity.ok(history);
     }
 } 

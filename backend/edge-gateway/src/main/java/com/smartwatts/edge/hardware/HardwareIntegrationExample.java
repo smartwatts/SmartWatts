@@ -2,7 +2,6 @@ package com.smartwatts.edge.hardware;
 
 import com.smartwatts.edge.service.RS485SerialService;
 import com.smartwatts.edge.service.DeviceDiscoveryService;
-import com.smartwatts.edge.protocol.ModbusProtocolHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,9 +26,6 @@ public class HardwareIntegrationExample {
 
     @Autowired
     private DeviceDiscoveryService deviceDiscoveryService;
-
-    @Autowired
-    private ModbusProtocolHandler modbusHandler;
 
     @PostConstruct
     public void initializeHardwareIntegration() {

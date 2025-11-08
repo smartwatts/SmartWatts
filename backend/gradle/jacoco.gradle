@@ -1,0 +1,65 @@
+// JaCoCo Code Coverage Configuration
+// Apply this to all services for consistent coverage reporting
+
+apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+tasks.named('test') {
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        csv.required = false
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco/html')
+    }
+    
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/dto/**',
+                '**/model/**',
+                '**/entity/**',
+                '**/config/**',
+                '**/exception/**',
+                '**/SmartWatts*Application.class'
+            ])
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 1.00 // 100% minimum coverage
+            }
+        }
+        rule {
+            element = 'CLASS'
+            excludes = [
+                '*.dto.*',
+                '*.model.*',
+                '*.entity.*',
+                '*.config.*',
+                '*.exception.*',
+                '*Application'
+            ]
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 1.00
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification
+

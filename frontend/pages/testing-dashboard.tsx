@@ -1,8 +1,23 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import ProtectedRoute from '../components/ProtectedRoute'
 
 export default function TestingDashboard() {
+  const router = useRouter()
+  
+  // Gate this page from production - only allow in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') {
+      router.replace('/dashboard')
+    }
+  }, [router])
+  
+  // Don't render in production
+  if (process.env.NODE_ENV === 'production') {
+    return null
+  }
+  
   return (
     <ProtectedRoute>
       <Layout>

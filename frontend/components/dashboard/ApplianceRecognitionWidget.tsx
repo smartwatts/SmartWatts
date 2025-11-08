@@ -145,8 +145,9 @@ const ApplianceRecognitionWidget: React.FC<ApplianceRecognitionWidgetProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex items-center justify-center h-32" role="status" aria-live="polite" aria-busy="true">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" aria-hidden="true"></div>
+            <span className="sr-only">Loading appliance recognition...</span>
           </div>
         </CardContent>
       </Card>
@@ -229,6 +230,7 @@ const ApplianceRecognitionWidget: React.FC<ApplianceRecognitionWidgetProps> = ({
                         size="sm"
                         variant="outline"
                         onClick={() => confirmDetection(detection.id, true)}
+                        aria-label="Confirm"
                       >
                         <CheckCircleIcon className="h-4 w-4" />
                       </Button>
@@ -236,6 +238,7 @@ const ApplianceRecognitionWidget: React.FC<ApplianceRecognitionWidgetProps> = ({
                         size="sm"
                         variant="outline"
                         onClick={() => confirmDetection(detection.id, false)}
+                        aria-label="Reject"
                       >
                         <ExclamationTriangleIcon className="h-4 w-4" />
                       </Button>

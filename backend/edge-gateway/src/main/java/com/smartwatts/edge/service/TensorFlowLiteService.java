@@ -740,15 +740,13 @@ public class TensorFlowLiteService {
         }
     }
     
+    @SuppressWarnings("unused")
     private static class ModelInfo {
         ModelStatus status = ModelStatus.NOT_LOADED;
-        @SuppressWarnings("unused")
+        // Fields below are set but not yet read - reserved for future metrics/statistics API
         String version = "unknown";
-        @SuppressWarnings("unused")
         Date lastUpdated = new Date();
-        @SuppressWarnings("unused")
         long inferenceCount = 0;
-        @SuppressWarnings("unused")
         double averageInferenceTime = 0.0;
         boolean loaded = false;
         LocalDateTime lastUsed = LocalDateTime.now();

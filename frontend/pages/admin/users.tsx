@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
+import AdminRoute from '../../components/AdminRoute'
 import {
   UsersIcon,
   UserPlusIcon,
@@ -23,24 +24,13 @@ interface User {
 }
 
 export default function UserManagement() {
-  
-  try {
-    return (
+  return (
+    <AdminRoute>
       <Layout>
         <UserManagementContent />
       </Layout>
-    )
-  } catch (error) {
-    console.error('Error in UserManagement:', error)
-    return (
-      <Layout>
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Users</h1>
-          <p className="text-gray-600">There was an error loading the users page.</p>
-        </div>
-      </Layout>
-    )
-  }
+    </AdminRoute>
+  )
 }
 
 function UserManagementContent() {

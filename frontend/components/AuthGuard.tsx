@@ -19,27 +19,22 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     // Force fresh authentication check on every mount
     const checkAuthImmediately = () => {
       const token = localStorage.getItem('token')
-      console.log('AuthGuard: Fresh auth check - token exists:', !!token, 'token length:', token?.length)
       
       if (!token || token.length < 10) {
-        console.log('AuthGuard: No valid token, redirecting immediately')
         localStorage.removeItem('token')
         router.replace('/login')
         return
       }
 
       // Check user authentication
-      console.log('AuthGuard: User check - loading:', loading, 'user exists:', !!user)
       if (!loading) {
         if (!user) {
-          console.log('AuthGuard: No user, redirecting immediately')
           localStorage.removeItem('token')
           router.replace('/login')
           return
         }
         
         // User exists and token is valid
-        console.log('AuthGuard: User authenticated, allowing access')
         setIsAuthorized(true)
       }
     }
@@ -49,7 +44,6 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
     // Also listen for route changes to re-check authentication
     const handleRouteChange = () => {
-      console.log('AuthGuard: Route changed, re-checking authentication')
       checkAuthImmediately()
     }
 
@@ -77,14 +71,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     }
     
     // Not loading but not authorized - redirect
-    console.log('AuthGuard: Not authorized, redirecting to login')
     router.replace('/login')
     return null
   }
 
   // Final safety check
   if (!user) {
-    console.log('AuthGuard: Final check failed, redirecting to login')
     localStorage.removeItem('token')
     router.replace('/login')
     return null

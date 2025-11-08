@@ -3,6 +3,7 @@ package com.smartwatts.billingservice.service;
 import com.smartwatts.billingservice.dto.BillDto;
 import com.smartwatts.billingservice.dto.BillItemDto;
 import com.smartwatts.billingservice.dto.TariffDto;
+import com.smartwatts.billingservice.dto.TokenPurchaseRequest;
 import com.smartwatts.billingservice.model.Bill;
 import com.smartwatts.billingservice.model.BillItem;
 import com.smartwatts.billingservice.model.Tariff;
@@ -20,8 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -394,5 +395,158 @@ public class BillingService {
         TariffDto dto = new TariffDto();
         BeanUtils.copyProperties(tariff, dto);
         return dto;
+    }
+    
+    // Nigerian-specific methods
+    public Map<String, Object> getTokenBalance(UUID userId) {
+        log.info("Getting prepaid token balance for user: {}", userId);
+        
+        Map<String, Object> balance = new HashMap<>();
+        balance.put("userId", userId);
+        balance.put("currentBalance", 150.5); // kWh
+        balance.put("consumptionRate", 2.3); // kWh per day
+        balance.put("daysUntilDepletion", 65);
+        balance.put("lastPurchase", LocalDateTime.now().minusDays(7).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        balance.put("lastPurchaseAmount", 5000.0);
+        balance.put("meterNumber", "12345678901");
+        balance.put("disco", "EKEDC");
+        balance.put("status", "active");
+        balance.put("lastUpdated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
+        return balance;
+    }
+    
+    public Map<String, Object> purchaseToken(TokenPurchaseRequest request) {
+        log.info("Processing token purchase for user: {}", request.getUserId());
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("transactionId", UUID.randomUUID().toString());
+        result.put("userId", request.getUserId());
+        result.put("tokenAmount", request.getTokenAmount());
+        result.put("amount", request.getAmount());
+        result.put("paymentMethod", request.getPaymentMethod());
+        result.put("disco", request.getDisco());
+        result.put("status", "success");
+        result.put("token", generateToken());
+        result.put("expiryDate", LocalDateTime.now().plusYears(1).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        result.put("purchaseDate", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        result.put("vendingAgent", request.getVendingAgent());
+        result.put("transactionReference", request.getTransactionReference());
+        
+        return result;
+    }
+    
+    public List<Map<String, Object>> getTokenHistory(UUID userId) {
+        log.info("Getting token purchase history for user: {}", userId);
+        
+        List<Map<String, Object>> history = new ArrayList<>();
+        
+        // Simulate purchase history
+        for (int i = 0; i < 5; i++) {
+            Map<String, Object> purchase = new HashMap<>();
+            purchase.put("transactionId", UUID.randomUUID().toString());
+            purchase.put("amount", 5000.0 + (i * 1000));
+            purchase.put("tokenAmount", "100" + i + " kWh");
+            purchase.put("purchaseDate", LocalDateTime.now().minusDays(i * 7).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            purchase.put("paymentMethod", "Bank Transfer");
+            purchase.put("status", "completed");
+            purchase.put("disco", "EKEDC");
+            history.add(purchase);
+        }
+        
+        return history;
+    }
+    
+    public Map<String, Object> getMytoTariff(String customerClass) {
+        log.info("Getting MYTO tariff for customer class: {}", customerClass);
+        
+        Map<String, Object> tariff = new HashMap<>();
+        tariff.put("customerClass", customerClass);
+        tariff.put("effectiveDate", "2024-01-01");
+        tariff.put("expiryDate", "2024-12-31");
+        
+        // MYTO tariff rates by customer class
+        Map<String, Object> rates = new HashMap<>();
+        switch (customerClass.toUpperCase()) {
+            case "R1":
+                rates.put("residential", Map.of(
+                    "first50kwh", 4.0,
+                    "next50kwh", 13.0,
+                    "next100kwh", 18.0,
+                    "above200kwh", 20.0
+                ));
+                break;
+            case "R2":
+                rates.put("residential", Map.of(
+                    "first50kwh", 4.0,
+                    "next50kwh", 13.0,
+                    "next100kwh", 18.0,
+                    "above200kwh", 20.0
+                ));
+                break;
+            case "C1":
+                rates.put("commercial", Map.of(
+                    "first50kwh", 4.0,
+                    "next50kwh", 13.0,
+                    "next100kwh", 18.0,
+                    "above200kwh", 20.0
+                ));
+                break;
+            case "C2":
+                rates.put("commercial", Map.of(
+                    "first50kwh", 4.0,
+                    "next50kwh", 13.0,
+                    "next100kwh", 18.0,
+                    "above200kwh", 20.0
+                ));
+                break;
+            default:
+                rates.put("residential", Map.of(
+                    "first50kwh", 4.0,
+                    "next50kwh", 13.0,
+                    "next100kwh", 18.0,
+                    "above200kwh", 20.0
+                ));
+        }
+        
+        tariff.put("rates", rates);
+        tariff.put("currency", "NGN");
+        tariff.put("unit", "per kWh");
+        tariff.put("lastUpdated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
+        return tariff;
+    }
+    
+    public Map<String, Object> getDiscoBilling(UUID userId) {
+        log.info("Getting DisCo billing info for user: {}", userId);
+        
+        Map<String, Object> billing = new HashMap<>();
+        billing.put("userId", userId);
+        billing.put("disco", "EKEDC");
+        billing.put("accountNumber", "1234567890");
+        billing.put("meterNumber", "12345678901");
+        billing.put("customerName", "John Doe");
+        billing.put("address", "123 Lagos Street, Lagos");
+        billing.put("phone", "+234-801-234-5678");
+        billing.put("email", "john.doe@example.com");
+        billing.put("tariffClass", "R1");
+        billing.put("connectionType", "Single Phase");
+        billing.put("lastBillDate", LocalDateTime.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        billing.put("nextBillDate", LocalDateTime.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        billing.put("outstandingBalance", 15000.0);
+        billing.put("paymentStatus", "current");
+        billing.put("lastUpdated", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
+        return billing;
+    }
+    
+    private String generateToken() {
+        // Generate a 20-digit token
+        StringBuilder token = new StringBuilder();
+        Random random = new Random();
+        for (int i = 0; i < 20; i++) {
+            token.append(random.nextInt(10));
+        }
+        return token.toString();
     }
 } 

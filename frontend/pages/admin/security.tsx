@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import Layout from '../../components/Layout'
+import AdminRoute from '../../components/AdminRoute'
 import {
   ShieldCheckIcon,
   ExclamationTriangleIcon,
@@ -32,11 +33,11 @@ interface ComplianceStatus {
 
 export default function SecurityCompliance() {
   return (
-    
+    <AdminRoute>
       <Layout>
         <SecurityComplianceContent />
       </Layout>
-    
+    </AdminRoute>
   )
 }
 

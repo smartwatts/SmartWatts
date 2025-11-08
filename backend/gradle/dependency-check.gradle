@@ -1,0 +1,71 @@
+// OWASP Dependency Check Plugin
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.owasp:dependency-check-gradle:9.0.9'
+    }
+}
+
+apply plugin: 'org.owasp.dependencycheck'
+
+dependencyCheck {
+    // Fail build on high or critical vulnerabilities
+    failBuildOnCVSS = 7.0
+    
+    // Suppress false positives
+    suppressionFile = file('dependency-check-suppressions.xml')
+    
+    // Output formats
+    formats = ['HTML', 'JSON', 'JUNIT']
+    
+    // Output directory
+    outputDirectory = file("${buildDir}/reports/dependency-check")
+    
+    // Skip projects without dependencies
+    skipProjectsWithoutDependencies = true
+    
+    // Analyzers
+    analyzers {
+        // Enable experimental analyzers
+        experimentalEnabled = false
+        
+        // Enable archive analyzer
+        archiveEnabled = true
+        
+        // Enable assembly analyzer
+        assemblyEnabled = true
+        
+        // Enable known exploited vulnerabilities
+        knownExploitedEnabled = true
+        
+        // Enable OSS Index analyzer
+        ossIndexEnabled = false
+        
+        // Enable RetireJS analyzer
+        retirejs {
+            enabled = false
+        }
+        
+        // Enable Node.js analyzer
+        nodeEnabled = false
+        
+        // Enable Python analyzer
+        pythonEnabled = false
+    }
+    
+    // Data directory for NVD cache
+    data {
+        directory = file("${projectDir}/.dependency-check-data")
+    }
+}
+
+// Task to run dependency check
+task dependencyCheckReport {
+    dependsOn dependencyCheckAnalyze
+    description = 'Runs OWASP Dependency Check and generates reports'
+    group = 'verification'
+}
+
+

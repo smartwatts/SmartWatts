@@ -4,6 +4,8 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '../hooks/useAuth'
 import { ThemeProvider } from '../contexts/ThemeContext'
 import { useRouter } from 'next/router'
+import { useEffect } from 'react'
+import pwaManager from '../utils/pwa-utils'
 import '../styles/globals.css'
 
 const queryClient = new QueryClient({
@@ -17,6 +19,13 @@ const queryClient = new QueryClient({
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter()
+  
+  // Register service worker on app mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      pwaManager.registerServiceWorker().catch(console.error)
+    }
+  }, [])
   
   return (
     <QueryClientProvider client={queryClient}>

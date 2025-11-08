@@ -126,4 +126,23 @@ public class JwtService {
                 .signWith(getSignInKey())
                 .compact();
     }
+    
+    public String generateEmailVerificationToken(String email) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("type", "email_verification");
+        return buildToken(claims, email, 86400000); // 24 hours expiration
+    }
+    
+    public boolean isEmailVerificationTokenValid(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            return "email_verification".equals(claims.get("type")) && !isTokenExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    public String extractEmailFromVerificationToken(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
 } 

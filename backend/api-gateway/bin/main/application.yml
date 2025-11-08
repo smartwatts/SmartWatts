@@ -4,6 +4,12 @@ server:
 spring:
   application:
     name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
   cloud:
     gateway:
       routes:
@@ -11,74 +17,17 @@ spring:
           uri: lb://user-service
           predicates:
             - Path=/api/v1/users/**
-        - id: energy-service
-          uri: lb://energy-service
+          filters:
+            - name: RateLimiting
+              args:
+                limit: 100
+                window: 60
+        - id: inventory-service
+          uri: lb://user-service
           predicates:
-            - Path=/api/v1/energy/**
-        - id: analytics-service
-          uri: lb://analytics-service
-          predicates:
-            - Path=/api/v1/analytics/**
-        - id: device-service
-          uri: lb://device-service
-          predicates:
-            - Path=/api/v1/devices/**
-        - id: billing-service
-          uri: lb://billing-service
-          predicates:
-            - Path=/api/v1/billing/**
-        - id: appliance-monitoring-service
-          uri: lb://appliance-monitoring-service
-          predicates:
-            - Path=/api/v1/appliance-monitoring/**
-        - id: edge-gateway-service
-          uri: lb://edge-gateway-service
-          predicates:
-            - Path=/api/v1/edge-gateway/**
-        - id: device-verification-service
-          uri: lb://device-verification-service
-          predicates:
-            - Path=/api/v1/device-verification/**
-        - id: feature-flag-service
-          uri: lb://feature-flag-service
-          predicates:
-            - Path=/api/v1/feature-flags/**
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOrigins: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: http://localhost:8081/oauth2/jwks
-
-# Eureka Configuration
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-
-# Actuator Configuration
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus
-  endpoint:
-    health:
-      show-details: always
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-
-# Logging
-logging:
-  level:
-    com.smartwatts: DEBUG
-    org.springframework.cloud.gateway: DEBUG
+            - Path=/api/v1/inventory/**
+          filters:
+            - name: RateLimiting
+              args:
+                limit: 100
+                window: 60

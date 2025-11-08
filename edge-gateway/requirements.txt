@@ -31,6 +31,10 @@ pytz==2023.3
 httpx==0.25.2
 websockets==12.0
 
+# Azure IoT Hub
+azure-iot-device==2.14.0
+azure-identity==1.15.0
+
 # Device Management
 psutil==5.9.6
 pyyaml==6.0.1

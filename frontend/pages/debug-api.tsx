@@ -1,8 +1,22 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import { userApi, energyApi, deviceApi } from '../utils/api'
 
 export default function DebugApi() {
+  const router = useRouter()
+  
+  // Gate this page from production - only allow in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') {
+      router.replace('/dashboard')
+    }
+  }, [router])
+  
+  // Don't render in production
+  if (process.env.NODE_ENV === 'production') {
+    return null
+  }
   const [results, setResults] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
 

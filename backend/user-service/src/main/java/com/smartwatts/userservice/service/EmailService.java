@@ -1,26 +1,82 @@
 package com.smartwatts.userservice.service;
 
-import lombok.RequiredArgsConstructor;
+import com.sendgrid.Method;
+import com.sendgrid.Request;
+import com.sendgrid.SendGrid;
+import com.sendgrid.helpers.mail.Mail;
+import com.sendgrid.helpers.mail.objects.Content;
+import com.sendgrid.helpers.mail.objects.Email;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EmailService {
-    
-    private final RestTemplate restTemplate;
     
     @Value("${smartwatts.notifications.email.enabled:true}")
     private boolean emailNotificationsEnabled;
     
-    @Value("${smartwatts.notifications.email.service.url:http://localhost:8085}")
+    @Value("${smartwatts.notifications.email.sendgrid.api-key:}")
+    private String sendGridApiKey;
+    
+    @Value("${smartwatts.notifications.email.sendgrid.from-email:info@mysmartwatts.com}")
+    private String fromEmail;
+    
+    @Value("${smartwatts.notifications.email.sendgrid.from-name:SmartWatts}")
+    private String fromName;
+    
+    @Value("${smartwatts.notifications.email.service.url:}")
     private String emailServiceUrl;
+    
+    private SendGrid sendGrid;
+    
+    private void initializeSendGrid() {
+        if (sendGrid == null && sendGridApiKey != null && !sendGridApiKey.isEmpty()) {
+            sendGrid = new SendGrid(sendGridApiKey);
+            log.info("SendGrid email service initialized");
+        }
+    }
+    
+    private void sendEmailViaSendGrid(String toEmail, String subject, String htmlContent, String textContent) {
+        if (!emailNotificationsEnabled) {
+            log.info("Email notifications disabled, skipping email to: {}", toEmail);
+            return;
+        }
+        
+        try {
+            initializeSendGrid();
+            
+            if (sendGrid == null) {
+                log.warn("SendGrid not initialized, cannot send email");
+                return;
+            }
+            
+            Email from = new Email(fromEmail, fromName);
+            Email to = new Email(toEmail);
+            Content content = new Content("text/html", htmlContent);
+            Mail mail = new Mail(from, subject, to, content);
+            
+            if (textContent != null) {
+                Content text = new Content("text/plain", textContent);
+                mail.addContent(text);
+            }
+            
+            Request request = new Request();
+            request.setMethod(Method.POST);
+            request.setEndpoint("mail/send");
+            request.setBody(mail.build());
+            
+            sendGrid.api(request);
+            log.info("Email sent successfully to: {}", toEmail);
+            
+        } catch (IOException e) {
+            log.error("Failed to send email to: {}", toEmail, e);
+            // Don't throw exception to avoid breaking the flow
+        }
+    }
     
     /**
      * Send password reset email
@@ -31,25 +87,26 @@ public class EmailService {
             return;
         }
         
-        try {
-            Map<String, Object> emailData = new HashMap<>();
-            emailData.put("email", email);
-            emailData.put("subject", "SmartWatts Password Reset");
-            emailData.put("template", "password-reset");
-            emailData.put("data", Map.of(
-                "username", username,
-                "resetToken", resetToken,
-                "resetUrl", generateResetUrl(resetToken)
-            ));
-            
-            // Call email service
-            restTemplate.postForObject(emailServiceUrl + "/api/v1/emails/send", emailData, String.class);
-            log.info("Password reset email sent successfully to: {}", email);
-            
-        } catch (Exception e) {
-            log.error("Failed to send password reset email to: {}", email, e);
-            // Don't throw exception to avoid breaking the password reset flow
-        }
+        String resetUrl = generateResetUrl(resetToken);
+        String subject = "SmartWatts Password Reset";
+        String htmlContent = String.format(
+            "<html><body>" +
+            "<h2>Password Reset Request</h2>" +
+            "<p>Hello %s,</p>" +
+            "<p>You requested to reset your password. Click the link below to reset it:</p>" +
+            "<p><a href=\"%s\">Reset Password</a></p>" +
+            "<p>Or copy this link: %s</p>" +
+            "<p>This link will expire in 1 hour.</p>" +
+            "<p>If you didn't request this, please ignore this email.</p>" +
+            "</body></html>",
+            username, resetUrl, resetUrl
+        );
+        String textContent = String.format(
+            "Hello %s,\n\nYou requested to reset your password. Visit: %s\n\nThis link will expire in 1 hour.",
+            username, resetUrl
+        );
+        
+        sendEmailViaSendGrid(email, subject, htmlContent, textContent);
     }
     
     /**
@@ -61,24 +118,24 @@ public class EmailService {
             return;
         }
         
-        try {
-            Map<String, Object> emailData = new HashMap<>();
-            emailData.put("email", email);
-            emailData.put("subject", "Welcome to SmartWatts");
-            emailData.put("template", "welcome");
-            emailData.put("data", Map.of(
-                "username", username,
-                "loginUrl", generateLoginUrl()
-            ));
-            
-            // Call email service
-            restTemplate.postForObject(emailServiceUrl + "/api/v1/emails/send", emailData, String.class);
-            log.info("Welcome email sent successfully to: {}", email);
-            
-        } catch (Exception e) {
-            log.error("Failed to send welcome email to: {}", email, e);
-            // Don't throw exception to avoid breaking the registration flow
-        }
+        String loginUrl = generateLoginUrl();
+        String subject = "Welcome to SmartWatts";
+        String htmlContent = String.format(
+            "<html><body>" +
+            "<h2>Welcome to SmartWatts!</h2>" +
+            "<p>Hello %s,</p>" +
+            "<p>Thank you for joining SmartWatts. Your account has been created successfully.</p>" +
+            "<p><a href=\"%s\">Login to your account</a></p>" +
+            "<p>Start monitoring your energy consumption and save money today!</p>" +
+            "</body></html>",
+            username, loginUrl
+        );
+        String textContent = String.format(
+            "Hello %s,\n\nWelcome to SmartWatts! Your account has been created. Login at: %s",
+            username, loginUrl
+        );
+        
+        sendEmailViaSendGrid(email, subject, htmlContent, textContent);
     }
     
     /**
@@ -90,25 +147,26 @@ public class EmailService {
             return;
         }
         
-        try {
-            Map<String, Object> emailData = new HashMap<>();
-            emailData.put("email", email);
-            emailData.put("subject", "Verify Your SmartWatts Email");
-            emailData.put("template", "email-verification");
-            emailData.put("data", Map.of(
-                "username", username,
-                "verificationToken", verificationToken,
-                "verificationUrl", generateVerificationUrl(verificationToken)
-            ));
-            
-            // Call email service
-            restTemplate.postForObject(emailServiceUrl + "/api/v1/emails/send", emailData, String.class);
-            log.info("Email verification email sent successfully to: {}", email);
-            
-        } catch (Exception e) {
-            log.error("Failed to send email verification to: {}", email, e);
-            // Don't throw exception to avoid breaking the registration flow
-        }
+        String verificationUrl = generateVerificationUrl(verificationToken);
+        String subject = "Verify Your SmartWatts Email";
+        String htmlContent = String.format(
+            "<html><body>" +
+            "<h2>Verify Your Email Address</h2>" +
+            "<p>Hello %s,</p>" +
+            "<p>Please verify your email address by clicking the link below:</p>" +
+            "<p><a href=\"%s\">Verify Email</a></p>" +
+            "<p>Or copy this link: %s</p>" +
+            "<p>This link will expire in 24 hours.</p>" +
+            "<p>If you didn't create an account, please ignore this email.</p>" +
+            "</body></html>",
+            username, verificationUrl, verificationUrl
+        );
+        String textContent = String.format(
+            "Hello %s,\n\nPlease verify your email address: %s\n\nThis link will expire in 24 hours.",
+            username, verificationUrl
+        );
+        
+        sendEmailViaSendGrid(email, subject, htmlContent, textContent);
     }
     
     /**
@@ -120,24 +178,24 @@ public class EmailService {
             return;
         }
         
-        try {
-            Map<String, Object> emailData = new HashMap<>();
-            emailData.put("email", email);
-            emailData.put("subject", "SmartWatts Account Locked");
-            emailData.put("template", "account-locked");
-            emailData.put("data", Map.of(
-                "username", username,
-                "reason", reason,
-                "supportUrl", generateSupportUrl()
-            ));
-            
-            // Call email service
-            restTemplate.postForObject(emailServiceUrl + "/api/v1/emails/send", emailData, String.class);
-            log.info("Account locked email sent successfully to: {}", email);
-            
-        } catch (Exception e) {
-            log.error("Failed to send account locked email to: {}", email, e);
-        }
+        String supportUrl = generateSupportUrl();
+        String subject = "SmartWatts Account Locked";
+        String htmlContent = String.format(
+            "<html><body>" +
+            "<h2>Account Locked</h2>" +
+            "<p>Hello %s,</p>" +
+            "<p>Your SmartWatts account has been locked.</p>" +
+            "<p>Reason: %s</p>" +
+            "<p>Please contact support: <a href=\"%s\">%s</a></p>" +
+            "</body></html>",
+            username, reason, supportUrl, supportUrl
+        );
+        String textContent = String.format(
+            "Hello %s,\n\nYour account has been locked. Reason: %s\n\nContact support: %s",
+            username, reason, supportUrl
+        );
+        
+        sendEmailViaSendGrid(email, subject, htmlContent, textContent);
     }
     
     /**
@@ -149,46 +207,45 @@ public class EmailService {
             return;
         }
         
-        try {
-            Map<String, Object> emailData = new HashMap<>();
-            emailData.put("email", email);
-            emailData.put("subject", "SmartWatts Test Email");
-            emailData.put("template", "test-email");
-            emailData.put("data", Map.of("message", message));
-            
-            restTemplate.postForObject(emailServiceUrl + "/api/v1/emails/send", emailData, String.class);
-            log.info("Test email sent successfully to: {}", email);
-            
-        } catch (Exception e) {
-            log.error("Failed to send test email to: {}", email, e);
-        }
+        String subject = "SmartWatts Test Email";
+        String htmlContent = String.format(
+            "<html><body>" +
+            "<h2>Test Email</h2>" +
+            "<p>%s</p>" +
+            "<p>If you received this email, your email service is working correctly.</p>" +
+            "</body></html>",
+            message
+        );
+        String textContent = message + "\n\nIf you received this email, your email service is working correctly.";
+        
+        sendEmailViaSendGrid(email, subject, htmlContent, textContent);
     }
     
     /**
      * Generate password reset URL
      */
     private String generateResetUrl(String resetToken) {
-        return "https://smartwatts.com/reset-password?token=" + resetToken;
+        return "https://mysmartwatts.com/reset-password?token=" + resetToken;
     }
     
     /**
      * Generate email verification URL
      */
     private String generateVerificationUrl(String verificationToken) {
-        return "https://smartwatts.com/verify-email?token=" + verificationToken;
+        return "https://mysmartwatts.com/verify-email?token=" + verificationToken;
     }
     
     /**
      * Generate login URL
      */
     private String generateLoginUrl() {
-        return "https://smartwatts.com/login";
+        return "https://mysmartwatts.com/login";
     }
     
     /**
      * Generate support URL
      */
     private String generateSupportUrl() {
-        return "https://smartwatts.com/support";
+        return "https://mysmartwatts.com/support";
     }
 }

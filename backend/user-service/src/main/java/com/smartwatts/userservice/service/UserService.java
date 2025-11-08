@@ -19,7 +19,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 import java.util.UUID;
@@ -33,6 +37,10 @@ public class UserService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final SmsService smsService;
+    
+    @Autowired(required = false)
+    private RedisTemplate<String, String> redisTemplate;
     
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -333,6 +341,120 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
         
         log.info("Password reset successful for user: {}", user.getUsername());
+    }
+    
+    @Transactional
+    public void sendEmailVerification(UUID userId) {
+        log.info("Sending email verification for user ID: {}", userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        
+        if (user.getIsEmailVerified()) {
+            throw new RuntimeException("Email already verified");
+        }
+        
+        // Generate verification token
+        String verificationToken = jwtService.generateEmailVerificationToken(user.getEmail());
+        
+        // Send verification email
+        emailService.sendEmailVerificationEmail(user.getEmail(), verificationToken, user.getUsername());
+        log.info("Email verification sent for user: {}", user.getUsername());
+    }
+    
+    @Transactional
+    public void verifyEmail(String token) {
+        log.info("Verifying email with token");
+        
+        // Validate verification token
+        if (!jwtService.isEmailVerificationTokenValid(token)) {
+            throw new RuntimeException("Invalid or expired verification token");
+        }
+        
+        // Extract email from token
+        String email = jwtService.extractEmailFromVerificationToken(token);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        // Mark email as verified
+        user.setIsEmailVerified(true);
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+        
+        log.info("Email verified successfully for user: {}", user.getUsername());
+    }
+    
+    @Transactional
+    public void sendPhoneVerification(UUID userId) {
+        log.info("Sending phone verification for user ID: {}", userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        
+        if (user.getIsPhoneVerified()) {
+            throw new RuntimeException("Phone already verified");
+        }
+        
+        // Generate 6-digit verification code
+        String verificationCode = String.format("%06d", (int)(Math.random() * 1000000));
+        
+        // Store verification code in Redis with 10-minute expiration
+        if (redisTemplate != null) {
+            String redisKey = "phone_verification:" + userId.toString();
+            ValueOperations<String, String> ops = redisTemplate.opsForValue();
+            ops.set(redisKey, verificationCode, Duration.ofMinutes(10));
+            log.info("Phone verification code stored in Redis with 10-minute expiration for user: {}", user.getUsername());
+        } else {
+            log.warn("Redis not available - verification code will not be stored. Phone verification may not work correctly.");
+        }
+        
+        // Send verification code via SMS
+        smsService.sendVerificationCode(user.getPhoneNumber(), verificationCode);
+        log.info("Phone verification code sent for user: {}", user.getUsername());
+    }
+    
+    @Transactional
+    public void verifyPhone(UUID userId, String verificationCode) {
+        log.info("Verifying phone for user ID: {}", userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        
+        if (user.getIsPhoneVerified()) {
+            throw new RuntimeException("Phone already verified");
+        }
+        
+        // Validate verification code format
+        if (verificationCode == null || verificationCode.length() != 6 || !verificationCode.matches("\\d{6}")) {
+            throw new RuntimeException("Invalid verification code format");
+        }
+        
+        // Validate verification code from Redis
+        if (redisTemplate != null) {
+            String redisKey = "phone_verification:" + userId.toString();
+            ValueOperations<String, String> ops = redisTemplate.opsForValue();
+            String storedCode = ops.get(redisKey);
+            
+            if (storedCode == null) {
+                throw new RuntimeException("Verification code expired or not found. Please request a new code.");
+            }
+            
+            if (!storedCode.equals(verificationCode)) {
+                throw new RuntimeException("Invalid verification code. Please check and try again.");
+            }
+            
+            // Code is valid, remove it from Redis
+            redisTemplate.delete(redisKey);
+            log.info("Verification code validated from Redis for user: {}", user.getUsername());
+        } else {
+            log.warn("Redis not available - skipping verification code validation. Phone verification may not be secure.");
+            // Without Redis, we can't validate the code, so we'll reject verification
+            throw new RuntimeException("Verification service unavailable. Please try again later.");
+        }
+        
+        // Mark phone as verified
+        user.setIsPhoneVerified(true);
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+        
+        log.info("Phone verified successfully for user: {}", user.getUsername());
     }
     
     private UserDto convertToDto(User user) {

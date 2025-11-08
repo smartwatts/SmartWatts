@@ -2,8 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  output: 'standalone', // Required for Azure Static Web Apps
   images: {
     domains: ['localhost', 'smartwatts.ng'],
+    unoptimized: true, // Required for Azure Static Web Apps
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
@@ -31,13 +33,18 @@ const nextConfig = {
     ];
   },
   async rewrites() {
+    // For Azure Static Web Apps, use environment variable for API URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
     return [
       {
-        source: '/api/proxy',
-        destination: 'http://localhost:8080/api/proxy',
+        source: '/api/proxy/:path*',
+        destination: `${apiUrl}/api/proxy/:path*`,
       },
     ];
   },
+  // Azure Static Web Apps configuration
+  trailingSlash: false,
+  poweredByHeader: false,
 }
 
 module.exports = nextConfig 

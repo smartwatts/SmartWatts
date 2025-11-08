@@ -21,6 +21,7 @@ network:
   mqtt_password: null
   cloud_api_url: "https://api.smartwatts.com"
   cloud_api_key: null
+  azure_iot_hub_connection_string: null  # Set to Azure IoT Hub connection string (e.g., HostName=xxx.azure-devices.net;DeviceId=xxx;SharedAccessKey=xxx)
   enable_ssl: false
   ssl_cert_path: null
   ssl_key_path: null
@@ -118,6 +119,8 @@ data_sync:
   retry_delay_seconds: 60
   offline_mode: true
   conflict_resolution: "edge_priority"
+  use_azure_iot_hub: false  # Set to true to enable Azure IoT Hub MQTT publishing
+  azure_iot_hub_device_id: null  # Device ID for Azure IoT Hub (e.g., "edge-gateway-001")
 
 # Security Configuration
 security:

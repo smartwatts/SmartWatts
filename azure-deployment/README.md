@@ -57,29 +57,38 @@ ssh azureuser@<VM_PUBLIC_IP>
 
 ## 🏗️ Architecture
 
-### Azure Resources
+### Azure Resources (Hybrid Architecture)
 - **VM**: B1s (1 vCPU, 1 GB RAM) - 750 hours/month free
-- **SQL Database**: Basic tier - 250 GB free
-- **IoT Hub**: Free tier - 8,000 messages/day
-- **Storage Account**: 5 GB free
+  - Runs: Spring Boot services + PostgreSQL + Redis + Frontend
+- **PostgreSQL**: Docker container on VM (9 databases)
+  - Uses VM disk space (30 GB SSD)
+  - No separate database cost
+- **IoT Hub**: Free tier - 8,000 messages/day (optional)
+- **Storage Account**: 5 GB free (optional)
 
 ### Application Stack
 - **Frontend**: Next.js 14 + React 18
-- **Backend**: Spring Boot 3.x microservices
-- **Database**: Azure SQL Database
-- **Cache**: Redis
-- **IoT**: Azure IoT Hub
-- **Storage**: Azure Blob Storage
+- **Backend**: Spring Boot 3.x microservices (13 services)
+- **Database**: PostgreSQL 15 (Docker container on VM)
+- **Cache**: Redis (Docker container on VM)
+- **IoT**: Azure IoT Hub (optional, for device ingestion)
+- **Storage**: Azure Blob Storage (optional, for file storage)
+
+**Hybrid Approach**: Keep production-ready Spring Boot services, use Azure free tier for IoT and storage.
 
 ## 💰 Cost Analysis
 
 ### Free Tier Usage
 - **VM**: 750 hours/month (24/7 = 744 hours) ✅
-- **SQL Database**: 250 GB (estimated usage: ~50 GB) ✅
-- **IoT Hub**: 8,000 messages/day (6 sites × 1 msg/65s) ✅
-- **Blob Storage**: 5 GB (estimated usage: ~2 GB) ✅
+  - Runs all services: Spring Boot + PostgreSQL + Redis + Frontend
+- **PostgreSQL**: Included in VM (uses VM disk space) ✅
+  - 9 databases, estimated ~10-20 GB total
+- **IoT Hub**: 8,000 messages/day (optional) ✅
+- **Blob Storage**: 5 GB (optional) ✅
 
 **Total Cost**: $0/month
+
+**Note**: PostgreSQL runs on the VM in Docker, same as current setup. No database migration needed.
 
 ## 🔧 Configuration
 
@@ -90,16 +99,17 @@ All configuration is managed through `azure-config.env`:
 # Azure Configuration
 AZURE_RESOURCE_GROUP=smartwatts-rg
 VM_PUBLIC_IP=<VM_IP>
-SQL_CONNECTION_STRING=<SQL_CONNECTION_STRING>
-IOT_HUB_CONNECTION_STRING=<IOT_HUB_CONNECTION_STRING>
-STORAGE_CONNECTION_STRING=<STORAGE_CONNECTION_STRING>
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+IOT_HUB_CONNECTION_STRING=<IOT_HUB_CONNECTION_STRING>  # Optional
+STORAGE_CONNECTION_STRING=<STORAGE_CONNECTION_STRING>  # Optional
 ```
 
 ### Service Configuration
 Each service uses `application-azure.yml` for Azure-specific settings:
-- Database connection to Azure SQL
+- Database connection to PostgreSQL (same as current setup)
 - Redis configuration
-- Azure IoT Hub integration
+- Azure IoT Hub integration (optional, for edge gateway)
 - Performance optimizations for B1s VM
 
 ## 📊 Monitoring
@@ -154,14 +164,17 @@ sudo systemctl restart smartwatts
 
 #### 2. Database Connection Issues
 ```bash
-# Check SQL connection
-az sql db show-connection-string \
-  --server smartwatts-sql-server \
-  --name smartwatts-db
+# Check PostgreSQL container status
+docker ps | grep postgres
 
-# Test connection
-sqlcmd -S smartwatts-sql-server.database.windows.net \
-  -d smartwatts-db -U smartwattsadmin
+# Check PostgreSQL logs
+docker logs postgres
+
+# Test PostgreSQL connection
+docker exec -it postgres psql -U postgres -d smartwatts_users
+
+# List all databases
+docker exec -it postgres psql -U postgres -c "\l"
 ```
 
 #### 3. IoT Hub Issues
@@ -195,8 +208,8 @@ curl http://localhost:8761/eureka/apps
 
 ### Vertical Scaling
 - Upgrade to B2s (2 vCPU, 4 GB RAM)
-- Upgrade SQL Database tier
-- Add more storage
+- Increase VM disk size if PostgreSQL databases grow
+- Optimize PostgreSQL configuration for better performance
 
 ### Horizontal Scaling
 - Add more VMs behind load balancer
@@ -236,10 +249,11 @@ curl http://localhost:8761/eureka/apps
 
 ### Must Have
 - [ ] All services running on Azure VM
-- [ ] Azure SQL Database connected
-- [ ] Azure IoT Hub integrated
+- [ ] PostgreSQL container running with 9 databases
+- [ ] Spring Boot services connected to PostgreSQL
 - [ ] Frontend accessible via public IP
 - [ ] All consumer-grade features functional
+- [ ] Azure IoT Hub integrated (optional, for edge gateway)
 
 ### Should Have
 - [ ] SSL certificates configured

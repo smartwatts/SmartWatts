@@ -1,0 +1,78 @@
+# Test files and directories
+**/__tests__/
+**/__test__/
+**/tests/
+**/test/
+**/*.test.*
+**/*.spec.*
+**/test-*.js
+**/test-*.ts
+**/test-*.tsx
+**/*test*.js
+**/*test*.ts
+**/*test*.tsx
+
+# Debug and testing pages
+frontend/pages/debug-api.tsx
+frontend/pages/testing-dashboard.tsx
+frontend/pages/test-integration.tsx
+frontend/components/EdgeGatewayTester.tsx
+
+# Integration tests
+integration-tests/
+qa-automation/
+load-testing/
+
+# Test scripts
+**/scripts/*test*.sh
+**/scripts/*test*.js
+**/scripts/run-tests.js
+**/scripts/create-test-users.sh
+
+# Mock data
+**/mock/
+**/mocks/
+**/fixtures/
+
+# Development files
+**/.env.local
+**/.env.development
+**/.env.test
+**/.git/
+**/.gitignore
+**/.DS_Store
+**/node_modules/
+**/.next/
+**/coverage/
+**/.nyc_output/
+
+# Documentation (optional - can be included if needed)
+# **/*.md
+# docs/
+
+# CI/CD files
+**/.github/
+**/.gitlab-ci.yml
+**/azure-pipelines/
+
+# IDE files
+**/.idea/
+**/.vscode/
+**/*.swp
+**/*.swo
+**/*~
+
+# Build artifacts
+**/dist/
+**/build/
+**/target/
+**/out/
+
+# Logs
+**/*.log
+**/logs/
+
+# Temporary files
+**/tmp/
+**/temp/
+

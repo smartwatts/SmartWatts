@@ -87,10 +87,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Title *
           </label>
           <input
+            id="work-order-title"
             type="text"
             name="title"
             value={formData.title}
@@ -101,10 +102,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Description *
           </label>
           <textarea
+            id="work-order-description"
             name="description"
             value={formData.description}
             onChange={handleChange}
@@ -115,10 +117,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Type *
           </label>
           <select
+            id="work-order-type"
             name="type"
             value={formData.type}
             onChange={handleChange}
@@ -134,10 +137,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Priority *
           </label>
           <select
+            id="work-order-priority"
             name="priority"
             value={formData.priority}
             onChange={handleChange}
@@ -153,10 +157,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Status *
           </label>
           <select
+            id="work-order-status"
             name="status"
             value={formData.status}
             onChange={handleChange}
@@ -172,10 +177,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-assigned-to" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Assigned To *
           </label>
           <input
+            id="work-order-assigned-to"
             type="text"
             name="assignedTo"
             value={formData.assignedTo}
@@ -186,10 +192,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-due-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Due Date *
           </label>
           <input
+            id="work-order-due-date"
             type="date"
             name="dueDate"
             value={formData.dueDate}
@@ -200,10 +207,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-estimated-hours" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Estimated Hours *
           </label>
           <input
+            id="work-order-estimated-hours"
             type="number"
             name="estimatedHours"
             value={formData.estimatedHours}
@@ -216,10 +224,11 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label htmlFor="work-order-actual-hours" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Actual Hours
           </label>
           <input
+            id="work-order-actual-hours"
             type="number"
             name="actualHours"
             value={formData.actualHours}
@@ -231,8 +240,9 @@ const WorkOrderModal: React.FC<WorkOrderModalProps> = ({ workOrder, onSave, onCa
         </div>
 
         <div className="md:col-span-2">
-          <label className="flex items-center">
+          <label htmlFor="work-order-active" className="flex items-center">
             <input
+              id="work-order-active"
               type="checkbox"
               name="isActive"
               checked={formData.isActive}

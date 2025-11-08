@@ -1,4 +1,3 @@
-# SmartWatts Prometheus Configuration
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -6,14 +5,14 @@ global:
     cluster: 'smartwatts'
     environment: 'production'
 
-rule_files:
-  - "alerts.yml"
-
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
           - alertmanager:9093
+
+rule_files:
+  - 'alerts.yml'
 
 scrape_configs:
   # Prometheus itself
@@ -21,106 +20,112 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Node Exporter
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['node-exporter:9100']
-
-  # SmartWatts API Gateway
+  # API Gateway
   - job_name: 'api-gateway'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['api-gateway:8080']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+        labels:
+          service: 'api-gateway'
 
-  # SmartWatts User Service
+  # User Service
   - job_name: 'user-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['user-service:8081']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+        labels:
+          service: 'user-service'
 
-  # SmartWatts Energy Service
+  # Energy Service
   - job_name: 'energy-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['energy-service:8082']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+        labels:
+          service: 'energy-service'
 
-  # SmartWatts Analytics Service
-  - job_name: 'analytics-service'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ['analytics-service:8084']
-    scrape_interval: 10s
-    scrape_timeout: 5s
-
-  # SmartWatts Device Service
+  # Device Service
   - job_name: 'device-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['device-service:8083']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+        labels:
+          service: 'device-service'
 
-  # SmartWatts Billing Service
+  # Analytics Service
+  - job_name: 'analytics-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['analytics-service:8084']
+        labels:
+          service: 'analytics-service'
+
+  # Billing Service
   - job_name: 'billing-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['billing-service:8085']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+        labels:
+          service: 'billing-service'
 
-  # SmartWatts Appliance Monitoring Service
-  - job_name: 'appliance-monitoring-service'
+  # Notification Service
+  - job_name: 'notification-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['appliance-monitoring-service:8087']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+      - targets: ['notification-service:8087']
+        labels:
+          service: 'notification-service'
 
-  # SmartWatts Edge Gateway Service
-  - job_name: 'edge-gateway-service'
+  # Edge Gateway
+  - job_name: 'edge-gateway'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['edge-gateway-service:8088']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+      - targets: ['edge-gateway:8088']
+        labels:
+          service: 'edge-gateway'
 
-  # SmartWatts Device Verification Service
-  - job_name: 'device-verification-service'
+  # Facility Service
+  - job_name: 'facility-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['device-verification-service:8091']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+      - targets: ['facility-service:8089']
+        labels:
+          service: 'facility-service'
 
-  # SmartWatts Feature Flag Service
+  # Feature Flag Service
   - job_name: 'feature-flag-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['feature-flag-service:8090']
-    scrape_interval: 10s
-    scrape_timeout: 5s
+        labels:
+          service: 'feature-flag-service'
 
-  # PostgreSQL Database
-  - job_name: 'postgresql'
-    static_configs:
-      - targets: ['postgres:5432']
-    scrape_interval: 30s
-
-  # Redis Cache
-  - job_name: 'redis'
-    static_configs:
-      - targets: ['redis:6379']
-    scrape_interval: 30s
-
-  # Eureka Service Discovery
-  - job_name: 'eureka'
+  # Device Verification Service
+  - job_name: 'device-verification-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['eureka:8761']
-    scrape_interval: 30s
+      - targets: ['device-verification-service:8091']
+        labels:
+          service: 'device-verification-service'
+
+  # Appliance Monitoring Service
+  - job_name: 'appliance-monitoring-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['appliance-monitoring-service:8087']
+        labels:
+          service: 'appliance-monitoring-service'
+
+  # PostgreSQL
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'

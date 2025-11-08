@@ -16,24 +16,15 @@ public class SecurityConfig {
         http
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
             .authorizeExchange(exchanges -> exchanges
-                // Public endpoints
+                // Public endpoints - no authentication required (minimal set)
                 .pathMatchers("/actuator/**").permitAll()
-                .pathMatchers("/api/v1/users/register").permitAll()
                 .pathMatchers("/api/v1/users/login").permitAll()
-                .pathMatchers("/api/v1/users/refresh-token").permitAll()
+                .pathMatchers("/api/v1/users/register").permitAll()
                 .pathMatchers("/api/v1/users/forgot-password").permitAll()
                 .pathMatchers("/api/v1/users/reset-password").permitAll()
                 .pathMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                .pathMatchers("/fallback/**").permitAll()
-                .pathMatchers("/hello").permitAll()
-                .pathMatchers("/admin/**").permitAll()
-                .pathMatchers("/api/proxy/**").permitAll()
-                // Protected endpoints
-                .pathMatchers("/api/v1/**").authenticated()
+                // All other endpoints require authentication
                 .anyExchange().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwkSetUri("http://localhost:8081/oauth2/jwks"))
             );
         
         return http.build();

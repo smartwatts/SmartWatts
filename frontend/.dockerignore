@@ -1,0 +1,60 @@
+# Test files and directories
+**/__tests__/
+**/__test__/
+**/tests/
+**/test/
+**/*.test.*
+**/*.spec.*
+**/test-*.js
+**/test-*.ts
+**/test-*.tsx
+**/*test*.js
+**/*test*.ts
+**/*test*.tsx
+
+# Debug and testing pages
+pages/debug-api.tsx
+pages/testing-dashboard.tsx
+pages/test-integration.tsx
+components/EdgeGatewayTester.tsx
+
+# E2E tests
+e2e/
+**/e2e/
+
+# Test scripts
+scripts/run-tests.js
+scripts/*test*.js
+
+# Development files
+.env.local
+.env.development
+.env.test
+.git/
+.gitignore
+.DS_Store
+node_modules/
+.next/
+coverage/
+.nyc_output/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+

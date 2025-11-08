@@ -33,6 +33,10 @@ eureka:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
 
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration: ${JWT_EXPIRATION:86400000}
+
 management:
   endpoints:
     web:
@@ -54,7 +58,7 @@ weather:
   api:
     openweather:
       base-url: https://api.openweathermap.org/data/2.5
-      api-key: ${OPENWEATHER_API_KEY:demo-key}
+      api-key: ${OPENWEATHER_API_KEY:}
     update-interval: 300000 # 5 minutes in milliseconds
 
 # Appliance Monitoring Configuration
@@ -67,3 +71,16 @@ appliance:
     maintenance:
       reminder-days: 7
       auto-scheduling: true
+
+# Sentry Configuration
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:${spring.profiles.active:development}}
+  release: ${SENTRY_RELEASE:${spring.application.name}@${project.version}}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:1.0}
+  send-default-pii: false
+  filter:
+    enabled: true
+    ignore-exceptions:
+      - org.springframework.security.access.AccessDeniedException
+      - org.springframework.web.HttpRequestMethodNotSupportedException

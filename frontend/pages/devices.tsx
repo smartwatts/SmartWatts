@@ -114,8 +114,76 @@ export default function Devices() {
   }
 
   const loadDevices = async () => {
+    if (!user?.id) {
+      console.log('User ID not available, skipping device load')
+      setLoading(false)
+      return
+    }
+    
+    console.log('Loading devices for user:', user.id)
+    setLoading(true)
+    
     try {
-      // Mock devices data
+      const token = localStorage.getItem('token')
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+      
+      console.log('Fetching devices from API...')
+      // Fetch devices from API
+      const response = await fetch(
+        `/api/proxy?service=device&path=/devices/user/${user.id}`,
+        { headers: authHeaders }
+      )
+      
+      console.log('Devices API response:', response.status, response.statusText)
+
+      if (response.ok) {
+        const data = await response.json()
+        const devices = data.content || []
+        console.log('Devices loaded successfully:', devices.length, 'devices')
+        
+        // Transform API data to Device format
+        const transformedDevices: Device[] = devices.map((device: any) => ({
+          id: device.id,
+          name: device.name,
+          type: device.deviceType?.toLowerCase().replace('_', '-') || 'sensor',
+          status: device.status?.toLowerCase() || 'offline',
+          location: device.location || 'Unknown',
+          lastReading: device.lastReading ? new Date(device.lastReading).toLocaleString() : 'Never',
+          powerOutput: device.powerOutput || 0,
+          efficiency: device.efficiency || 0,
+          batteryLevel: device.batteryLevel,
+          temperature: device.temperature,
+          uptime: device.uptime || 0,
+          performanceScore: device.performanceScore || 0,
+          energyConsumption: device.energyConsumption || 0,
+          costSavings: device.costSavings || 0,
+          maintenanceSchedule: device.maintenanceSchedule || 'Not scheduled',
+          lastCalibration: device.lastCalibration || 'Never',
+          firmwareVersion: device.firmwareVersion || 'Unknown',
+          securityStatus: device.securityStatus || 'warning',
+          verificationStatus: device.verificationStatus,
+          trustLevel: device.trustLevel,
+          isVerified: device.isVerified || false
+        }))
+        
+        setDevices(transformedDevices)
+      } else {
+        console.log('Devices API failed, using empty array')
+        // Fallback to empty array if API fails
+        setDevices([])
+      }
+    } catch (error) {
+      console.error('Error loading devices:', error)
+      setDevices([])
+    } finally {
+      console.log('Setting loading to false')
+      setLoading(false)
+    }
+  }
+
+  const loadMockDevices = async () => {
+    try {
+      // Mock devices data (fallback)
       const mockDevices: Device[] = [
         {
           id: '1',
@@ -276,8 +344,27 @@ export default function Devices() {
   }
 
   useEffect(() => {
-    loadDevices()
-  }, [])
+    console.log('Devices page useEffect - user:', user)
+    if (user?.id) {
+      console.log('User ID available, loading devices:', user.id)
+      loadDevices()
+    } else {
+      console.log('User ID not available, setting loading to false')
+      setLoading(false)
+    }
+  }, [user?.id])
+
+  // Fallback timeout in case user never loads
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('Loading timeout reached, setting loading to false')
+        setLoading(false)
+      }
+    }, 10000) // 10 second timeout
+
+    return () => clearTimeout(timeout)
+  }, [loading])
 
   const getStatusIcon = (status: string) => {
     switch (status) {

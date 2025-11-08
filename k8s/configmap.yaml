@@ -19,19 +19,15 @@ data:
   # Eureka Configuration
   EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: "http://eureka-service:8761/eureka/"
   
-  # JWT Configuration
-  JWT_SECRET: "smartwatts-jwt-secret-key-2024-nigeria-energy-monitoring"
+  # JWT Configuration - Use secrets for sensitive values
   JWT_EXPIRATION: "86400000"
   JWT_REFRESH_EXPIRATION: "604800000"
   
-  # SSL Configuration
+  # SSL Configuration - Use secrets for sensitive values
   SSL_ENABLED: "true"
-  SSL_KEYSTORE_PASSWORD: "smartwatts123"
-  SSL_TRUSTSTORE_PASSWORD: "smartwatts123"
   
-  # Monitoring Configuration
+  # Monitoring Configuration - Use secrets for sensitive values
   PROMETHEUS_ENABLED: "true"
-  GRAFANA_ADMIN_PASSWORD: "smartwatts123"
   
   # Backup Configuration
   BACKUP_RETENTION_DAYS: "30"
@@ -44,7 +40,7 @@ data:
   
   # Security Configuration
   SECURITY_HEADERS_ENABLED: "true"
-  CORS_ALLOWED_ORIGINS: "https://smartwatts.com,https://api.smartwatts.com"
+  CORS_ALLOWED_ORIGINS: "https://mysmartwatts.com,https://api.mysmartwatts.com"
   CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
   CORS_ALLOWED_HEADERS: "*"
   CORS_ALLOW_CREDENTIALS: "true"
@@ -225,7 +221,7 @@ data:
         
         server {
             listen 443 ssl http2;
-            server_name api.smartwatts.com;
+            server_name api.mysmartwatts.com;
             
             ssl_certificate /etc/nginx/ssl/tls.crt;
             ssl_certificate_key /etc/nginx/ssl/tls.key;
