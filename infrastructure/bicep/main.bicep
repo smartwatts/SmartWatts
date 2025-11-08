@@ -210,6 +210,7 @@ resource iotHub 'Microsoft.Devices/IotHubs@2021-07-02' = {
     networkRuleSets: {
       defaultAction: 'Allow'
       ipRules: []
+      applyToBuiltInEventHubEndpoint: true
     }
     routing: {
       endpoints: {
@@ -219,16 +220,7 @@ resource iotHub 'Microsoft.Devices/IotHubs@2021-07-02' = {
         storageContainers: []
       }
       routes: []
-      fallbackRoute: {
-        name: '$fallback'
-        source: 'DeviceMessages'
-        condition: 'true'
-        endpointNames: [
-          'events'
-        ]
-        isEnabled: true
-      }
-      applyToBuiltInEventHubEndpoint: true
+      enrichments: []
     }
   }
 }
@@ -351,9 +343,9 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
 // Outputs
 output vmPublicIpAddress string = publicIp.properties.ipAddress
 output vmName string = vm.name
-@suppress('outputs-should-not-contain-secrets', 'use-resource-symbol-reference')
+// Note: Connection strings contain secrets but are needed for application configuration
+// These warnings can be ignored as the secrets are required for deployment
 output iotHubConnectionString string = 'HostName=${iotHub.properties.hostName};SharedAccessKeyName=iothubowner;SharedAccessKey=${listKeys(iotHub.id, iotHub.apiVersion).primaryKey}'
-@suppress('outputs-should-not-contain-secrets', 'use-resource-symbol-reference')
 output storageAccountConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value};EndpointSuffix=${az.environment().suffixes.storage}'
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
