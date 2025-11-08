@@ -70,20 +70,33 @@ jobs:
           echo "$SSH_KEY" | base64 -d > ~/.ssh/id_rsa
         fi
         chmod 600 ~/.ssh/id_rsa
-        # Verify key can be read by ssh-keygen (works with both PEM and OpenSSH formats)
-        if ! ssh-keygen -l -f ~/.ssh/id_rsa > /dev/null 2>&1; then
-          echo "Error: SSH key cannot be read by ssh-keygen"
-          echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
-          echo "Number of lines: $(wc -l < ~/.ssh/id_rsa)"
-          echo "First 50 characters (hex):"
-          head -c 50 ~/.ssh/id_rsa | xxd | head -n 3
-          exit 1
+        # Check if key is in OpenSSH format (binary) and convert to PEM if needed
+        if head -c 15 ~/.ssh/id_rsa | grep -q "openssh-key-v1"; then
+          echo "Key is in OpenSSH format - converting to PEM format"
+          # Convert OpenSSH format to PEM format (no passphrase change, just format conversion)
+          ssh-keygen -p -N "" -m PEM -f ~/.ssh/id_rsa > /dev/null 2>&1 || {
+            echo "Warning: Could not convert OpenSSH key to PEM format, trying to use as-is"
+          }
         fi
-        # Key is valid - ssh-keygen can read it
-        echo "SSH key validated successfully"
+        # Verify key can be read by ssh-keygen
+        if ! ssh-keygen -l -f ~/.ssh/id_rsa > /dev/null 2>&1; then
+          # Try extracting public key as alternative validation
+          if ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub 2>/dev/null; then
+            echo "SSH key validated by extracting public key"
+          else
+            echo "Error: SSH key cannot be read by ssh-keygen"
+            echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
+            echo "Number of lines: $(wc -l < ~/.ssh/id_rsa)"
+            echo "First 50 characters (hex):"
+            head -c 50 ~/.ssh/id_rsa | xxd | head -n 3
+            exit 1
+          fi
+        else
+          echo "SSH key validated successfully"
+          # Extract public key
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+        fi
         ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
-        # Extract public key
-        ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
         # Add public key to VM using Azure CLI
         az vm user update \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
