@@ -59,11 +59,16 @@ jobs:
     - name: Setup SSH Key
       run: |
         mkdir -p ~/.ssh
-        # Write SSH private key - use printf to preserve exact format without indentation
-        # Store secret in variable first to avoid heredoc indentation issues
+        # Write SSH private key - decode from base64 if needed
         SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
-        # Remove any leading/trailing whitespace and write to file
-        echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/id_rsa
+        # Check if key starts with BEGIN marker (plain text PEM format)
+        if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
+          # Key is already in plain text PEM format
+          echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/id_rsa
+        else
+          # Key appears to be base64 encoded - decode it
+          echo "$SSH_KEY" | base64 -d > ~/.ssh/id_rsa
+        fi
         chmod 600 ~/.ssh/id_rsa
         # Verify key format - check if it starts with BEGIN and ends with END
         # Check for both RSA and OPENSSH formats
