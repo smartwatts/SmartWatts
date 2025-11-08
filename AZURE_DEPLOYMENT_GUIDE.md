@@ -284,12 +284,12 @@ az group list --query "[?name=='sw-staging-rg' || name=='sw-prod-rg']" --output 
      --query "{Name:name, Status:properties.state}" \
      --output table
    
-   # Check Storage Account
-   az storage account show \
-     --resource-group sw-staging-rg \
-     --name swstagingstorage \
-     --query "{Name:name, Status:provisioningState}" \
-     --output table
+  # Check Storage Account
+  az storage account show \
+    --resource-group sw-staging-rg \
+    --name swstagingstg \
+    --query "{Name:name, Status:provisioningState}" \
+    --output table
    
    # Check Static Web App
    az staticwebapp show \
@@ -338,12 +338,12 @@ az iot hub device-identity connection-string show \
 # Get storage account connection string
 az storage account show-connection-string \
   --resource-group sw-staging-rg \
-  --name swstagingstorage \
+  --name swstagingstg \
   --output tsv
 
 # Verify blob containers exist
 az storage container list \
-  --account-name swstagingstorage \
+  --account-name swstagingstg \
   --connection-string "$STORAGE_CS" \
   --output table
 ```
@@ -474,10 +474,10 @@ If you prefer to deploy manually without GitHub Actions, follow the Application 
      --resource-group sw-staging-rg \
      --output tsv)
    
-   STORAGE_CS=$(az storage account show-connection-string \
-     --resource-group sw-staging-rg \
-     --name swstagingstorage \
-     --output tsv)
+  STORAGE_CS=$(az storage account show-connection-string \
+    --resource-group sw-staging-rg \
+    --name swstagingstg \
+    --output tsv)
    
    # Create .env file
    cat > .env << EOF
@@ -593,11 +593,11 @@ The frontend is automatically deployed to Azure Static Web Apps when you push to
 
 1. **Get Storage Connection String**
    ```bash
-   # Get storage connection string
-   export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
-     --resource-group sw-staging-rg \
-     --name swstagingstorage \
-     --output tsv)
+  # Get storage connection string
+  export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+    --resource-group sw-staging-rg \
+    --name swstagingstg \
+    --output tsv)
    
    export AZURE_BLOB_CONTAINER="backups"
    
@@ -625,11 +625,11 @@ The frontend is automatically deployed to Azure Static Web Apps when you push to
 
 1. **Get Storage Connection String**
    ```bash
-   # Get storage connection string
-   export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
-     --resource-group sw-staging-rg \
-     --name swstagingstorage \
-     --output tsv)
+  # Get storage connection string
+  export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+    --resource-group sw-staging-rg \
+    --name swstagingstg \
+    --output tsv)
    
    export AZURE_BLOB_LOG_CONTAINER="logs"
    export LOG_RETENTION_DAYS=90

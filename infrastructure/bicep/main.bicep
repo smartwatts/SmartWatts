@@ -13,7 +13,8 @@ param vmAdminPassword string
 // Variables
 var vmName = 'sw-${environment}-vm'
 var iotHubName = 'sw-${environment}-iothub'
-var storageAccountName = 'sw${environment}storage'
+// Storage account name must be 3-24 chars, lowercase, alphanumeric only
+var storageAccountName = 'sw${replace(environment, '-', '')}stg'
 var staticWebAppName = 'sw-${environment}-dashboard'
 var keyVaultName = 'sw-${environment}-kv'
 var appInsightsName = 'sw-${environment}-insights'
@@ -227,6 +228,7 @@ resource iotHub 'Microsoft.Devices/IotHubs@2021-07-02' = {
         ]
         isEnabled: true
       }
+      applyToBuiltInEventHubEndpoint: true
     }
   }
 }
@@ -349,8 +351,10 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
 // Outputs
 output vmPublicIpAddress string = publicIp.properties.ipAddress
 output vmName string = vm.name
+@suppress('outputs-should-not-contain-secrets', 'use-resource-symbol-reference')
 output iotHubConnectionString string = 'HostName=${iotHub.properties.hostName};SharedAccessKeyName=iothubowner;SharedAccessKey=${listKeys(iotHub.id, iotHub.apiVersion).primaryKey}'
-output storageAccountConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+@suppress('outputs-should-not-contain-secrets', 'use-resource-symbol-reference')
+output storageAccountConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value};EndpointSuffix=${az.environment().suffixes.storage}'
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
