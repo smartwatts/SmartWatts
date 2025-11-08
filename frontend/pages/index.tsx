@@ -102,7 +102,7 @@ export default function Index() {
             </div>
               <div className="hidden md:flex items-center space-x-8">
                 <Link href="#features" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors">Features</Link>
-                <Link href="#pricing" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors">Pricing</Link>
+                {/* <Link href="#pricing" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors">Pricing</Link> */}
                 <Link href="#about" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors">About</Link>
                 <Link href="/contact" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors">Contact</Link>
           </div>
@@ -410,7 +410,8 @@ export default function Index() {
               </div>
         </section>
 
-        {/* Pricing Section */}
+        {/* Pricing Section - DISABLED */}
+        {/* 
         <section id="pricing" className="py-20 bg-gray-50 dark:bg-gray-900">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
@@ -423,7 +424,6 @@ export default function Index() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {/* Essential Home */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-600">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Essential Home</h3>
                 <div className="text-3xl font-bold text-gray-900 dark:text-white mb-4">₦15,000<span className="text-lg text-gray-600 dark:text-gray-300">/month</span></div>
@@ -450,7 +450,6 @@ export default function Index() {
                 </Link>
               </div>
 
-              {/* Smart Home Plus */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border-2 border-green-500 relative">
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                   <span className="bg-green-500 text-white px-4 py-1 rounded-full text-sm font-semibold">Most Popular</span>
@@ -480,7 +479,6 @@ export default function Index() {
                 </Link>
               </div>
 
-              {/* SME Professional */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-600">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">SME Professional</h3>
                 <div className="text-3xl font-bold text-gray-900 dark:text-white mb-4">₦45,000<span className="text-lg text-gray-600 dark:text-gray-300">/month</span></div>
@@ -507,7 +505,6 @@ export default function Index() {
                 </Link>
               </div>
 
-              {/* Enterprise */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-600">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Enterprise</h3>
                 <div className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Custom<span className="text-lg text-gray-600 dark:text-gray-300"> pricing</span></div>
@@ -552,6 +549,7 @@ export default function Index() {
           </div>
         </div>
       </section>
+        */}
 
       {/* CTA Section */}
         <section className="py-20 bg-gradient-to-r from-blue-600 to-blue-800">
@@ -606,7 +604,7 @@ export default function Index() {
               <h3 className="font-semibold mb-4">Product</h3>
               <ul className="space-y-2 text-gray-400">
                   <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
-                  <li><Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link></li>
+                  {/* <li><Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link></li> */}
                   <li><Link href="/contact" className="hover:text-white transition-colors">Demo</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition-colors">API</Link></li>
               </ul>

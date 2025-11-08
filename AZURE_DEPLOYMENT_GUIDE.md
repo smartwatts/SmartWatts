@@ -50,74 +50,363 @@ This guide provides step-by-step instructions for deploying SmartWatts to Azure 
    az account set --subscription <your-subscription-id>
    ```
 
-### Step 2: Configure GitHub Secrets
+### Step 2: Create Azure Service Principals
 
-Configure the following secrets in your GitHub repository:
+Create service principals for GitHub Actions to authenticate with Azure:
 
-**Settings → Secrets and variables → Actions → New repository secret**
+```bash
+# Get your subscription ID
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+echo "Subscription ID: $SUBSCRIPTION_ID"
+
+# Create staging service principal
+az ad sp create-for-rbac \
+  --name "smartwatts-staging-sp" \
+  --role contributor \
+  --scopes /subscriptions/$SUBSCRIPTION_ID \
+  --sdk-auth \
+  --output json > staging-sp.json
+
+# Create production service principal
+az ad sp create-for-rbac \
+  --name "smartwatts-prod-sp" \
+  --role contributor \
+  --scopes /subscriptions/$SUBSCRIPTION_ID \
+  --sdk-auth \
+  --output json > prod-sp.json
+
+# Display service principal info (save these!)
+echo "=== Staging Service Principal ==="
+cat staging-sp.json
+echo ""
+echo "=== Production Service Principal ==="
+cat prod-sp.json
+```
+
+**Important**: Save the JSON output from both service principals. You'll need them for GitHub Secrets.
+
+### Step 3: Generate SSH Keys
+
+Generate SSH key pairs for VM access:
+
+```bash
+# Generate staging SSH key
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/smartwatts-staging -N ""
+
+# Generate production SSH key
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/smartwatts-prod -N ""
+
+# Display private keys (save these!)
+echo "=== Staging SSH Private Key ==="
+cat ~/.ssh/smartwatts-staging
+echo ""
+echo "=== Production SSH Private Key ==="
+cat ~/.ssh/smartwatts-prod
+```
+
+**Important**: Save both private keys. You'll need them for GitHub Secrets.
+
+### Step 4: Configure GitHub Secrets
+
+After completing Azure Infrastructure Setup (above), configure the following secrets in your GitHub repository:
+
+**GitHub → Settings → Secrets and variables → Actions → New repository secret**
 
 #### Required Secrets for Staging (`main` branch)
 
 1. **`AZURE_CREDENTIALS_STAGING`**
-   ```bash
-   # Create service principal
-   az ad sp create-for-rbac --name "smartwatts-staging-sp" \
-     --role contributor \
-     --scopes /subscriptions/<subscription-id> \
-     --sdk-auth
-   ```
-   Copy the entire JSON output and save as `AZURE_CREDENTIALS_STAGING`
+   - Copy the entire JSON content from `staging-sp.json` file created above
+   - Paste as the secret value
 
 2. **`VM_ADMIN_PASSWORD_STAGING`**
-   - Strong password for VM admin user (minimum 12 characters, mix of upper/lower/numbers/special)
+   - Use the same password you used when deploying infrastructure
+   - Or create a new strong password (minimum 12 characters)
 
 3. **`VM_SSH_PRIVATE_KEY_STAGING`**
-   ```bash
-   # Generate SSH key pair
-   ssh-keygen -t rsa -b 4096 -f ~/.ssh/smartwatts-staging -N ""
-   
-   # Copy private key content
-   cat ~/.ssh/smartwatts-staging
-   ```
-   Copy the entire private key (including `-----BEGIN` and `-----END` lines) and save as `VM_SSH_PRIVATE_KEY_STAGING`
+   - Copy the entire private key from `~/.ssh/smartwatts-staging`
+   - Include `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` lines
 
 4. **`AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING`**
-   - Will be generated after first Static Web App deployment
-   - Or create manually in Azure Portal → Static Web Apps → Deployment tokens
+   - Get from Step 4 in Azure Infrastructure Setup
+   - Or: Azure Portal → Static Web Apps → sw-staging-dashboard → Manage deployment token
 
 #### Required Secrets for Production (`prod` branch)
 
 1. **`AZURE_CREDENTIALS_PROD`**
-   ```bash
-   # Create service principal
-   az ad sp create-for-rbac --name "smartwatts-prod-sp" \
-     --role contributor \
-     --scopes /subscriptions/<subscription-id> \
-     --sdk-auth
-   ```
-   Copy the entire JSON output and save as `AZURE_CREDENTIALS_PROD`
+   - Copy the entire JSON content from `prod-sp.json` file created above
 
 2. **`VM_ADMIN_PASSWORD_PROD`**
-   - Strong password for VM admin user (minimum 12 characters)
+   - Use the same password you used when deploying infrastructure
 
 3. **`VM_SSH_PRIVATE_KEY_PROD`**
-   ```bash
-   # Generate SSH key pair
-   ssh-keygen -t rsa -b 4096 -f ~/.ssh/smartwatts-prod -N ""
-   
-   # Copy private key content
-   cat ~/.ssh/smartwatts-prod
-   ```
-   Copy the entire private key and save as `VM_SSH_PRIVATE_KEY_PROD`
+   - Copy the entire private key from `~/.ssh/smartwatts-prod`
 
 4. **`AZURE_STATIC_WEB_APPS_API_TOKEN_PROD`**
-   - Will be generated after first Static Web App deployment
+   - Get from Step 4 in Azure Infrastructure Setup
+   - Or: Azure Portal → Static Web Apps → sw-prod-dashboard → Manage deployment token
 
 ---
 
-## 📦 Infrastructure Deployment
+## 📦 Azure Infrastructure Setup
+
+### Step 1: Create Resource Groups
+
+Create resource groups for staging and production environments:
+
+```bash
+# Create staging resource group
+az group create \
+  --name sw-staging-rg \
+  --location westeurope
+
+# Create production resource group
+az group create \
+  --name sw-prod-rg \
+  --location westeurope
+
+# Verify resource groups
+az group list --query "[?name=='sw-staging-rg' || name=='sw-prod-rg']" --output table
+```
+
+### Step 2: Deploy Infrastructure via Bicep
+
+#### Deploy Staging Environment
+
+1. **Deploy Infrastructure**
+   ```bash
+   # Navigate to project root
+   cd /path/to/mySmartWatts
+   
+   # Deploy staging infrastructure
+   az deployment group create \
+     --resource-group sw-staging-rg \
+     --template-file infrastructure/bicep/main.bicep \
+     --parameters @infrastructure/bicep/params.staging.json \
+     --parameters vmAdminPassword="<your-strong-password-here>"
+   ```
+
+2. **Wait for Deployment** (takes 10-15 minutes)
+   - Monitor progress in terminal
+   - Or check Azure Portal → Resource Groups → sw-staging-rg → Deployments
+
+3. **Get Deployment Outputs**
+   ```bash
+   # Get all outputs
+   az deployment group show \
+     --resource-group sw-staging-rg \
+     --name main \
+     --query properties.outputs \
+     --output json
+   
+   # Get specific outputs
+   VM_IP=$(az deployment group show \
+     --resource-group sw-staging-rg \
+     --name main \
+     --query properties.outputs.vmPublicIpAddress.value -o tsv)
+   
+   IOT_HUB_CS=$(az deployment group show \
+     --resource-group sw-staging-rg \
+     --name main \
+     --query properties.outputs.iotHubConnectionString.value -o tsv)
+   
+   STORAGE_CS=$(az deployment group show \
+     --resource-group sw-staging-rg \
+     --name main \
+     --query properties.outputs.storageAccountConnectionString.value -o tsv)
+   
+   STATIC_WEB_URL=$(az deployment group show \
+     --resource-group sw-staging-rg \
+     --name main \
+     --query properties.outputs.staticWebAppUrl.value -o tsv)
+   
+   APP_INSIGHTS_CS=$(az deployment group show \
+     --resource-group sw-staging-rg \
+     --name main \
+     --query properties.outputs.appInsightsConnectionString.value -o tsv)
+   
+   echo "VM IP: $VM_IP"
+   echo "IoT Hub Connection String: $IOT_HUB_CS"
+   echo "Storage Connection String: $STORAGE_CS"
+   echo "Static Web App URL: $STATIC_WEB_URL"
+   echo "App Insights Connection String: $APP_INSIGHTS_CS"
+   ```
+
+#### Deploy Production Environment
+
+1. **Deploy Infrastructure**
+   ```bash
+   # Deploy production infrastructure
+   az deployment group create \
+     --resource-group sw-prod-rg \
+     --template-file infrastructure/bicep/main.bicep \
+     --parameters @infrastructure/bicep/params.prod.json \
+     --parameters vmAdminPassword="<your-strong-password-here>"
+   ```
+
+2. **Get Production Outputs**
+   ```bash
+   # Get production outputs
+   az deployment group show \
+     --resource-group sw-prod-rg \
+     --name main \
+     --query properties.outputs \
+     --output json
+   ```
+
+### Step 3: Verify Azure Resources
+
+1. **Check All Resources**
+   ```bash
+   # List all resources in staging
+   az resource list \
+     --resource-group sw-staging-rg \
+     --output table
+   
+   # List all resources in production
+   az resource list \
+     --resource-group sw-prod-rg \
+     --output table
+   ```
+
+2. **Verify Specific Resources**
+   ```bash
+   # Check VM
+   az vm show \
+     --resource-group sw-staging-rg \
+     --name sw-staging-vm \
+     --query "{Name:name, Status:powerState, IP:publicIps}" \
+     --output table
+   
+   # Check IoT Hub
+   az iot hub show \
+     --resource-group sw-staging-rg \
+     --name sw-staging-iothub \
+     --query "{Name:name, Status:properties.state}" \
+     --output table
+   
+   # Check Storage Account
+   az storage account show \
+     --resource-group sw-staging-rg \
+     --name swstagingstorage \
+     --query "{Name:name, Status:provisioningState}" \
+     --output table
+   
+   # Check Static Web App
+   az staticwebapp show \
+     --resource-group sw-staging-rg \
+     --name sw-staging-dashboard \
+     --query "{Name:name, URL:defaultHostname}" \
+     --output table
+   
+   # Check Application Insights
+   az monitor app-insights component show \
+     --resource-group sw-staging-rg \
+     --app sw-staging-insights \
+     --query "{Name:name, Status:provisioningState}" \
+     --output table
+   ```
+
+### Step 4: Get Connection Strings and Secrets
+
+#### IoT Hub Connection String
+
+```bash
+# Get IoT Hub connection string
+az iot hub connection-string show \
+  --hub-name sw-staging-iothub \
+  --resource-group sw-staging-rg \
+  --policy-name iothubowner \
+  --output tsv
+
+# Create device identity for edge gateway
+az iot hub device-identity create \
+  --hub-name sw-staging-iothub \
+  --device-id edge-gateway-001 \
+  --resource-group sw-staging-rg
+
+# Get device connection string
+az iot hub device-identity connection-string show \
+  --hub-name sw-staging-iothub \
+  --device-id edge-gateway-001 \
+  --resource-group sw-staging-rg \
+  --output tsv
+```
+
+#### Storage Account Connection String
+
+```bash
+# Get storage account connection string
+az storage account show-connection-string \
+  --resource-group sw-staging-rg \
+  --name swstagingstorage \
+  --output tsv
+
+# Verify blob containers exist
+az storage container list \
+  --account-name swstagingstorage \
+  --connection-string "$STORAGE_CS" \
+  --output table
+```
+
+#### Static Web App Deployment Token
+
+```bash
+# Get Static Web App deployment token
+az staticwebapp secrets list \
+  --name sw-staging-dashboard \
+  --resource-group sw-staging-rg \
+  --query "properties.apiKey" \
+  --output tsv
+```
+
+#### Application Insights Connection String
+
+```bash
+# Get Application Insights connection string
+az monitor app-insights component show \
+  --resource-group sw-staging-rg \
+  --app sw-staging-insights \
+  --query "connectionString" \
+  --output tsv
+```
+
+### Step 5: Save Configuration for GitHub Secrets
+
+Create a file to store your secrets (keep this secure, don't commit to git):
+
+```bash
+# Create secrets file (DO NOT COMMIT THIS FILE)
+cat > azure-secrets.txt << EOF
+# Staging Environment Secrets
+AZURE_CREDENTIALS_STAGING=<service-principal-json>
+VM_ADMIN_PASSWORD_STAGING=<your-vm-password>
+VM_SSH_PRIVATE_KEY_STAGING=<your-ssh-private-key>
+AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING=<static-web-app-token>
+IOT_HUB_CONNECTION_STRING_STAGING=<iot-hub-connection-string>
+STORAGE_CONNECTION_STRING_STAGING=<storage-connection-string>
+APP_INSIGHTS_CONNECTION_STRING_STAGING=<app-insights-connection-string>
+
+# Production Environment Secrets
+AZURE_CREDENTIALS_PROD=<service-principal-json>
+VM_ADMIN_PASSWORD_PROD=<your-vm-password>
+VM_SSH_PRIVATE_KEY_PROD=<your-ssh-private-key>
+AZURE_STATIC_WEB_APPS_API_TOKEN_PROD=<static-web-app-token>
+IOT_HUB_CONNECTION_STRING_PROD=<iot-hub-connection-string>
+STORAGE_CONNECTION_STRING_PROD=<storage-connection-string>
+APP_INSIGHTS_CONNECTION_STRING_PROD=<app-insights-connection-string>
+EOF
+
+# Secure the file
+chmod 600 azure-secrets.txt
+```
+
+---
+
+## 📦 Infrastructure Deployment via GitHub Actions
 
 ### Option 1: Deploy via GitHub Actions (Recommended)
+
+**Prerequisites**: Complete Azure Infrastructure Setup (above) and configure GitHub Secrets (see Step 2 in Quick Start)
 
 1. **Push to `main` branch** (staging deployment)
    ```bash
@@ -136,29 +425,9 @@ Configure the following secrets in your GitHub repository:
    git push origin prod
    ```
 
-### Option 2: Deploy via Azure CLI (Manual)
+### Option 2: Manual Deployment (Alternative)
 
-1. **Create Resource Group**
-   ```bash
-   az group create --name sw-staging-rg --location westeurope
-   ```
-
-2. **Deploy Infrastructure**
-   ```bash
-   az deployment group create \
-     --resource-group sw-staging-rg \
-     --template-file infrastructure/bicep/main.bicep \
-     --parameters @infrastructure/bicep/params.staging.json \
-     --parameters vmAdminPassword="<your-password>"
-   ```
-
-3. **Get Deployment Outputs**
-   ```bash
-   az deployment group show \
-     --resource-group sw-staging-rg \
-     --name main \
-     --query properties.outputs
-   ```
+If you prefer to deploy manually without GitHub Actions, follow the Application Deployment section below.
 
 ---
 
@@ -198,13 +467,28 @@ Configure the following secrets in your GitHub repository:
    ```bash
    cd azure-deployment
    
+   # Get connection strings from Azure (if not already saved)
+   IOT_HUB_CS=$(az iot hub device-identity connection-string show \
+     --hub-name sw-staging-iothub \
+     --device-id edge-gateway-001 \
+     --resource-group sw-staging-rg \
+     --output tsv)
+   
+   STORAGE_CS=$(az storage account show-connection-string \
+     --resource-group sw-staging-rg \
+     --name swstagingstorage \
+     --output tsv)
+   
    # Create .env file
    cat > .env << EOF
    POSTGRES_PASSWORD=<your-postgres-password>
-   IOT_HUB_CONNECTION_STRING=<from-azure-portal>
-   STORAGE_CONNECTION_STRING=<from-azure-portal>
+   IOT_HUB_CONNECTION_STRING=$IOT_HUB_CS
+   STORAGE_CONNECTION_STRING=$STORAGE_CS
    NEXT_PUBLIC_API_URL=http://$VM_IP:8080
    EOF
+   
+   # Secure the .env file
+   chmod 600 .env
    ```
 
 5. **Deploy Application**
@@ -255,15 +539,25 @@ The frontend is automatically deployed to Azure Static Web Apps when you push to
 
 ### Configure Edge Gateway
 
-1. **Get IoT Hub Connection String**
+1. **Create Device Identity (if not already created)**
    ```bash
-   az iot hub device-identity connection-string show \
+   # Create device identity for edge gateway
+   az iot hub device-identity create \
      --hub-name sw-staging-iothub \
      --device-id edge-gateway-001 \
      --resource-group sw-staging-rg
    ```
 
-2. **Update Edge Gateway Configuration**
+2. **Get IoT Hub Connection String**
+   ```bash
+   az iot hub device-identity connection-string show \
+     --hub-name sw-staging-iothub \
+     --device-id edge-gateway-001 \
+     --resource-group sw-staging-rg \
+     --output tsv
+   ```
+
+3. **Update Edge Gateway Configuration**
    ```yaml
    # edge-gateway/config/edge-config.yml
    network:
@@ -274,13 +568,13 @@ The frontend is automatically deployed to Azure Static Web Apps when you push to
      azure_iot_hub_device_id: "edge-gateway-001"
    ```
 
-3. **Install Azure IoT Hub SDK**
+4. **Install Azure IoT Hub SDK**
    ```bash
    cd edge-gateway
    pip install -r requirements.txt
    ```
 
-4. **Test IoT Hub Connection**
+5. **Test IoT Hub Connection**
    ```bash
    python -c "
    from azure.iot.device import IoTHubDeviceClient
@@ -297,10 +591,18 @@ The frontend is automatically deployed to Azure Static Web Apps when you push to
 
 ### Database Backups
 
-1. **Configure Backup Script**
+1. **Get Storage Connection String**
    ```bash
-   export AZURE_STORAGE_CONNECTION_STRING="<from-azure-portal>"
+   # Get storage connection string
+   export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+     --resource-group sw-staging-rg \
+     --name swstagingstorage \
+     --output tsv)
+   
    export AZURE_BLOB_CONTAINER="backups"
+   
+   # Verify connection
+   echo "Storage Connection String: $AZURE_STORAGE_CONNECTION_STRING"
    ```
 
 2. **Run Backup**
@@ -321,11 +623,19 @@ The frontend is automatically deployed to Azure Static Web Apps when you push to
 
 ### Log Archival
 
-1. **Configure Log Archival**
+1. **Get Storage Connection String**
    ```bash
-   export AZURE_STORAGE_CONNECTION_STRING="<from-azure-portal>"
+   # Get storage connection string
+   export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+     --resource-group sw-staging-rg \
+     --name swstagingstorage \
+     --output tsv)
+   
    export AZURE_BLOB_LOG_CONTAINER="logs"
    export LOG_RETENTION_DAYS=90
+   
+   # Verify connection
+   echo "Storage Connection String: $AZURE_STORAGE_CONNECTION_STRING"
    ```
 
 2. **Run Log Archival**
