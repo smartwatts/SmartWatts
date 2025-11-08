@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "1521365635280830874"
+      "templateHash": "9334892888868042467"
     }
   },
   "parameters": {
@@ -399,7 +399,7 @@
     },
     "iotHubConnectionString": {
       "type": "string",
-      "value": "[format('HostName={0};SharedAccessKeyName=iothubowner;SharedAccessKey={1}', reference(resourceId('Microsoft.Devices/IotHubs', variables('iotHubName')), '2021-07-02').hostName, listKeys(resourceId('Microsoft.Devices/IotHubs', variables('iotHubName')), '2021-07-02').primaryKey)]"
+      "value": "[format('HostName={0};SharedAccessKeyName=iothubowner;SharedAccessKey={1}', reference(resourceId('Microsoft.Devices/IotHubs', variables('iotHubName')), '2021-07-02').hostName, listKeys(resourceId('Microsoft.Devices/IotHubs', variables('iotHubName')), '2021-07-02').value)]"
     },
     "storageAccountConnectionString": {
       "type": "string",

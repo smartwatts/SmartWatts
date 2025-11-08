@@ -345,7 +345,7 @@ output vmPublicIpAddress string = publicIp.properties.ipAddress
 output vmName string = vm.name
 // Note: Connection strings contain secrets but are needed for application configuration
 // These warnings can be ignored as the secrets are required for deployment
-output iotHubConnectionString string = 'HostName=${iotHub.properties.hostName};SharedAccessKeyName=iothubowner;SharedAccessKey=${listKeys(iotHub.id, iotHub.apiVersion).primaryKey}'
+output iotHubConnectionString string = 'HostName=${iotHub.properties.hostName};SharedAccessKeyName=iothubowner;SharedAccessKey=${listKeys(iotHub.id, iotHub.apiVersion).value}'
 output storageAccountConnectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value};EndpointSuffix=${az.environment().suffixes.storage}'
 output staticWebAppUrl string = 'https://${staticWebApp.properties.defaultHostname}'
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
