@@ -162,6 +162,10 @@ jobs:
             fi
           fi
           
+          # Start Docker service if not running
+          sudo systemctl start docker || true
+          sudo systemctl enable docker || true
+          
           # Install Docker Compose if not present
           if ! command -v docker-compose &> /dev/null && ! (command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1); then
             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -171,9 +175,9 @@ jobs:
           # Navigate to repository
           cd /home/azureuser/smartwatts
           
-          # Deploy with Docker Compose
+          # Deploy with Docker Compose (use sudo since group membership may not be active)
           cd azure-deployment
-          docker-compose -f docker-compose.azure.yml up -d --build
+          sudo docker-compose -f docker-compose.azure.yml up -d --build
         EOF
 
     - name: Deploy Frontend to Static Web Apps
