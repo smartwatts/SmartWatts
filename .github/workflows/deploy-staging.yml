@@ -39,6 +39,16 @@ jobs:
         az provider register --namespace microsoft.keyvault --wait
         az provider register --namespace microsoft.network --wait
 
+    - name: Cancel Stuck Deployments
+      run: |
+        echo "Checking for active deployments named 'main'..."
+        # Try to cancel the 'main' deployment if it exists and is active
+        az deployment group cancel \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name main 2>/dev/null && echo "Cancelled stuck deployment 'main'" || echo "No active deployment 'main' to cancel (or already completed)"
+        # Wait a moment for cancellation to process
+        sleep 5
+
     - name: Deploy Infrastructure (Bicep)
       run: |
         az deployment group create \
