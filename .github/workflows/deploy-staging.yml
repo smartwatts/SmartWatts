@@ -70,8 +70,22 @@ jobs:
           echo "$SSH_KEY" | base64 -d > ~/.ssh/id_rsa
         fi
         chmod 600 ~/.ssh/id_rsa
-        # Check if key is in OpenSSH format (binary) and convert to PEM if needed
-        if head -c 15 ~/.ssh/id_rsa | grep -q "openssh-key-v1"; then
+        # Check key format and convert to PEM if needed
+        KEY_START=$(head -c 20 ~/.ssh/id_rsa | xxd -p | tr -d '\n')
+        # Check if key is in DER format (starts with 30 82 - ASN.1 SEQUENCE)
+        if echo "$KEY_START" | grep -q "^3082"; then
+          echo "Key is in DER format - converting to PEM format"
+          # Convert DER to PEM using openssl
+          openssl rsa -inform DER -in ~/.ssh/id_rsa -outform PEM -out ~/.ssh/id_rsa.pem 2>/dev/null && mv ~/.ssh/id_rsa.pem ~/.ssh/id_rsa || {
+            echo "Warning: Could not convert DER key to PEM format, trying ssh-keygen"
+            # Try using ssh-keygen to convert
+            cp ~/.ssh/id_rsa ~/.ssh/id_rsa.der
+            ssh-keygen -p -N "" -m PEM -f ~/.ssh/id_rsa.der > /dev/null 2>&1 && mv ~/.ssh/id_rsa.der ~/.ssh/id_rsa || {
+              echo "Error: Could not convert DER key to PEM format"
+              exit 1
+            }
+          }
+        elif head -c 15 ~/.ssh/id_rsa | grep -q "openssh-key-v1"; then
           echo "Key is in OpenSSH format - converting to PEM format"
           # Convert OpenSSH format to PEM format (no passphrase change, just format conversion)
           ssh-keygen -p -N "" -m PEM -f ~/.ssh/id_rsa > /dev/null 2>&1 || {
