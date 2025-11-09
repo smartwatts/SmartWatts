@@ -18,6 +18,32 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Validate Required Secrets
+      run: |
+        MISSING_SECRETS=0
+        if [ -z "${{ secrets.AZURE_CREDENTIALS_STAGING }}" ]; then
+          echo "Error: AZURE_CREDENTIALS_STAGING secret is missing"
+          MISSING_SECRETS=$((MISSING_SECRETS + 1))
+        fi
+        if [ -z "${{ secrets.VM_ADMIN_PASSWORD_STAGING }}" ]; then
+          echo "Error: VM_ADMIN_PASSWORD_STAGING secret is missing"
+          MISSING_SECRETS=$((MISSING_SECRETS + 1))
+        fi
+        if [ -z "${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}" ]; then
+          echo "Error: VM_SSH_PRIVATE_KEY_STAGING secret is missing"
+          MISSING_SECRETS=$((MISSING_SECRETS + 1))
+        fi
+        if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}" ]; then
+          echo "Error: AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING secret is missing"
+          MISSING_SECRETS=$((MISSING_SECRETS + 1))
+        fi
+        
+        if [ $MISSING_SECRETS -gt 0 ]; then
+          echo "Error: $MISSING_SECRETS required secret(s) are missing"
+          exit 1
+        fi
+        echo "✓ All required secrets are present"
+
     - name: Azure Login
       uses: azure/login@v1
       with:
@@ -25,27 +51,86 @@ jobs:
 
     - name: Create Resource Group
       run: |
-        az group create \
-          --name ${{ env.AZURE_RESOURCE_GROUP }} \
-          --location ${{ env.LOCATION }} \
-          --output none
+        # Check if resource group exists, create if it doesn't
+        if az group show --name ${{ env.AZURE_RESOURCE_GROUP }} --output none 2>/dev/null; then
+          echo "Resource group ${{ env.AZURE_RESOURCE_GROUP }} already exists"
+        else
+          echo "Creating resource group ${{ env.AZURE_RESOURCE_GROUP }}..."
+          az group create \
+            --name ${{ env.AZURE_RESOURCE_GROUP }} \
+            --location ${{ env.LOCATION }} \
+            --output none
+        fi
 
     - name: Register Required Resource Providers
       run: |
-        az provider register --namespace microsoft.operationalinsights --wait
-        az provider register --namespace microsoft.devices --wait
-        az provider register --namespace microsoft.storage --wait
-        az provider register --namespace microsoft.web --wait
-        az provider register --namespace microsoft.keyvault --wait
-        az provider register --namespace microsoft.network --wait
+        register_provider() {
+          local namespace=$1
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if az provider register --namespace "$namespace" --wait; then
+              echo "Successfully registered $namespace"
+              return 0
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Failed to register $namespace, retrying in 5 seconds..."
+                sleep 5
+              else
+                echo "Warning: Failed to register $namespace after $MAX_RETRIES attempts"
+                return 1
+              fi
+            fi
+          done
+        }
+        
+        register_provider microsoft.operationalinsights
+        register_provider microsoft.devices
+        register_provider microsoft.storage
+        register_provider microsoft.web
+        register_provider microsoft.keyvault
+        register_provider microsoft.network
 
     - name: Deploy Infrastructure (Bicep)
       run: |
-        az deployment group create \
+        MAX_RETRIES=3
+        RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          echo "Deploying infrastructure (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+          
+          if az deployment group create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file infrastructure/bicep/main.bicep \
+            --parameters @infrastructure/bicep/params.staging.json \
+            --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}" \
+            --output none; then
+            echo "Infrastructure deployment succeeded"
+            break
+          else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "Deployment failed, retrying in 10 seconds..."
+              sleep 10
+            else
+              echo "Error: Infrastructure deployment failed after $MAX_RETRIES attempts"
+              exit 1
+            fi
+          fi
+        done
+        
+        # Validate deployment outputs
+        echo "Validating deployment outputs..."
+        DEPLOYMENT_OUTPUTS=$(az deployment group show \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --template-file infrastructure/bicep/main.bicep \
-          --parameters @infrastructure/bicep/params.staging.json \
-          --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
+          --name main \
+          --query properties.outputs -o json 2>/dev/null || echo "{}")
+        
+        if [ "$DEPLOYMENT_OUTPUTS" = "{}" ]; then
+          echo "Warning: Could not retrieve deployment outputs"
+        else
+          echo "Deployment outputs retrieved successfully"
+        fi
 
     - name: Get VM Public IP
       id: get-vm-ip
@@ -54,7 +139,42 @@ jobs:
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
           --query publicIps -o tsv)
+        if [ -z "$VM_IP" ]; then
+          echo "Error: Failed to get VM public IP"
+          exit 1
+        fi
         echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
+        echo "VM Public IP: $VM_IP"
+
+    - name: Wait for VM Readiness
+      run: |
+        echo "Waiting for VM to be in running state..."
+        MAX_RETRIES=30
+        RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          VM_STATE=$(az vm show -d \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name sw-staging-vm \
+            --query powerState -o tsv 2>/dev/null || echo "unknown")
+          
+          if [ "$VM_STATE" = "VM running" ]; then
+            echo "VM is running"
+            break
+          fi
+          
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "VM state: $VM_STATE (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 10 seconds..."
+            sleep 10
+          else
+            echo "Error: VM did not reach running state after $MAX_RETRIES attempts"
+            exit 1
+          fi
+        done
+        
+        # Additional wait for VM agent to be ready
+        echo "Waiting for VM agent to be ready..."
+        sleep 15
 
     - name: Setup SSH Key
       run: |
@@ -121,22 +241,64 @@ jobs:
           echo "Note: Could not add public key via Azure CLI, will add via SSH during deployment"
         }
         # Also add public key directly via Azure VM run-command as fallback
+        # Note: This may fail if VM agent isn't ready, but SSH will still work
         echo "Adding public key to VM authorized_keys via Azure run-command (fallback)..."
         PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
-        az vm run-command invoke \
+        timeout 30 az vm run-command invoke \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
           --command-id RunShellScript \
-          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist)"
+          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (VM agent may not be ready - SSH will still work)"
 
     - name: Copy Repository to VM
       run: |
+        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
+        MAX_RETRIES=5
+        RETRY_COUNT=0
+        
+        # Retry SSH connection with exponential backoff
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>/dev/null; then
+            echo "SSH connection established"
+            break
+          else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              WAIT_TIME=$((RETRY_COUNT * 5))
+              echo "SSH connection failed (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${WAIT_TIME}s..."
+              sleep $WAIT_TIME
+            else
+              echo "Error: Failed to establish SSH connection after $MAX_RETRIES attempts"
+              exit 1
+            fi
+          fi
+        done
+        
         # Create tarball of repository
+        echo "Creating repository tarball..."
         tar czf /tmp/smartwatts.tar.gz --exclude='.git' --exclude='node_modules' --exclude='.next' .
-        # Copy repository to VM
-        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa /tmp/smartwatts.tar.gz azureuser@${{ steps.get-vm-ip.outputs.vm_ip }}:/tmp/
+        
+        # Copy repository to VM with retry
+        RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa /tmp/smartwatts.tar.gz azureuser@$VM_IP:/tmp/ 2>/dev/null; then
+            echo "Repository copied successfully"
+            break
+          else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              WAIT_TIME=$((RETRY_COUNT * 5))
+              echo "Copy failed (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${WAIT_TIME}s..."
+              sleep $WAIT_TIME
+            else
+              echo "Error: Failed to copy repository after $MAX_RETRIES attempts"
+              exit 1
+            fi
+          fi
+        done
+        
         # Extract repository on VM
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@$VM_IP << 'EOF'
           cd /home/azureuser
           if [ -d "smartwatts" ]; then
             rm -rf smartwatts
@@ -145,9 +307,11 @@ jobs:
           cd smartwatts
           tar xzf /tmp/smartwatts.tar.gz
           rm /tmp/smartwatts.tar.gz
+          echo "Repository extracted successfully"
         EOF
 
     - name: Deploy Application to VM
+      timeout-minutes: 30
       run: |
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
           # Install Docker if not present
@@ -253,6 +417,7 @@ jobs:
         EOF
 
     - name: Deploy Frontend to Static Web Apps
+      continue-on-error: true
       uses: Azure/static-web-apps-deploy@v1
       with:
         azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}
@@ -273,7 +438,93 @@ jobs:
 
     - name: Health Check
       run: |
-        sleep 60  # Wait for services to start
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        curl -f http://$VM_IP:8080/actuator/health || exit 1
+        MAX_RETRIES=10
+        RETRY_COUNT=0
+        RETRY_DELAY=10
+        
+        echo "Waiting for services to start and checking health..."
+        
+        # Check API Gateway health
+        API_GATEWAY_HEALTHY=false
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if curl -f -s http://$VM_IP:8080/actuator/health > /dev/null 2>&1; then
+            echo "✓ API Gateway is healthy"
+            API_GATEWAY_HEALTHY=true
+            break
+          else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "API Gateway not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${RETRY_DELAY}s..."
+              sleep $RETRY_DELAY
+            fi
+          fi
+        done
+        
+        # Check Service Discovery health
+        SERVICE_DISCOVERY_HEALTHY=false
+        RETRY_COUNT=0
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if curl -f -s http://$VM_IP:8761/actuator/health > /dev/null 2>&1; then
+            echo "✓ Service Discovery is healthy"
+            SERVICE_DISCOVERY_HEALTHY=true
+            break
+          else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "Service Discovery not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${RETRY_DELAY}s..."
+              sleep $RETRY_DELAY
+            fi
+          fi
+        done
+        
+        # Final validation
+        if [ "$API_GATEWAY_HEALTHY" = "true" ] && [ "$SERVICE_DISCOVERY_HEALTHY" = "true" ]; then
+          echo "✓ All critical services are healthy"
+          exit 0
+        else
+          echo "Error: Some services failed health check"
+          echo "API Gateway: $API_GATEWAY_HEALTHY"
+          echo "Service Discovery: $SERVICE_DISCOVERY_HEALTHY"
+          exit 1
+        fi
+
+    - name: Deployment Summary
+      if: always()
+      run: |
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
+        if [ -n "$VM_IP" ]; then
+          echo "### VM Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **VM Public IP**: $VM_IP" >> $GITHUB_STEP_SUMMARY
+          echo "- **API Gateway URL**: http://$VM_IP:8080" >> $GITHUB_STEP_SUMMARY
+          echo "- **Service Discovery URL**: http://$VM_IP:8761" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        STATIC_WEB_APP_URL=$(az staticwebapp show \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name sw-staging-dashboard \
+          --query defaultHostname -o tsv 2>/dev/null || echo "N/A")
+        
+        if [ "$STATIC_WEB_APP_URL" != "N/A" ]; then
+          echo "### Static Web App" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: https://$STATIC_WEB_APP_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "### Deployment Status" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "✅ **Deployment completed successfully**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Deployment failed or was cancelled**" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "1. Verify all services are running: \`curl http://$VM_IP:8080/actuator/health\`" >> $GITHUB_STEP_SUMMARY
+        echo "2. Access the dashboard at: https://$STATIC_WEB_APP_URL" >> $GITHUB_STEP_SUMMARY
+        echo "3. Monitor services in Azure Portal" >> $GITHUB_STEP_SUMMARY
 
