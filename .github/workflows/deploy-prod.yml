@@ -247,9 +247,44 @@ jobs:
           
           echo "All Gradle wrapper files verified successfully"
           
-          # Deploy with Docker Compose (use sudo since group membership may not be active)
+          # Clean up Docker resources to prevent network exhaustion
+          echo "Cleaning up Docker resources..."
+          sudo docker system prune -f || true
+          sudo docker network prune -f || true
+          sudo docker container prune -f || true
+          
+          # Stop any existing containers to free up resources
           cd azure-deployment
-          sudo docker-compose -f docker-compose.azure.yml up -d --build
+          sudo docker-compose -f docker-compose.azure.yml down || true
+          
+          # Wait a moment for resources to be released
+          sleep 5
+          
+          # Deploy with Docker Compose (use sudo since group membership may not be active)
+          # Retry logic for network resource issues
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            # Disable BuildKit to reduce network resource usage
+            export DOCKER_BUILDKIT=0
+            export COMPOSE_DOCKER_CLI_BUILD=0
+            if sudo docker-compose -f docker-compose.azure.yml up -d --build; then
+              echo "Docker Compose build succeeded"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Build failed, cleaning up and retrying (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sudo docker-compose -f docker-compose.azure.yml down || true
+                sudo docker system prune -f || true
+                sudo docker network prune -f || true
+                sleep 10
+              else
+                echo "Build failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
         EOF
 
     - name: Deploy Frontend to Static Web Apps
