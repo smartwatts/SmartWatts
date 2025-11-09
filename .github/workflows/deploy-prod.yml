@@ -172,9 +172,29 @@ jobs:
           fi
         done
         
-        # Additional wait for VM agent to be ready
-        echo "Waiting for VM agent to be ready..."
-        sleep 15
+        # Additional wait for VM agent and SSH service to be ready
+        echo "Waiting for VM agent and SSH service to be ready..."
+        sleep 30
+        
+        # Verify SSH port is accessible
+        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
+        echo "Testing SSH connectivity to $VM_IP..."
+        MAX_SSH_RETRIES=20
+        SSH_RETRY_COUNT=0
+        while [ $SSH_RETRY_COUNT -lt $MAX_SSH_RETRIES ]; do
+          if timeout 5 bash -c "echo > /dev/tcp/$VM_IP/22" 2>/dev/null; then
+            echo "SSH port 22 is accessible"
+            break
+          else
+            SSH_RETRY_COUNT=$((SSH_RETRY_COUNT + 1))
+            if [ $SSH_RETRY_COUNT -lt $MAX_SSH_RETRIES ]; then
+              echo "SSH port not accessible yet (attempt $SSH_RETRY_COUNT/$MAX_SSH_RETRIES), waiting 10 seconds..."
+              sleep 10
+            else
+              echo "Warning: SSH port 22 not accessible after $MAX_SSH_RETRIES attempts, but will continue with SSH connection attempts"
+            fi
+          fi
+        done
 
     - name: Setup SSH Key
       run: |
@@ -257,22 +277,53 @@ jobs:
     - name: Copy Repository to VM
       run: |
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        MAX_RETRIES=5
+        MAX_RETRIES=10
         RETRY_COUNT=0
         
-        # Retry SSH connection with exponential backoff
+        # Ensure SSH key has correct permissions
+        chmod 600 ~/.ssh/id_rsa
+        chmod 644 ~/.ssh/id_rsa.pub 2>/dev/null || true
+        
+        # Retry SSH connection with exponential backoff and better diagnostics
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>/dev/null; then
-            echo "SSH connection established"
+          echo "Attempting SSH connection (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+          
+          # Test SSH connection with verbose output on first attempt
+          if [ $RETRY_COUNT -eq 0 ]; then
+            SSH_OUTPUT=$(ssh -v -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
+            SSH_EXIT_CODE=$?
+          else
+            SSH_OUTPUT=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
+            SSH_EXIT_CODE=$?
+          fi
+          
+          if [ $SSH_EXIT_CODE -eq 0 ]; then
+            echo "SSH connection established successfully"
             break
           else
             RETRY_COUNT=$((RETRY_COUNT + 1))
             if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              WAIT_TIME=$((RETRY_COUNT * 5))
-              echo "SSH connection failed (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${WAIT_TIME}s..."
+              WAIT_TIME=$((RETRY_COUNT * 10))
+              echo "SSH connection failed (attempt $RETRY_COUNT/$MAX_RETRIES)"
+              if [ $RETRY_COUNT -eq 1 ]; then
+                echo "SSH error details:"
+                echo "$SSH_OUTPUT" | grep -i "error\|denied\|refused\|timeout" | head -5 || echo "No specific error details found"
+              fi
+              echo "Waiting ${WAIT_TIME}s before retry..."
               sleep $WAIT_TIME
             else
               echo "Error: Failed to establish SSH connection after $MAX_RETRIES attempts"
+              echo "Final SSH error output:"
+              echo "$SSH_OUTPUT" | tail -20
+              echo ""
+              echo "Diagnostics:"
+              echo "- VM IP: $VM_IP"
+              echo "- Testing port 22 connectivity..."
+              timeout 5 bash -c "echo > /dev/tcp/$VM_IP/22" 2>/dev/null && echo "Port 22 is open" || echo "Port 22 is not accessible"
+              echo "- Checking SSH key..."
+              ls -la ~/.ssh/id_rsa
+              echo "- Attempting to verify SSH key format..."
+              ssh-keygen -l -f ~/.ssh/id_rsa 2>&1 | head -1 || echo "Could not read SSH key"
               exit 1
             fi
           fi
