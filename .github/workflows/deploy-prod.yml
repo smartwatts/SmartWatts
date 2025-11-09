@@ -39,16 +39,6 @@ jobs:
         az provider register --namespace microsoft.keyvault --wait
         az provider register --namespace microsoft.network --wait
 
-    - name: Cancel Stuck Deployments
-      run: |
-        echo "Checking for active deployments named 'main'..."
-        # Try to cancel the 'main' deployment if it exists and is active
-        az deployment group cancel \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name main 2>/dev/null && echo "Cancelled stuck deployment 'main'" || echo "No active deployment 'main' to cancel (or already completed)"
-        # Wait a moment for cancellation to process
-        sleep 5
-
     - name: Deploy Infrastructure (Bicep)
       run: |
         az deployment group create \
@@ -118,12 +108,9 @@ jobs:
         else
           echo "SSH key validated successfully"
           # Extract public key
-          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub || {
-            echo "Error: Failed to extract public key from private key"
-            exit 1
-          }
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
         fi
-        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
+        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
         # Add public key to VM using Azure CLI
         echo "Adding public key to VM..."
         az vm user update \
@@ -134,14 +121,13 @@ jobs:
           echo "Note: Could not add public key via Azure CLI, will add via SSH during deployment"
         }
         # Also add public key directly via Azure VM run-command as fallback
-        # Note: This may fail if VM agent isn't ready, but SSH will still work
         echo "Adding public key to VM authorized_keys via Azure run-command (fallback)..."
         PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
-        timeout 30 az vm run-command invoke \
+        az vm run-command invoke \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-prod-vm \
           --command-id RunShellScript \
-          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (VM agent may not be ready - SSH will still work)"
+          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist)"
 
     - name: Copy Repository to VM
       run: |
@@ -162,7 +148,6 @@ jobs:
         EOF
 
     - name: Deploy Application to VM
-      timeout-minutes: 30
       run: |
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
           # Install Docker if not present
@@ -262,63 +247,9 @@ jobs:
           
           echo "All Gradle wrapper files verified successfully"
           
-          # Clean up Docker resources to prevent network exhaustion
-          echo "Cleaning up Docker resources..."
-          sudo docker system prune -f || true
-          sudo docker network prune -f || true
-          sudo docker container prune -f || true
-          
-          # Stop any existing containers to free up resources
-          cd azure-deployment
-          sudo docker-compose -f docker-compose.azure.yml down || true
-          
-          # Wait a moment for resources to be released
-          sleep 5
-          
           # Deploy with Docker Compose (use sudo since group membership may not be active)
-          # Retry logic for network resource issues
-          MAX_RETRIES=3
-          RETRY_COUNT=0
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            # Disable BuildKit to reduce network resource usage
-            export DOCKER_BUILDKIT=0
-            export COMPOSE_DOCKER_CLI_BUILD=0
-            
-            echo "=== Starting Docker Compose build (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES) ==="
-            echo "Timestamp: $(date)"
-            
-            # Build with progress logging
-            if timeout 1800 sudo docker-compose -f docker-compose.azure.yml build --progress=plain 2>&1 | tee /tmp/docker-build.log; then
-              echo "=== Build completed successfully ==="
-              echo "Timestamp: $(date)"
-              
-              # Start containers
-              echo "=== Starting containers ==="
-              if sudo docker-compose -f docker-compose.azure.yml up -d; then
-                echo "Docker Compose build and start succeeded"
-                break
-              else
-                echo "ERROR: Failed to start containers"
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-              fi
-            else
-              echo "ERROR: Build failed or timed out after 30 minutes"
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-            fi
-            
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Build failed, cleaning up and retrying (attempt $RETRY_COUNT/$MAX_RETRIES)..."
-              sudo docker-compose -f docker-compose.azure.yml down || true
-              sudo docker system prune -f || true
-              sudo docker network prune -f || true
-              sleep 10
-            else
-              echo "Build failed after $MAX_RETRIES attempts"
-              echo "Last 50 lines of build log:"
-              tail -50 /tmp/docker-build.log || true
-              exit 1
-            fi
-          done
+          cd azure-deployment
+          sudo docker-compose -f docker-compose.azure.yml up -d --build
         EOF
 
     - name: Deploy Frontend to Static Web Apps
