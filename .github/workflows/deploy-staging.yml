@@ -134,13 +134,14 @@ jobs:
           echo "Note: Could not add public key via Azure CLI, will add via SSH during deployment"
         }
         # Also add public key directly via Azure VM run-command as fallback
+        # Note: This may fail if VM agent isn't ready, but SSH will still work
         echo "Adding public key to VM authorized_keys via Azure run-command (fallback)..."
         PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
-        az vm run-command invoke \
+        timeout 30 az vm run-command invoke \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
           --command-id RunShellScript \
-          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist)"
+          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (VM agent may not be ready - SSH will still work)"
 
     - name: Copy Repository to VM
       run: |
