@@ -108,26 +108,35 @@ jobs:
         else
           echo "SSH key validated successfully"
           # Extract public key
-          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub || {
+            echo "Error: Failed to extract public key from private key"
+            exit 1
+          }
         fi
-        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
-        # Add public key to VM using Azure CLI
-        echo "Adding public key to VM..."
+        
+        # Add VM to known hosts (non-critical, continue on failure)
+        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
+        
+        # Add public key to VM using Azure CLI (non-critical, continue on failure)
+        echo "Adding public key to VM via Azure CLI..."
         az vm user update \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
           --username azureuser \
           --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" 2>&1 || {
-          echo "Note: Could not add public key via Azure CLI, will add via SSH during deployment"
+          echo "Note: Could not add public key via Azure CLI (will try SSH during deployment)"
         }
-        # Also add public key directly via Azure VM run-command as fallback
+        
+        # Also add public key directly via Azure VM run-command as fallback (non-critical)
         echo "Adding public key to VM authorized_keys via Azure run-command (fallback)..."
         PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
         az vm run-command invoke \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
           --command-id RunShellScript \
-          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist)"
+          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist or will be added during deployment)"
+        
+        echo "SSH key setup completed successfully"
 
     - name: Copy Repository to VM
       run: |
