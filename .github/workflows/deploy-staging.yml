@@ -98,11 +98,22 @@ jobs:
         fi
         ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
         # Add public key to VM using Azure CLI
+        echo "Adding public key to VM..."
         az vm user update \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
           --username azureuser \
-          --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" || echo "Note: Could not add public key via Azure CLI (may already exist)"
+          --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" 2>&1 || {
+          echo "Note: Could not add public key via Azure CLI, will add via SSH during deployment"
+        }
+        # Also add public key directly via Azure VM run-command as fallback
+        echo "Adding public key to VM authorized_keys via Azure run-command (fallback)..."
+        PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
+        az vm run-command invoke \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name sw-staging-vm \
+          --command-id RunShellScript \
+          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist)"
 
     - name: Deploy Application to VM
       run: |
