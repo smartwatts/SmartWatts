@@ -224,6 +224,29 @@ jobs:
           # Navigate to repository
           cd /home/azureuser/smartwatts
           
+          # Verify Gradle wrapper files exist before building
+          echo "Verifying Gradle wrapper files exist..."
+          MISSING_FILES=0
+          for service_dir in backend/*-service backend/*-gateway backend/service-discovery; do
+            if [ -d "$service_dir" ]; then
+              if [ ! -f "$service_dir/gradle/wrapper/gradle-wrapper.jar" ]; then
+                echo "ERROR: Missing gradle-wrapper.jar in $service_dir"
+                MISSING_FILES=$((MISSING_FILES + 1))
+              else
+                echo "✓ Found gradle-wrapper.jar in $service_dir"
+              fi
+            fi
+          done
+          
+          if [ $MISSING_FILES -gt 0 ]; then
+            echo "ERROR: $MISSING_FILES service(s) missing gradle-wrapper.jar files"
+            echo "Listing backend directory structure:"
+            find backend -name "gradle-wrapper.jar" -type f || echo "No gradle-wrapper.jar files found"
+            exit 1
+          fi
+          
+          echo "All Gradle wrapper files verified successfully"
+          
           # Deploy with Docker Compose (use sudo since group membership may not be active)
           cd azure-deployment
           sudo docker-compose -f docker-compose.azure.yml up -d --build
