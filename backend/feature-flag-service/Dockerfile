@@ -1,9 +1,39 @@
-FROM openjdk:17-jdk-slim
+# Multi-stage build for Spring Boot application
+FROM eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
 
-COPY build/libs/*.jar app.jar
+# Copy gradle files
+COPY gradlew .
+COPY gradle gradle
+COPY build.gradle .
+COPY settings.gradle .
 
+# Make gradlew executable
+RUN chmod +x gradlew
+
+# Download dependencies
+RUN ./gradlew dependencies --no-daemon
+
+# Copy source code
+COPY src src
+
+# Build the application
+RUN ./gradlew build -x test --no-daemon
+
+# Runtime stage
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+# Copy the built jar from builder stage
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Expose port
 EXPOSE 8090
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Set JVM options
+ENV JAVA_OPTS="-Xmx512m -Xms256m -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
+
+# Run the application
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

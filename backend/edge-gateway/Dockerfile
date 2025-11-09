@@ -1,7 +1,7 @@
 # Multi-stage build for SmartWatts Edge Gateway
 
 # Stage 1: Build the application
-FROM openjdk:17-jdk-slim AS builder
+FROM eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN chmod +x gradlew && \
     ./gradlew clean build -x test
 
 # Stage 2: Run the application
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ COPY --from=builder /app/build/libs/*.jar app.jar
 EXPOSE 8088
 
 # Set JVM options for edge computing
-ENV JAVA_OPTS="-Xms512m -Xmx1g -XX:+UseG1GC -XX:+UseStringDeduplication"
+ENV JAVA_OPTS="-Xms512m -Xmx1g -XX:+UseG1GC -XX:+UseStringDeduplication -Deureka.client.serviceUrl.defaultZone=http://service-discovery:8761/eureka/"
 
 # Run the application
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
