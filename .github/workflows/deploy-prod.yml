@@ -129,30 +129,47 @@ jobs:
           --command-id RunShellScript \
           --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist)"
 
+    - name: Copy Repository to VM
+      run: |
+        # Create tarball of repository
+        tar czf /tmp/smartwatts.tar.gz --exclude='.git' --exclude='node_modules' --exclude='.next' .
+        # Copy repository to VM
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa /tmp/smartwatts.tar.gz azureuser@${{ steps.get-vm-ip.outputs.vm_ip }}:/tmp/
+        # Extract repository on VM
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
+          cd /home/azureuser
+          if [ -d "smartwatts" ]; then
+            rm -rf smartwatts
+          fi
+          mkdir -p smartwatts
+          cd smartwatts
+          tar xzf /tmp/smartwatts.tar.gz
+          rm /tmp/smartwatts.tar.gz
+        EOF
+
     - name: Deploy Application to VM
       run: |
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
           # Install Docker if not present
           if ! command -v docker &> /dev/null; then
             curl -fsSL https://get.docker.com -o get-docker.sh
-            sudo sh get-docker.sh
-            sudo usermod -aG docker $USER
+            sudo sh get-docker.sh 2>&1 | grep -v "docker-model-plugin" || true
+            # Wait for Docker to be fully installed
+            sleep 5
+            # Add user to docker group (only if group exists)
+            if getent group docker > /dev/null 2>&1; then
+              sudo usermod -aG docker $USER
+            fi
           fi
           
           # Install Docker Compose if not present
-          if ! command -v docker-compose &> /dev/null; then
+          if ! command -v docker-compose &> /dev/null && ! (command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1); then
             sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
           fi
           
-          # Clone or update repository
-          if [ -d "smartwatts" ]; then
-            cd smartwatts
-            git pull
-          else
-            git clone https://github.com/${{ github.repository }}.git smartwatts
-            cd smartwatts
-          fi
+          # Navigate to repository
+          cd /home/azureuser/smartwatts
           
           # Deploy with Docker Compose
           cd azure-deployment
