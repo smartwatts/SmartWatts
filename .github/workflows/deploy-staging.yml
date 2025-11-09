@@ -1,8 +1,5 @@
 name: Deploy Staging (main branch)
 
-# Note: Linter warnings about secrets are false positives - secrets are configured in repository settings
-# Required secrets: AZURE_CREDENTIALS_STAGING, VM_ADMIN_PASSWORD_STAGING, VM_SSH_PRIVATE_KEY_STAGING, AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING
-
 on:
   push:
     branches: [ "main" ]
@@ -24,7 +21,6 @@ jobs:
     - name: Azure Login
       uses: azure/login@v1
       with:
-        # Secret is configured in repository settings
         creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
 
     - name: Create Resource Group
@@ -49,7 +45,7 @@ jobs:
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --template-file infrastructure/bicep/main.bicep \
           --parameters @infrastructure/bicep/params.staging.json \
-          --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}" # Secret configured in repository
+          --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
 
     - name: Get VM Public IP
       id: get-vm-ip
@@ -64,7 +60,7 @@ jobs:
       run: |
         mkdir -p ~/.ssh
         # Write SSH private key - decode from base64 if needed
-        SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}" # Secret configured in repository
+        SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
         # Check if key starts with BEGIN marker (plain text PEM format)
         if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
           # Key is already in plain text PEM format
@@ -274,28 +270,39 @@ jobs:
             export DOCKER_BUILDKIT=0
             export COMPOSE_DOCKER_CLI_BUILD=0
             
-            echo "=== Starting Docker Compose build and start (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES) ==="
+            echo "=== Starting Docker Compose build (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES) ==="
             echo "Timestamp: $(date)"
             
-            # Build and start in one command (original approach - more efficient)
-            if sudo docker-compose -f docker-compose.azure.yml up -d --build; then
-              echo "=== Docker Compose build and start succeeded ==="
+            # Build with progress logging
+            if timeout 1800 sudo docker-compose -f docker-compose.azure.yml build --progress=plain 2>&1 | tee /tmp/docker-build.log; then
+              echo "=== Build completed successfully ==="
               echo "Timestamp: $(date)"
-              break
-            else
-              echo "ERROR: Build failed"
-              RETRY_COUNT=$((RETRY_COUNT + 1))
               
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "Cleaning up and retrying (attempt $RETRY_COUNT/$MAX_RETRIES)..."
-                sudo docker-compose -f docker-compose.azure.yml down || true
-                sudo docker system prune -f || true
-                sudo docker network prune -f || true
-                sleep 10
+              # Start containers
+              echo "=== Starting containers ==="
+              if sudo docker-compose -f docker-compose.azure.yml up -d; then
+                echo "Docker Compose build and start succeeded"
+                break
               else
-                echo "Build failed after $MAX_RETRIES attempts"
-                exit 1
+                echo "ERROR: Failed to start containers"
+                RETRY_COUNT=$((RETRY_COUNT + 1))
               fi
+            else
+              echo "ERROR: Build failed or timed out after 30 minutes"
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+            fi
+            
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "Build failed, cleaning up and retrying (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+              sudo docker-compose -f docker-compose.azure.yml down || true
+              sudo docker system prune -f || true
+              sudo docker network prune -f || true
+              sleep 10
+            else
+              echo "Build failed after $MAX_RETRIES attempts"
+              echo "Last 50 lines of build log:"
+              tail -50 /tmp/docker-build.log || true
+              exit 1
             fi
           done
         EOF
@@ -303,7 +310,7 @@ jobs:
     - name: Deploy Frontend to Static Web Apps
       uses: Azure/static-web-apps-deploy@v1
       with:
-        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }} # Secret configured in repository
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         action: "upload"
         app_location: "frontend"
