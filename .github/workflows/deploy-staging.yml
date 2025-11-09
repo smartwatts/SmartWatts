@@ -154,8 +154,13 @@ jobs:
           if ! command -v docker &> /dev/null; then
             curl -fsSL https://get.docker.com -o get-docker.sh
             sudo sh get-docker.sh 2>&1 | grep -v "docker-model-plugin" || true
-            # Wait for Docker to be fully installed
-            sleep 5
+            # Wait for Docker installation to complete
+            sleep 10
+            # Verify Docker is installed
+            if ! command -v docker &> /dev/null; then
+              echo "Error: Docker installation failed"
+              exit 1
+            fi
             # Add user to docker group (only if group exists)
             if getent group docker > /dev/null 2>&1; then
               sudo usermod -aG docker $USER
@@ -163,8 +168,26 @@ jobs:
           fi
           
           # Start Docker service if not running
-          sudo systemctl start docker || true
-          sudo systemctl enable docker || true
+          # Check if Docker service exists before trying to start it
+          if systemctl list-unit-files | grep -q docker.service; then
+            sudo systemctl start docker || true
+            sudo systemctl enable docker || true
+          else
+            # If service doesn't exist, try starting dockerd directly or check if Docker is already running
+            if ! sudo docker info > /dev/null 2>&1; then
+              echo "Warning: Docker service not found, but Docker may still work"
+              # Try to start Docker daemon manually
+              sudo dockerd > /dev/null 2>&1 &
+              sleep 5
+            fi
+          fi
+          
+          # Verify Docker is working
+          if ! sudo docker info > /dev/null 2>&1; then
+            echo "Error: Docker daemon is not running"
+            exit 1
+          fi
+          echo "Docker is installed and running"
           
           # Install Docker Compose if not present
           if ! command -v docker-compose &> /dev/null && ! (command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1); then
