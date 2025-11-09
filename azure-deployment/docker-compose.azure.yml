@@ -39,7 +39,7 @@ services:
   api-gateway:
     build:
       context: ../backend/api-gateway
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
     environment:
@@ -65,7 +65,7 @@ services:
   service-discovery:
     build:
       context: ../backend/service-discovery
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8761:8761"
     environment:
@@ -80,7 +80,7 @@ services:
   user-service:
     build:
       context: ../backend/user-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8081:8081"
     environment:
@@ -106,7 +106,7 @@ services:
   energy-service:
     build:
       context: ../backend/energy-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8082:8082"
     environment:
@@ -133,7 +133,7 @@ services:
   device-service:
     build:
       context: ../backend/device-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8083:8083"
     environment:
@@ -159,7 +159,7 @@ services:
   analytics-service:
     build:
       context: ../backend/analytics-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8084:8084"
     environment:
@@ -185,7 +185,7 @@ services:
   billing-service:
     build:
       context: ../backend/billing-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8085:8085"
     environment:
@@ -211,7 +211,7 @@ services:
   notification-service:
     build:
       context: ../backend/notification-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8086:8086"
     environment:
@@ -237,7 +237,7 @@ services:
   facility-service:
     build:
       context: ../backend/facility-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8087:8087"
     environment:
@@ -263,7 +263,7 @@ services:
   edge-gateway:
     build:
       context: ../backend/edge-gateway
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8088:8088"
     environment:
@@ -301,7 +301,7 @@ services:
   feature-flag-service:
     build:
       context: ../backend/feature-flag-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8090:8090"
     environment:
@@ -327,7 +327,7 @@ services:
   device-verification-service:
     build:
       context: ../backend/device-verification-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8091:8091"
     environment:
@@ -353,7 +353,7 @@ services:
   appliance-monitoring-service:
     build:
       context: ../backend/appliance-monitoring-service
-      dockerfile: Dockerfile.azure
+      dockerfile: Dockerfile
     ports:
       - "8092:8092"
     environment:
