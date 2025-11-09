@@ -415,9 +415,105 @@ jobs:
           
           echo "All Gradle wrapper files verified successfully"
           
-          # Deploy with Docker Compose (use sudo since group membership may not be active)
+          # Deploy with optimized sequential build process
           cd azure-deployment
-          sudo docker-compose -f docker-compose.azure.yml up -d --build
+          
+          # Enable BuildKit for better caching
+          export DOCKER_BUILDKIT=1
+          export COMPOSE_DOCKER_CLI_BUILD=1
+          
+          # Create shared Gradle cache volume
+          echo "Creating shared Gradle cache volume..."
+          sudo docker volume create gradle-cache 2>/dev/null || echo "Gradle cache volume already exists"
+          
+          # Pre-download Gradle 8.5 distribution
+          echo "Pre-downloading Gradle 8.5 distribution..."
+          GRADLE_VERSION="8.5"
+          GRADLE_DIST_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          GRADLE_CACHE_DIR="/tmp/gradle-cache"
+          
+          mkdir -p $GRADLE_CACHE_DIR
+          if [ ! -f "$GRADLE_CACHE_DIR/gradle-${GRADLE_VERSION}-bin.zip" ]; then
+            echo "Downloading Gradle ${GRADLE_VERSION}..."
+            curl -L -o "$GRADLE_CACHE_DIR/gradle-${GRADLE_VERSION}-bin.zip" "$GRADLE_DIST_URL" || {
+              echo "Warning: Could not pre-download Gradle, builds will download it"
+            }
+          else
+            echo "Gradle ${GRADLE_VERSION} already downloaded"
+          fi
+          
+          # Pull infrastructure images first (quick, no build needed)
+          echo "Pulling infrastructure images..."
+          sudo docker-compose -f docker-compose.azure.yml pull postgres redis 2>/dev/null || true
+          
+          # Build services sequentially in dependency order
+          echo "Starting sequential build process..."
+          BUILD_START=$(date +%s)
+          TOTAL_SERVICES=13
+          BUILT_SERVICES=0
+          
+          # Function to build a service with progress tracking
+          build_service() {
+            local service=$1
+            local start_time=$(date +%s)
+            BUILT_SERVICES=$((BUILT_SERVICES + 1))
+            local progress=$((BUILT_SERVICES * 100 / TOTAL_SERVICES))
+            echo "=== Building $service (${BUILT_SERVICES}/$TOTAL_SERVICES - ${progress}%) ==="
+            echo "Started at: $(date '+%H:%M:%S')"
+            
+            if sudo docker-compose -f docker-compose.azure.yml build --progress=plain $service 2>&1 | tee /tmp/build-$service.log; then
+              local end_time=$(date +%s)
+              local duration=$((end_time - start_time))
+              echo "✓ Built $service in ${duration}s"
+              return 0
+            else
+              echo "ERROR: Failed to build $service"
+              echo "Last 20 lines of build log:"
+              tail -20 /tmp/build-$service.log || true
+              return 1
+            fi
+          }
+          
+          # 1. Core services (no dependencies)
+          build_service "service-discovery"
+          
+          # 2. Services that depend on service-discovery
+          build_service "api-gateway"
+          build_service "user-service"
+          
+          # 3. Application services (sequential for resource management)
+          build_service "energy-service"
+          build_service "device-service"
+          build_service "analytics-service"
+          build_service "billing-service"
+          build_service "facility-service"
+          build_service "notification-service"
+          build_service "feature-flag-service"
+          build_service "device-verification-service"
+          build_service "appliance-monitoring-service"
+          build_service "edge-gateway"
+          
+          # 4. Frontend (independent, build last)
+          build_service "frontend"
+          
+          # Calculate total build time
+          BUILD_END=$(date +%s)
+          TOTAL_DURATION=$((BUILD_END - BUILD_START))
+          MINUTES=$((TOTAL_DURATION / 60))
+          SECONDS=$((TOTAL_DURATION % 60))
+          
+          echo ""
+          echo "========================================"
+          echo "All services built successfully!"
+          echo "Total build time: ${MINUTES}m ${SECONDS}s"
+          echo "========================================"
+          
+          # Start all containers
+          echo ""
+          echo "Starting all containers..."
+          sudo docker-compose -f docker-compose.azure.yml up -d
+          
+          echo "Deployment complete!"
         EOF
 
     - name: Deploy Frontend to Static Web Apps
