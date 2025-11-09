@@ -1,4 +1,5 @@
-version: '3.8'
+# Docker Compose file for Azure deployment
+# Note: version attribute is obsolete in Docker Compose v2+
 
 services:
   # PostgreSQL Database
