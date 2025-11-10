@@ -180,8 +180,12 @@ jobs:
             ZIP_SIZE_BYTES=$(stat -f%z deploy-package.zip 2>/dev/null || stat -c%s deploy-package.zip 2>/dev/null || echo "0")
             echo "Zip file size: $ZIP_SIZE ($ZIP_SIZE_BYTES bytes)"
             
-            if [ "$ZIP_SIZE_BYTES" -gt 524288000 ]; then
-              echo "⚠️ Warning: Package is larger than 500MB. Deployment may be slow."
+            if [ "$ZIP_SIZE_BYTES" -gt 1073741824 ]; then
+              echo "❌ Error: Package is larger than 1GB ($ZIP_SIZE). Deployment will likely fail."
+              echo "Please optimize the package by excluding unnecessary files."
+              exit 1
+            elif [ "$ZIP_SIZE_BYTES" -gt 524288000 ]; then
+              echo "⚠️ Warning: Package is larger than 500MB ($ZIP_SIZE). Deployment may be slow."
             elif [ "$ZIP_SIZE_BYTES" -gt 104857600 ]; then
               echo "ℹ️ Info: Package is larger than 100MB. Consider optimizing further."
             else
@@ -262,13 +266,15 @@ jobs:
               WEBSITE_ENABLE_SYNC_UPDATE_SITE=false \
               WEBSITE_NODE_DEFAULT_VERSION=20.x \
               SCM_COMMAND_IDLE_TIMEOUT=3600 \
+              SCM_DEPLOYMENT_TIMEOUT_MINS=30 \
               WEBSITE_HTTPLOGGING_RETENTION_DAYS=7 \
             --output none
           echo "✅ App settings configured"
           echo "  - SCM_DO_BUILD_DURING_DEPLOYMENT=false (skip build during deployment)"
           echo "  - WEBSITE_ENABLE_SYNC_UPDATE_SITE=false (disable sync updates)"
           echo "  - WEBSITE_NODE_DEFAULT_VERSION=20.x (Node.js version)"
-          echo "  - SCM_COMMAND_IDLE_TIMEOUT=3600 (1 hour timeout for deployments)"
+          echo "  - SCM_COMMAND_IDLE_TIMEOUT=3600 (1 hour timeout for commands)"
+          echo "  - SCM_DEPLOYMENT_TIMEOUT_MINS=30 (30 minute deployment timeout)"
           echo "  - WEBSITE_HTTPLOGGING_RETENTION_DAYS=7 (enable logging for debugging)"
           
           echo "Setting startup command to 'node server.js'..."
@@ -279,17 +285,57 @@ jobs:
             --output none
           echo "✅ Startup command configured"
 
-      - name: 'Deploy to Azure Web App'
+      - name: 'Deploy to Azure Web App using Azure CLI'
         id: deploy-to-webapp
-        timeout-minutes: 20
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'SmartWatts'
-          package: ${{ env.PACKAGE_PATH }}
-          type: ${{ env.PACKAGE_TYPE }}
-        env:
-          AZURE_HTTP_USER_AGENT: 'GITHUBACTIONS'
-          ACTIONS_STEP_DEBUG: 'true'
+        timeout-minutes: 30
+        run: |
+          set -e
+          echo "🚀 Starting deployment to Azure Web App using Azure CLI..."
+          echo "Package: ${{ env.PACKAGE_PATH }}"
+          
+          # Get the resource group
+          RESOURCE_GROUP=$(az webapp show --name SmartWatts --query resourceGroup -o tsv 2>/dev/null || echo "")
+          if [ -z "$RESOURCE_GROUP" ]; then
+            RESOURCE_GROUP=$(az webapp list --query "[?name=='SmartWatts'].resourceGroup" -o tsv 2>/dev/null | head -1 || echo "")
+          fi
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "❌ Error: Could not determine resource group"
+            exit 1
+          fi
+          
+          echo "Resource Group: $RESOURCE_GROUP"
+          echo "📦 Deploying package using Azure CLI zip deployment..."
+          echo "This method is more reliable than OneDeploy for large packages..."
+          
+          # Verify package exists
+          if [ ! -f "${{ env.PACKAGE_PATH }}" ]; then
+            echo "❌ Error: Package file not found: ${{ env.PACKAGE_PATH }}"
+            exit 1
+          fi
+          
+          # Use Azure CLI zip deployment (more reliable for large packages)
+          # This uses Kudu zip deployment API which is more reliable than OneDeploy
+          az webapp deployment source config-zip \
+            --resource-group "$RESOURCE_GROUP" \
+            --name SmartWatts \
+            --src "${{ env.PACKAGE_PATH }}" \
+            --timeout 3600 \
+            --verbose
+          
+          echo "✅ Deployment completed successfully"
+          
+          # Verify deployment
+          echo "🔍 Verifying deployment..."
+          sleep 5
+          APP_STATUS=$(az webapp show --name SmartWatts --resource-group "$RESOURCE_GROUP" --query state -o tsv 2>/dev/null || echo "unknown")
+          echo "App Service state: $APP_STATUS"
+          
+          if [ "$APP_STATUS" = "Running" ]; then
+            echo "✅ App Service is running"
+          else
+            echo "⚠️ Warning: App Service state is $APP_STATUS"
+          fi
       
       - name: Check deployment status
         if: always()
