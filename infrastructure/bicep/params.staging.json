@@ -6,7 +6,7 @@
       "value": "staging"
     },
     "location": {
-      "value": "westeurope"
+      "value": "ukwest"
     },
     "vmAdminUsername": {
       "value": "azureuser"

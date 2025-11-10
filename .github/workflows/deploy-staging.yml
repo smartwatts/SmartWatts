@@ -17,7 +17,7 @@ on:
 env:
   AZURE_RESOURCE_GROUP: sw-staging-rg
   ENVIRONMENT: staging
-  LOCATION: westeurope
+  LOCATION: ukwest
   VM_NAME: sw-staging-vm
   VM_ADMIN_USERNAME: azureuser
   TEMPLATE_FILE: infrastructure/bicep/main.bicep
