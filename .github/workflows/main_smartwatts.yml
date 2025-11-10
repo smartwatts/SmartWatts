@@ -263,6 +263,9 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --settings \
               SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              ENABLE_ORYX_BUILD=false \
+              POST_BUILD_COMMAND="" \
+              PRE_BUILD_COMMAND="" \
               WEBSITE_ENABLE_SYNC_UPDATE_SITE=false \
               WEBSITE_NODE_DEFAULT_VERSION=20.x \
               SCM_COMMAND_IDLE_TIMEOUT=3600 \
@@ -270,12 +273,31 @@ jobs:
               WEBSITE_HTTPLOGGING_RETENTION_DAYS=7 \
             --output none
           echo "✅ App settings configured"
-          echo "  - SCM_DO_BUILD_DURING_DEPLOYMENT=false (skip build during deployment)"
+          
+          # Verify settings were applied
+          echo "Verifying app settings..."
+          SCM_BUILD=$(az webapp config appsettings list \
+            --name SmartWatts \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[?name=='SCM_DO_BUILD_DURING_DEPLOYMENT'].value" -o tsv)
+          ENABLE_ORYX=$(az webapp config appsettings list \
+            --name SmartWatts \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[?name=='ENABLE_ORYX_BUILD'].value" -o tsv)
+          
+          echo "  - SCM_DO_BUILD_DURING_DEPLOYMENT=$SCM_BUILD (skip build during deployment)"
+          echo "  - ENABLE_ORYX_BUILD=$ENABLE_ORYX (disable Oryx build system)"
+          echo "  - POST_BUILD_COMMAND='' (no post-build command)"
+          echo "  - PRE_BUILD_COMMAND='' (no pre-build command)"
           echo "  - WEBSITE_ENABLE_SYNC_UPDATE_SITE=false (disable sync updates)"
           echo "  - WEBSITE_NODE_DEFAULT_VERSION=20.x (Node.js version)"
           echo "  - SCM_COMMAND_IDLE_TIMEOUT=3600 (1 hour timeout for commands)"
           echo "  - SCM_DEPLOYMENT_TIMEOUT_MINS=30 (30 minute deployment timeout)"
           echo "  - WEBSITE_HTTPLOGGING_RETENTION_DAYS=7 (enable logging for debugging)"
+          
+          if [ "$SCM_BUILD" != "false" ]; then
+            echo "⚠️ Warning: SCM_DO_BUILD_DURING_DEPLOYMENT is not set to false"
+          fi
           
           echo "Setting startup command to 'node server.js'..."
           az webapp config set \
@@ -317,47 +339,51 @@ jobs:
           PACKAGE_SIZE=$(du -h "${{ env.PACKAGE_PATH }}" | cut -f1)
           echo "Package size: $PACKAGE_SIZE"
           
-          # Try modern az webapp deploy command first
-          echo "Attempting deployment with modern 'az webapp deploy' command..."
+          # Use direct Kudu API deployment first (doesn't trigger builds)
+          # This bypasses Oryx build system which was causing build timeouts
+          echo "Using direct Kudu zip deployment API (bypasses build system)..."
           DEPLOYMENT_START_TIME=$(date +%s)
           
-          if az webapp deploy \
-            --resource-group "$RESOURCE_GROUP" \
+          # Get publishing credentials
+          echo "Getting publishing credentials..."
+          PUBLISH_USER=$(az webapp deployment list-publishing-profiles \
             --name SmartWatts \
-            --src-path "${{ env.PACKAGE_PATH }}" \
-            --type zip \
-            --async false \
-            --timeout 1800 \
-            --verbose 2>&1; then
-            echo "✅ Deployment completed successfully using modern command"
-          else
-            DEPLOYMENT_ERROR=$?
-            echo "⚠️ Modern command failed (exit code: $DEPLOYMENT_ERROR), trying direct Kudu API..."
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[?publishMethod=='MSDeploy'].userName" -o tsv | head -1)
+          
+          PUBLISH_PASS=$(az webapp deployment list-publishing-profiles \
+            --name SmartWatts \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "[?publishMethod=='MSDeploy'].userPWD" -o tsv | head -1)
+          
+          if [ -z "$PUBLISH_USER" ] || [ -z "$PUBLISH_PASS" ]; then
+            echo "❌ Error: Could not get publishing credentials"
+            echo "Falling back to az webapp deploy command..."
             
-            # Fallback to direct Kudu API deployment
-            echo "Using direct Kudu zip deployment API as fallback..."
-            
-            # Get publishing credentials
-            PUBLISH_USER=$(az webapp deployment list-publishing-profiles \
-              --name SmartWatts \
+            # Fallback to az webapp deploy if credentials can't be retrieved
+            if az webapp deploy \
               --resource-group "$RESOURCE_GROUP" \
-              --query "[?publishMethod=='MSDeploy'].userName" -o tsv | head -1)
-            
-            PUBLISH_PASS=$(az webapp deployment list-publishing-profiles \
               --name SmartWatts \
-              --resource-group "$RESOURCE_GROUP" \
-              --query "[?publishMethod=='MSDeploy'].userPWD" -o tsv | head -1)
-            
-            if [ -z "$PUBLISH_USER" ] || [ -z "$PUBLISH_PASS" ]; then
-              echo "❌ Error: Could not get publishing credentials"
+              --src-path "${{ env.PACKAGE_PATH }}" \
+              --type zip \
+              --async false \
+              --timeout 1800 \
+              --verbose 2>&1; then
+              echo "✅ Deployment completed successfully using modern command"
+            else
+              DEPLOYMENT_ERROR=$?
+              echo "❌ Error: Both deployment methods failed (exit code: $DEPLOYMENT_ERROR)"
               exit 1
             fi
+          else
+            # Use direct Kudu API deployment (doesn't trigger builds)
+            # Publishing credentials already retrieved above
             
             # Get SCM site URL
             DEFAULT_HOST=$(az webapp show --name SmartWatts --resource-group "$RESOURCE_GROUP" --query "defaultHostName" -o tsv)
             SCM_URL="https://${DEFAULT_HOST%%.*}.scm.${DEFAULT_HOST#*.}"
             
-            echo "Uploading package to Kudu zip deployment endpoint..."
+            echo "Uploading package to Kudu zip deployment endpoint (no build will be triggered)..."
             DEPLOYMENT_RESPONSE=$(curl -X POST \
               -u "$PUBLISH_USER:$PUBLISH_PASS" \
               --data-binary @"${{ env.PACKAGE_PATH }}" \
