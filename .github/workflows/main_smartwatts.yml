@@ -305,8 +305,7 @@ jobs:
           fi
           
           echo "Resource Group: $RESOURCE_GROUP"
-          echo "📦 Deploying package using Azure CLI zip deployment..."
-          echo "This method is more reliable than OneDeploy for large packages..."
+          echo "📦 Deploying package using modern Azure CLI deploy command..."
           
           # Verify package exists
           if [ ! -f "${{ env.PACKAGE_PATH }}" ]; then
@@ -314,16 +313,105 @@ jobs:
             exit 1
           fi
           
-          # Use Azure CLI zip deployment (more reliable for large packages)
-          # This uses Kudu zip deployment API which is more reliable than OneDeploy
-          az webapp deployment source config-zip \
+          # Get package size for monitoring
+          PACKAGE_SIZE=$(du -h "${{ env.PACKAGE_PATH }}" | cut -f1)
+          echo "Package size: $PACKAGE_SIZE"
+          
+          # Try modern az webapp deploy command first
+          echo "Attempting deployment with modern 'az webapp deploy' command..."
+          DEPLOYMENT_START_TIME=$(date +%s)
+          
+          if az webapp deploy \
             --resource-group "$RESOURCE_GROUP" \
             --name SmartWatts \
-            --src "${{ env.PACKAGE_PATH }}" \
-            --timeout 3600 \
-            --verbose
-          
-          echo "✅ Deployment completed successfully"
+            --src-path "${{ env.PACKAGE_PATH }}" \
+            --type zip \
+            --async false \
+            --timeout 1800 \
+            --verbose 2>&1; then
+            echo "✅ Deployment completed successfully using modern command"
+          else
+            DEPLOYMENT_ERROR=$?
+            echo "⚠️ Modern command failed (exit code: $DEPLOYMENT_ERROR), trying direct Kudu API..."
+            
+            # Fallback to direct Kudu API deployment
+            echo "Using direct Kudu zip deployment API as fallback..."
+            
+            # Get publishing credentials
+            PUBLISH_USER=$(az webapp deployment list-publishing-profiles \
+              --name SmartWatts \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?publishMethod=='MSDeploy'].userName" -o tsv | head -1)
+            
+            PUBLISH_PASS=$(az webapp deployment list-publishing-profiles \
+              --name SmartWatts \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?publishMethod=='MSDeploy'].userPWD" -o tsv | head -1)
+            
+            if [ -z "$PUBLISH_USER" ] || [ -z "$PUBLISH_PASS" ]; then
+              echo "❌ Error: Could not get publishing credentials"
+              exit 1
+            fi
+            
+            # Get SCM site URL
+            DEFAULT_HOST=$(az webapp show --name SmartWatts --resource-group "$RESOURCE_GROUP" --query "defaultHostName" -o tsv)
+            SCM_URL="https://${DEFAULT_HOST%%.*}.scm.${DEFAULT_HOST#*.}"
+            
+            echo "Uploading package to Kudu zip deployment endpoint..."
+            DEPLOYMENT_RESPONSE=$(curl -X POST \
+              -u "$PUBLISH_USER:$PUBLISH_PASS" \
+              --data-binary @"${{ env.PACKAGE_PATH }}" \
+              -H "Content-Type: application/zip" \
+              "$SCM_URL/api/zipdeploy?isAsync=true" \
+              --max-time 1800 \
+              --write-out "\nHTTP_CODE:%{http_code}" \
+              2>&1 || echo "HTTP_CODE:000")
+            
+            HTTP_CODE=$(echo "$DEPLOYMENT_RESPONSE" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "000")
+            
+            if [ "$HTTP_CODE" = "202" ] || [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Package uploaded successfully (HTTP $HTTP_CODE)"
+              echo "Deployment is processing asynchronously..."
+              
+              # Wait for deployment to complete (check status)
+              echo "Waiting for deployment to complete..."
+              MAX_WAIT_TIME=1800  # 30 minutes
+              WAIT_INTERVAL=10
+              ELAPSED_TIME=0
+              
+              while [ $ELAPSED_TIME -lt $MAX_WAIT_TIME ]; do
+                sleep $WAIT_INTERVAL
+                ELAPSED_TIME=$((ELAPSED_TIME + WAIT_INTERVAL))
+                
+                # Check deployment status
+                DEPLOYMENT_STATUS=$(curl -s -u "$PUBLISH_USER:$PUBLISH_PASS" \
+                  "$SCM_URL/api/deployments/latest" \
+                  --max-time 10 2>/dev/null || echo "")
+                
+                if echo "$DEPLOYMENT_STATUS" | grep -q '"status":4' || echo "$DEPLOYMENT_STATUS" | grep -q '"complete":true'; then
+                  echo "✅ Deployment completed successfully"
+                  break
+                elif echo "$DEPLOYMENT_STATUS" | grep -q '"status":3'; then
+                  echo "❌ Deployment failed"
+                  echo "Deployment status: $DEPLOYMENT_STATUS"
+                  exit 1
+                fi
+                
+                if [ $((ELAPSED_TIME % 60)) -eq 0 ]; then
+                  echo "⏳ Still waiting... ($((ELAPSED_TIME / 60)) minutes elapsed)"
+                fi
+              done
+              
+              if [ $ELAPSED_TIME -ge $MAX_WAIT_TIME ]; then
+                echo "⚠️ Warning: Deployment timeout reached, but package was uploaded"
+                echo "Check Azure Portal for deployment status"
+              fi
+            else
+              echo "❌ Error: Failed to upload package (HTTP $HTTP_CODE)"
+              echo "Response: $DEPLOYMENT_RESPONSE"
+              exit 1
+            fi
+          fi
           
           # Verify deployment
           echo "🔍 Verifying deployment..."
@@ -336,6 +424,10 @@ jobs:
           else
             echo "⚠️ Warning: App Service state is $APP_STATUS"
           fi
+          
+          DEPLOYMENT_END_TIME=$(date +%s)
+          DEPLOYMENT_DURATION=$((DEPLOYMENT_END_TIME - DEPLOYMENT_START_TIME))
+          echo "⏱️ Total deployment time: $((DEPLOYMENT_DURATION / 60)) minutes $((DEPLOYMENT_DURATION % 60)) seconds"
       
       - name: Check deployment status
         if: always()
