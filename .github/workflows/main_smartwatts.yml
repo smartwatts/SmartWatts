@@ -29,26 +29,41 @@ jobs:
           npm install
           npm run build --if-present
 
+      - name: Prepare deployment package
+        working-directory: ./frontend
+        run: |
+          # Create deployment directory structure
+          mkdir -p ../deploy-package
+          # Copy standalone output (contains everything needed including node_modules)
+          cp -r .next/standalone/* ../deploy-package/
+          # Copy static files (standalone doesn't include static assets)
+          mkdir -p ../deploy-package/.next
+          cp -r .next/static ../deploy-package/.next/static
+          # Copy public files (standalone doesn't include public assets)
+          cp -r public ../deploy-package/public
+          # Verify package structure
+          echo "Verifying deployment package structure..."
+          if [ ! -f "../deploy-package/server.js" ]; then
+            echo "❌ Error: server.js not found in deploy-package"
+            exit 1
+          fi
+          if [ ! -d "../deploy-package/.next/static" ]; then
+            echo "❌ Error: .next/static directory not found in deploy-package"
+            exit 1
+          fi
+          if [ ! -d "../deploy-package/public" ]; then
+            echo "❌ Error: public directory not found in deploy-package"
+            exit 1
+          fi
+          echo "✅ Deployment package prepared and verified"
+          echo "Package contents:"
+          ls -la ../deploy-package | head -20
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: |
-            ./frontend/package.json
-            ./frontend/package-lock.json
-            ./frontend/next.config.js
-            ./frontend/.next/standalone
-            ./frontend/.next/static
-            ./frontend/public
-          exclude: |
-            ./frontend/node_modules
-            ./frontend/__tests__
-            ./frontend/e2e
-            ./frontend/.git
-            ./frontend/coverage
-            ./frontend/.next/cache
-            ./frontend/*.test.*
-            ./frontend/*.spec.*
+          path: ./deploy-package
 
   deploy:
     runs-on: ubuntu-latest
@@ -69,29 +84,37 @@ jobs:
           set -e
           echo "Current directory contents:"
           ls -la
-          echo "Checking for frontend directory:"
-          if [ -d "./frontend" ]; then
-            echo "✅ frontend directory found"
-            if [ ! -f "./frontend/package.json" ]; then
-              echo "❌ Error: package.json not found in frontend directory"
+          echo "Checking for deploy-package directory:"
+          if [ -d "./deploy-package" ]; then
+            echo "✅ deploy-package directory found"
+            if [ ! -f "./deploy-package/server.js" ]; then
+              echo "❌ Error: server.js not found in deploy-package (required for Next.js standalone)"
               exit 1
             fi
-            if [ ! -d "./frontend/.next/standalone" ]; then
-              echo "❌ Error: .next/standalone directory not found. Build may have failed."
+            if [ ! -d "./deploy-package/.next/static" ]; then
+              echo "❌ Error: .next/static directory not found in deploy-package"
               exit 1
             fi
-            ls -la ./frontend | head -20
-            echo "PACKAGE_PATH=./frontend" >> $GITHUB_ENV
-          elif [ -f "./package.json" ]; then
-            echo "✅ package.json found in root (artifact extracted to root)"
-            if [ ! -d "./.next/standalone" ]; then
-              echo "❌ Error: .next/standalone directory not found. Build may have failed."
+            if [ ! -d "./deploy-package/public" ]; then
+              echo "❌ Error: public directory not found in deploy-package"
+              exit 1
+            fi
+            echo "Deployment package structure verified:"
+            echo "- server.js: $(test -f ./deploy-package/server.js && echo '✅' || echo '❌')"
+            echo "- .next/static: $(test -d ./deploy-package/.next/static && echo '✅' || echo '❌')"
+            echo "- public: $(test -d ./deploy-package/public && echo '✅' || echo '❌')"
+            ls -la ./deploy-package | head -20
+            echo "PACKAGE_PATH=./deploy-package" >> $GITHUB_ENV
+          elif [ -f "./server.js" ] || [ -f "./package.json" ]; then
+            echo "✅ Deployment files found in root (artifact extracted to root)"
+            if [ ! -d "./.next/static" ]; then
+              echo "❌ Error: .next/static directory not found"
               exit 1
             fi
             ls -la | head -20
             echo "PACKAGE_PATH=." >> $GITHUB_ENV
           else
-            echo "❌ Error: Neither frontend directory nor package.json found"
+            echo "❌ Error: Deployment package not found"
             echo "Available directories:"
             find . -maxdepth 2 -type d
             exit 1
@@ -104,6 +127,27 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_96F92C0C853842C59CCB0E4B175AAA79 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B6ED7BDD66B540DC84EFAC04D346C3E3 }}
 
+      - name: Configure Azure App Service settings
+        run: |
+          echo "Configuring Azure App Service settings for Next.js standalone deployment..."
+          az webapp config appsettings set \
+            --name SmartWatts \
+            --resource-group $(az webapp show --name SmartWatts --query resourceGroup -o tsv) \
+            --settings \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              WEBSITE_ENABLE_SYNC_UPDATE_SITE=false \
+              WEBSITE_NODE_DEFAULT_VERSION=20.x \
+            --output none
+          echo "✅ App settings configured"
+          
+          echo "Setting startup command to 'node server.js'..."
+          az webapp config set \
+            --name SmartWatts \
+            --resource-group $(az webapp show --name SmartWatts --query resourceGroup -o tsv) \
+            --startup-file "node server.js" \
+            --output none
+          echo "✅ Startup command configured"
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         timeout-minutes: 10
@@ -111,4 +155,5 @@ jobs:
         with:
           app-name: 'SmartWatts'
           package: ${{ env.PACKAGE_PATH }}
+          type: zip
           
