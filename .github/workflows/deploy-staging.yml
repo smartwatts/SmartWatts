@@ -125,9 +125,30 @@ jobs:
           IOTHUB_EXISTS=$(az iot hub show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-iothub --query "name" -o tsv 2>/dev/null || echo "")
           STORAGE_EXISTS=$(az storage account show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name swstagingstg --query "name" -o tsv 2>/dev/null || echo "")
           
+          # Check if VM has SSH keys configured (critical for workflow)
+          VM_HAS_SSH_KEYS=false
+          if [ -n "$VM_EXISTS" ] && [ -n "$SSH_PUBLIC_KEY" ]; then
+            VM_SSH_KEYS=$(az vm show \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --name sw-staging-vm \
+              --query "osProfile.linuxConfiguration.ssh.publicKeys" -o json 2>/dev/null || echo "[]")
+            if [ "$VM_SSH_KEYS" != "[]" ] && [ "$VM_SSH_KEYS" != "null" ] && [ -n "$VM_SSH_KEYS" ]; then
+              VM_HAS_SSH_KEYS=true
+              echo "✅ VM has SSH keys configured"
+            else
+              echo "⚠️ VM exists but has no SSH keys configured"
+              echo "VM SSH keys: $VM_SSH_KEYS"
+            fi
+          fi
+          
           if [ -n "$VM_EXISTS" ] && [ -n "$IOTHUB_EXISTS" ] && [ -n "$STORAGE_EXISTS" ]; then
-            echo "✅ All critical resources exist - skipping deployment"
-            exit 0
+            if [ "$VM_HAS_SSH_KEYS" = "true" ] || [ -z "$SSH_PUBLIC_KEY" ]; then
+              echo "✅ All critical resources exist - skipping deployment"
+              exit 0
+            else
+              echo "⚠️ VM exists but missing SSH keys - redeploying to add SSH keys..."
+              echo "This will update the existing VM with SSH key configuration"
+            fi
           else
             echo "⚠️ Some resources are missing - redeploying..."
             echo "Missing: VM=$([ -z "$VM_EXISTS" ] && echo 'yes' || echo 'no'), IoT Hub=$([ -z "$IOTHUB_EXISTS" ] && echo 'yes' || echo 'no'), Storage=$([ -z "$STORAGE_EXISTS" ] && echo 'yes' || echo 'no')"
@@ -159,14 +180,19 @@ jobs:
           echo "Starting infrastructure deployment (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
           
           # Build deployment command with SSH key if available
+          # Use --mode Incremental (default) to update existing resources (adds SSH keys to existing VM)
           DEPLOY_CMD="az deployment group create \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --template-file infrastructure/bicep/main.bicep \
             --parameters @infrastructure/bicep/params.staging.json \
-            --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\""
+            --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\" \
+            --mode Incremental"
           
           if [ -n "$SSH_PUBLIC_KEY" ]; then
             DEPLOY_CMD="$DEPLOY_CMD --parameters vmSshPublicKey=\"$SSH_PUBLIC_KEY\""
+            echo "SSH public key will be added to VM during deployment"
+          else
+            echo "⚠️ Warning: No SSH public key available - VM will be created/updated without SSH keys"
           fi
           
           DEPLOY_CMD="$DEPLOY_CMD --name main"
