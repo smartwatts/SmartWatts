@@ -145,11 +145,11 @@ jobs:
           exit 1
         fi
         
-        # Wait for VM agent to be ready (non-blocking - we'll proceed if SSH is accessible)
-        echo "Checking VM agent status..."
+        # Check VM agent status (non-blocking - warning only, never fails)
+        echo "Checking VM agent status (non-blocking)..."
         ELAPSED=0
         AGENT_READY=false
-        AGENT_MAX_WAIT=120  # 2 minutes for agent check
+        AGENT_MAX_WAIT=60  # 1 minute max for agent check
         while [ $ELAPSED -lt $AGENT_MAX_WAIT ]; do
           AGENT_STATUS=$(az vm show -d \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
@@ -157,13 +157,10 @@ jobs:
             --query "instanceView.vmAgent.statuses[?code=='ProvisioningState/succeeded']" -o tsv 2>/dev/null || echo "")
           
           if [ -n "$AGENT_STATUS" ] && echo "$AGENT_STATUS" | grep -q "succeeded"; then
-            echo "VM agent is ready"
+            echo "✅ VM agent is ready"
             AGENT_READY=true
             break
           else
-            if [ $((ELAPSED % 30)) -eq 0 ]; then
-              echo "VM agent not ready yet (waiting... elapsed: ${ELAPSED}s)"
-            fi
             sleep $WAIT_INTERVAL
             ELAPSED=$((ELAPSED + WAIT_INTERVAL))
           fi
@@ -171,7 +168,8 @@ jobs:
         
         if [ "$AGENT_READY" != "true" ]; then
           echo "⚠️ Warning: VM agent did not become ready within ${AGENT_MAX_WAIT}s"
-          echo "   This is non-critical - proceeding with SSH check..."
+          echo "   This is non-critical - workflow does not depend on VM agent"
+          echo "   Proceeding with SSH check (SSH keys must be pre-configured)..."
         fi
         
         # Wait for SSH port 22 to be accessible
@@ -261,72 +259,41 @@ jobs:
         # Add VM to known_hosts (non-blocking)
         ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
         
-        # Add public key to VM using Azure CLI
-        echo "Adding public key to VM via Azure CLI..."
-        PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
-        SSH_KEY_ADDED=false
-        
-        if az vm user update \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name sw-staging-vm \
-          --username azureuser \
-          --ssh-key-value "$PUBLIC_KEY" 2>&1; then
-          echo "SSH key added successfully via Azure CLI"
-          SSH_KEY_ADDED=true
-        else
-          echo "Azure CLI method failed, trying run-command..."
-        fi
-        
-        # Fallback: Add public key directly via Azure VM run-command
-        if [ "$SSH_KEY_ADDED" != "true" ]; then
-          echo "Adding public key via Azure run-command (fallback)..."
-          if az vm run-command invoke \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name sw-staging-vm \
-            --command-id RunShellScript \
-            --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && if ! grep -q \"$PUBLIC_KEY\" ~/.ssh/authorized_keys 2>/dev/null; then echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo \"SSH key added successfully\"; else echo \"SSH key already exists\"; fi'" 2>&1; then
-            echo "SSH key added successfully via run-command"
-            SSH_KEY_ADDED=true
-          else
-            echo "Error: Failed to add SSH key via both methods"
-            exit 1
-          fi
-        fi
-        
-        # Wait for key propagation
-        echo "Waiting for SSH key to propagate..."
-        sleep 15
-        
-        # Verify SSH connection works
-        echo "Verifying SSH connection..."
+        # Test direct SSH connection (VM must be created with SSH keys pre-configured)
+        echo "Testing direct SSH connection..."
+        echo "Note: VM must have been created with SSH keys pre-configured"
+        SSH_CONNECTED=false
         MAX_RETRIES=5
         RETRY_COUNT=0
-        SSH_CONNECTED=false
         
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
           if ssh -o StrictHostKeyChecking=no \
                -o UserKnownHostsFile=/dev/null \
-               -o ConnectTimeout=15 \
+               -o ConnectTimeout=10 \
                -o BatchMode=yes \
                -i ~/.ssh/id_rsa \
                azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} \
                "echo 'SSH connection successful'" 2>/dev/null; then
-            echo "SSH connection verified successfully"
+            echo "✅ SSH connection works - key is pre-configured"
             SSH_CONNECTED=true
             break
           else
             RETRY_COUNT=$((RETRY_COUNT + 1))
             if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
               echo "SSH connection failed, retrying ($RETRY_COUNT/$MAX_RETRIES)..."
-              sleep $((RETRY_COUNT * 5))
+              sleep 10
             fi
           fi
         done
         
         if [ "$SSH_CONNECTED" != "true" ]; then
-          echo "Error: SSH connection verification failed after $MAX_RETRIES attempts"
+          echo "❌ Error: SSH connection verification failed after $MAX_RETRIES attempts"
           echo "VM IP: ${{ steps.get-vm-ip.outputs.vm_ip }}"
           echo "VM State: $(az vm show -d --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-vm --query powerState -o tsv 2>/dev/null || echo 'unknown')"
+          echo ""
+          echo "The SSH key must be pre-configured on the VM during creation."
+          echo "This workflow does not add SSH keys via Azure CLI (VM agent dependency removed)."
+          echo "Please ensure the VM was created with the SSH public key in authorized_keys."
           exit 1
         fi
 
