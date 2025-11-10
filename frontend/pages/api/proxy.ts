@@ -3,7 +3,11 @@ import { NextApiRequest, NextApiResponse } from 'next'
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { service, path, ...queryParams } = req.query
   
-  if (!service || !path) {
+  // Normalize query parameters: Next.js query params can be string | string[] | undefined
+  const serviceString: string | undefined = Array.isArray(service) ? service[0] : (service || undefined)
+  const pathString: string = Array.isArray(path) ? path.join('/') : (path || '')
+  
+  if (!serviceString || !pathString) {
     return res.status(400).json({ 
       error: 'MISSING_PARAMETERS',
       message: 'Missing service or path parameter',
@@ -11,6 +15,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       path: req.url
     })
   }
+  
+  // TypeScript now knows serviceString is a string after the check above
+  // Use non-null assertion since we've validated it above
+  const validatedService: string = serviceString as string
+  const validatedPath: string = pathString
 
   // Route all requests through API Gateway for proper load balancing and security
   const apiGatewayUrl = 'http://localhost:8080'
@@ -38,19 +47,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     'inventory-service': 'http://localhost:8081', // Direct to user service for inventory
   }
 
-  const baseUrl = serviceUrls[service as string]
+  const baseUrl = serviceUrls[validatedService]
   if (!baseUrl) {
     return res.status(400).json({ error: 'Invalid service' })
   }
 
   // Construct URL with query parameters
   // Add /api/v1 prefix for API Gateway routing if not already present
-  let url = `${baseUrl}${path.startsWith('/api/v1') ? path : `/api/v1${path}`}`
+  const normalizedPath = validatedPath.startsWith('/api/v1') ? validatedPath : `/api/v1${validatedPath}`
+  let url = `${baseUrl}${normalizedPath}`
   
   // Add query parameters
   const queryString = Object.keys(queryParams)
     .filter(key => key !== 'service' && key !== 'path')
-    .map(key => `${key}=${queryParams[key]}`)
+    .map(key => {
+      const value = queryParams[key]
+      // Normalize query param value: can be string | string[] | undefined
+      const normalizedValue = Array.isArray(value) ? value[0] : value || ''
+      return `${key}=${encodeURIComponent(normalizedValue)}`
+    })
     .join('&')
   
   if (queryString) {
@@ -83,10 +98,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Return standardized error response
     res.status(503).json({ 
       error: 'SERVICE_UNAVAILABLE',
-      message: `${service} service is temporarily unavailable`,
+      message: `${validatedService} service is temporarily unavailable`,
       timestamp: new Date().toISOString(),
       path: req.url,
-      service,
+      service: validatedService,
       suggestedAction: 'Please try again in a few minutes'
     })
   }
