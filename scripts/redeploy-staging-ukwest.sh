@@ -2,11 +2,11 @@
 set -e
 
 echo "=========================================="
-echo "SmartWatts Staging Redeployment to UK West"
+echo "SmartWatts Staging Redeployment to Central US"
 echo "=========================================="
 
 RESOURCE_GROUP="sw-staging-rg"
-LOCATION="ukwest"
+LOCATION="centralus"
 VM_NAME="sw-staging-vm"
 TEMPLATE_FILE="infrastructure/bicep/main.bicep"
 PARAM_FILE="infrastructure/bicep/params.staging.json"
@@ -82,14 +82,60 @@ else
 fi
 
 # Get VM admin password
-echo -e "${YELLOW}🔐 Enter VM admin password:${NC}"
+echo -e "${YELLOW}🔐 Enter VM admin password (or press Enter to generate one):${NC}"
 read -s VM_PASSWORD
 echo ""
 
-# Build deployment command
+# If no password provided, generate a secure one
+if [ -z "$VM_PASSWORD" ]; then
+    echo -e "${YELLOW}⚠️  No password provided. Generating a secure password...${NC}"
+    VM_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+    echo -e "${GREEN}✅ Generated password: $VM_PASSWORD${NC}"
+    echo -e "${YELLOW}⚠️  IMPORTANT: Save this password! You'll need it to SSH into the VM.${NC}"
+    echo ""
+fi
+
+# Check for existing deployments and handle them
+echo -e "${YELLOW}🔍 Checking for existing deployments...${NC}"
+
+# List all deployments and check for active ones
+ACTIVE_DEPLOYMENTS=$(az deployment group list \
+    --resource-group $RESOURCE_GROUP \
+    --query "[?properties.provisioningState=='Running' || properties.provisioningState=='InProgress'].name" -o tsv 2>/dev/null || echo "")
+
+if [ -n "$ACTIVE_DEPLOYMENTS" ]; then
+    echo -e "${YELLOW}⚠️  Found active deployments:${NC}"
+    echo "$ACTIVE_DEPLOYMENTS" | while read -r DEPLOYMENT_NAME; do
+        echo "  - $DEPLOYMENT_NAME"
+        DEPLOYMENT_STATE=$(az deployment group show \
+            --resource-group $RESOURCE_GROUP \
+            --name "$DEPLOYMENT_NAME" \
+            --query "properties.provisioningState" -o tsv 2>/dev/null || echo "")
+        
+        if [ "$DEPLOYMENT_STATE" = "InProgress" ] || [ "$DEPLOYMENT_STATE" = "Running" ]; then
+            echo -e "${YELLOW}  ⏳ Waiting for deployment '$DEPLOYMENT_NAME' to complete (max 5 minutes)...${NC}"
+            if az deployment group wait \
+                --resource-group $RESOURCE_GROUP \
+                --name "$DEPLOYMENT_NAME" \
+                --created \
+                --timeout 300 2>/dev/null; then
+                echo -e "${GREEN}  ✅ Deployment '$DEPLOYMENT_NAME' completed${NC}"
+            else
+                echo -e "${YELLOW}  ⚠️  Deployment '$DEPLOYMENT_NAME' timed out. Cancelling...${NC}"
+                az deployment group cancel \
+                    --resource-group $RESOURCE_GROUP \
+                    --name "$DEPLOYMENT_NAME" 2>/dev/null || true
+                sleep 10
+            fi
+        fi
+    done
+fi
+
+# Build deployment command with unique name
+DEPLOYMENT_NAME="main-$(date +%s)"
 DEPLOY_CMD="az deployment group create \
     --resource-group $RESOURCE_GROUP \
-    --name main \
+    --name $DEPLOYMENT_NAME \
     --template-file $TEMPLATE_FILE \
     --parameters @$PARAM_FILE \
     --parameters vmAdminPassword=\"$VM_PASSWORD\""
@@ -105,7 +151,101 @@ fi
 echo -e "${GREEN}🚀 Deploying infrastructure to $LOCATION...${NC}"
 echo -e "${YELLOW}⏳ This will take 10-15 minutes...${NC}"
 
-if eval "$DEPLOY_CMD"; then
+# Retry deployment up to 3 times
+MAX_RETRIES=3
+RETRY_COUNT=0
+DEPLOYMENT_SUCCESS=false
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    echo -e "${YELLOW}Deployment attempt $((RETRY_COUNT + 1))/$MAX_RETRIES...${NC}"
+    
+    # Capture deployment output to check for "DeploymentActive" status
+    DEPLOY_OUTPUT=$(eval "$DEPLOY_CMD" 2>&1)
+    DEPLOY_EXIT_CODE=$?
+    
+    # Check if deployment command succeeded
+    if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
+        DEPLOYMENT_SUCCESS=true
+        break
+    fi
+    
+    # Check if output contains "DeploymentActive" - this means deployment is running, not failed
+    if echo "$DEPLOY_OUTPUT" | grep -q "DeploymentActive"; then
+        echo -e "${YELLOW}⚠️  Deployment is already active (in progress)${NC}"
+        
+        # Extract deployment name from error message
+        # Error format: "deployment with resource id '.../deployments/main-1762816371'"
+        # Use sed for portability (works on macOS and Linux)
+        ACTIVE_DEPLOYMENT_NAME=$(echo "$DEPLOY_OUTPUT" | sed -n "s/.*deployments\/\([^']*\).*/\1/p" | head -1)
+        
+        if [ -z "$ACTIVE_DEPLOYMENT_NAME" ]; then
+            # Fallback: try to extract from the deployment name we just created
+            ACTIVE_DEPLOYMENT_NAME="$DEPLOYMENT_NAME"
+        fi
+        
+        if [ -n "$ACTIVE_DEPLOYMENT_NAME" ]; then
+            echo -e "${YELLOW}⏳ Waiting for deployment '$ACTIVE_DEPLOYMENT_NAME' to complete (max 20 minutes)...${NC}"
+            
+            # Wait for deployment to complete
+            if az deployment group wait \
+                --resource-group $RESOURCE_GROUP \
+                --name "$ACTIVE_DEPLOYMENT_NAME" \
+                --created \
+                --timeout 1200 2>/dev/null; then
+                # Check final status
+                FINAL_STATE=$(az deployment group show \
+                    --resource-group $RESOURCE_GROUP \
+                    --name "$ACTIVE_DEPLOYMENT_NAME" \
+                    --query "properties.provisioningState" -o tsv 2>/dev/null || echo "")
+                
+                if [ "$FINAL_STATE" = "Succeeded" ]; then
+                    echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
+                    DEPLOYMENT_SUCCESS=true
+                    break
+                else
+                    echo -e "${RED}❌ Deployment completed with state: $FINAL_STATE${NC}"
+                    # Show error details if available
+                    az deployment group show \
+                        --resource-group $RESOURCE_GROUP \
+                        --name "$ACTIVE_DEPLOYMENT_NAME" \
+                        --query "properties.error" -o json 2>/dev/null || true
+                    exit 1
+                fi
+            else
+                echo -e "${RED}❌ Deployment wait timed out${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${RED}❌ Could not extract deployment name from error message${NC}"
+            echo "$DEPLOY_OUTPUT"
+            exit 1
+        fi
+    else
+        # Actual failure - check if we should retry
+        DEPLOYMENT_ERROR=$?
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        
+        # Check if it's a retryable error (network issues, transient errors)
+        # Non-retryable: validation errors, authentication errors, etc.
+        if echo "$DEPLOY_OUTPUT" | grep -qE "(InvalidTemplate|InvalidParameter|Unauthorized|Forbidden)"; then
+            echo -e "${RED}❌ Non-retryable error detected:${NC}"
+            echo "$DEPLOY_OUTPUT"
+            exit 1
+        fi
+        
+        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo -e "${YELLOW}⚠️  Deployment failed (exit code: $DEPLOYMENT_ERROR), retrying in 10 seconds...${NC}"
+            echo "$DEPLOY_OUTPUT" | tail -5
+            sleep 10
+        else
+            echo -e "${RED}❌ Deployment failed after $MAX_RETRIES attempts${NC}"
+            echo "$DEPLOY_OUTPUT"
+            exit 1
+        fi
+    fi
+done
+
+if [ "$DEPLOYMENT_SUCCESS" = "true" ]; then
     echo -e "${GREEN}✅ Infrastructure deployed successfully!${NC}"
     
     # Get VM IP

@@ -6,7 +6,7 @@
       "value": "staging"
     },
     "location": {
-      "value": "ukwest"
+      "value": "centralus"
     },
     "vmAdminUsername": {
       "value": "azureuser"

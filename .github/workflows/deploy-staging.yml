@@ -17,7 +17,7 @@ on:
 env:
   AZURE_RESOURCE_GROUP: sw-staging-rg
   ENVIRONMENT: staging
-  LOCATION: ukwest
+  LOCATION: centralus
   VM_NAME: sw-staging-vm
   VM_ADMIN_USERNAME: azureuser
   TEMPLATE_FILE: infrastructure/bicep/main.bicep
@@ -37,18 +37,51 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
 
-      - name: Create Resource Group
-        timeout-minutes: 2
+      - name: Check and Recreate Resource Group
+        timeout-minutes: 5
         run: |
-          # Check if resource group exists, create if it doesn't
+          # Check if resource group exists
+          if az group show --name ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null; then
+            CURRENT_LOCATION=$(az group show --name ${{ env.AZURE_RESOURCE_GROUP }} --query location -o tsv)
+            echo "Resource group exists in location: $CURRENT_LOCATION"
+            
+            # If location doesn't match, delete and recreate
+            if [ "$CURRENT_LOCATION" != "${{ env.LOCATION }}" ]; then
+              echo "⚠️  Resource group is in $CURRENT_LOCATION, but we need ${{ env.LOCATION }}"
+              echo "🗑️  Deleting existing resource group to recreate in ${{ env.LOCATION }}..."
+              az group delete --name ${{ env.AZURE_RESOURCE_GROUP }} --yes --no-wait
+              echo "⏳ Waiting for deletion to complete (this may take a few minutes)..."
+              
+              # Wait for deletion (max 10 minutes)
+              MAX_WAIT=600
+              ELAPSED=0
+              while az group show --name ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null && [ $ELAPSED -lt $MAX_WAIT ]; do
+                echo -n "."
+                sleep 10
+                ELAPSED=$((ELAPSED + 10))
+              done
+              echo ""
+              
+              if az group show --name ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null; then
+                echo "❌ Error: Resource group deletion timed out"
+                echo "Please delete it manually: az group delete --name ${{ env.AZURE_RESOURCE_GROUP }} --yes"
+                exit 1
+              else
+                echo "✅ Resource group deleted successfully"
+              fi
+            else
+              echo "✅ Resource group is already in the correct location"
+            fi
+          fi
+          
+          # Create resource group if it doesn't exist
           if ! az group show --name ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null; then
-            echo "Creating resource group..."
+            echo "📦 Creating resource group in ${{ env.LOCATION }}..."
             az group create \
               --name ${{ env.AZURE_RESOURCE_GROUP }} \
               --location ${{ env.LOCATION }} \
               --output none
-          else
-            echo "Resource group already exists"
+            echo "✅ Resource group created"
           fi
 
       - name: Check if VM exists
@@ -208,8 +241,26 @@ jobs:
           
           echo "✅ SSH connection verified successfully!"
 
+      - name: Check if Repository Exists on VM
+        timeout-minutes: 2
+        run: |
+          VM_IP="${{ env.VM_IP }}"
+          CHECK_SCRIPT='if [ -d "/home/azureuser/SmartWatts" ] || [ -d "/home/azureuser/smartwatts" ]; then echo "EXISTS"; else echo "NOT_FOUND"; fi'
+          REPO_STATUS=$(ssh -o StrictHostKeyChecking=no \
+                         -o UserKnownHostsFile=/dev/null \
+                         -o ConnectTimeout=15 \
+                         -i ~/.ssh/id_rsa \
+                         azureuser@$VM_IP "$CHECK_SCRIPT" || echo "NOT_FOUND")
+          echo "REPO_STATUS=$REPO_STATUS" >> $GITHUB_ENV
+          if [ "$REPO_STATUS" = "EXISTS" ]; then
+            echo "✅ Repository already exists on VM, skipping copy/extract steps"
+          else
+            echo "📦 Repository not found, will copy and extract"
+          fi
+
       - name: Copy Repository to VM
         timeout-minutes: 5
+        if: env.REPO_STATUS != 'EXISTS'
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=5
@@ -237,6 +288,7 @@ jobs:
 
       - name: Extract repository on VM
         timeout-minutes: 5
+        if: env.REPO_STATUS != 'EXISTS'
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=3
@@ -311,7 +363,17 @@ jobs:
               '  sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose;' \
               '  sudo chmod +x /usr/local/bin/docker-compose;' \
               'fi;' \
-              'cd /home/azureuser/smartwatts;' \
+              'REPO_DIR="";' \
+              'if [ -d "/home/azureuser/SmartWatts" ]; then' \
+              '  REPO_DIR="/home/azureuser/SmartWatts";' \
+              'elif [ -d "/home/azureuser/smartwatts" ]; then' \
+              '  REPO_DIR="/home/azureuser/smartwatts";' \
+              'else' \
+              '  echo "Error: Repository not found. Expected /home/azureuser/SmartWatts or /home/azureuser/smartwatts";' \
+              '  exit 1;' \
+              'fi;' \
+              'cd "$REPO_DIR";' \
+              'echo "Using repository at: $REPO_DIR";' \
               'echo "Verifying Gradle wrapper files exist...";' \
               'MISSING_FILES=0;' \
               'for service_dir in backend/*-service backend/*-gateway backend/service-discovery; do' \
@@ -332,6 +394,7 @@ jobs:
               'fi;' \
               'echo "All Gradle wrapper files verified successfully";' \
               'cd azure-deployment;' \
+              'export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-SmartWatts2024!}";' \
               'sudo docker-compose -f docker-compose.azure.yml up -d --build;' \
               'echo "Application deployed successfully"')
             if ssh -o StrictHostKeyChecking=no \
