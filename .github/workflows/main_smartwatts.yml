@@ -65,28 +65,13 @@ jobs:
           
           # Create .deployment file to prevent Azure from building
           echo "Creating .deployment file to prevent Azure build detection..."
-          cat > ../deploy-package/.deployment << 'EOF'
-[config]
-SCM_DO_BUILD_DURING_DEPLOYMENT=false
-EOF
+          printf '[config]\nSCM_DO_BUILD_DURING_DEPLOYMENT=false\n' > ../deploy-package/.deployment
           
           # Modify package.json to remove build scripts (prevents Azure from detecting build)
           echo "Modifying package.json to prevent build detection..."
           if [ -f "../deploy-package/package.json" ]; then
             # Create a minimal package.json without build scripts
-            cat > ../deploy-package/package.json << 'EOF'
-{
-  "name": "smartwatts-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": "20.x"
-  }
-}
-EOF
+            printf '{\n  "name": "smartwatts-frontend",\n  "version": "0.1.0",\n  "private": true,\n  "scripts": {\n    "start": "node server.js"\n  },\n  "engines": {\n    "node": "20.x"\n  }\n}\n' > ../deploy-package/package.json
             echo "✅ package.json modified (removed build scripts)"
           fi
           
