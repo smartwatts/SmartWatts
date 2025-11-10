@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy Node.js app to Azure Web App - SmartWatts
+name: Build and deploy Node.js app to Azure Web App - SmartWatts (Staging)
 
 on:
   push:
@@ -33,7 +33,22 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: ./frontend
+          path: |
+            ./frontend/package.json
+            ./frontend/package-lock.json
+            ./frontend/next.config.js
+            ./frontend/.next/standalone
+            ./frontend/.next/static
+            ./frontend/public
+          exclude: |
+            ./frontend/node_modules
+            ./frontend/__tests__
+            ./frontend/e2e
+            ./frontend/.git
+            ./frontend/coverage
+            ./frontend/.next/cache
+            ./frontend/*.test.*
+            ./frontend/*.spec.*
 
   deploy:
     runs-on: ubuntu-latest
@@ -51,22 +66,35 @@ jobs:
       
       - name: Verify artifact structure
         run: |
+          set -e
           echo "Current directory contents:"
           ls -la
           echo "Checking for frontend directory:"
           if [ -d "./frontend" ]; then
             echo "✅ frontend directory found"
+            if [ ! -f "./frontend/package.json" ]; then
+              echo "❌ Error: package.json not found in frontend directory"
+              exit 1
+            fi
+            if [ ! -d "./frontend/.next/standalone" ]; then
+              echo "❌ Error: .next/standalone directory not found. Build may have failed."
+              exit 1
+            fi
             ls -la ./frontend | head -20
             echo "PACKAGE_PATH=./frontend" >> $GITHUB_ENV
           elif [ -f "./package.json" ]; then
             echo "✅ package.json found in root (artifact extracted to root)"
+            if [ ! -d "./.next/standalone" ]; then
+              echo "❌ Error: .next/standalone directory not found. Build may have failed."
+              exit 1
+            fi
             ls -la | head -20
             echo "PACKAGE_PATH=." >> $GITHUB_ENV
           else
-            echo "❌ Neither frontend directory nor package.json found"
+            echo "❌ Error: Neither frontend directory nor package.json found"
             echo "Available directories:"
             find . -maxdepth 2 -type d
-            echo "PACKAGE_PATH=./frontend" >> $GITHUB_ENV
+            exit 1
           fi
       
       - name: Login to Azure
@@ -78,9 +106,10 @@ jobs:
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
+        timeout-minutes: 10
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'SmartWatts'
-          slot-name: 'Production'
+          slot-name: 'Staging'
           package: ${{ env.PACKAGE_PATH }}
           
