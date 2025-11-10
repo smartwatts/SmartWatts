@@ -97,21 +97,22 @@ jobs:
           echo "Checking .next/static:"
           ls -la ../deploy-package/.next/static 2>/dev/null | head -10 || echo ".next/static not found"
 
-      - name: Verify artifact before upload
+      - name: Create deployment zip
         run: |
-          echo "Verifying deploy-package structure before upload..."
-          echo "Checking for .next directory:"
-          ls -la deploy-package/.next 2>/dev/null || echo ".next directory not found"
-          echo "Checking for .next/static:"
-          ls -la deploy-package/.next/static 2>/dev/null | head -5 || echo ".next/static not found"
-          echo "Full directory tree:"
-          find deploy-package -type d -name ".next" -o -name "static" 2>/dev/null || echo "No .next or static directories found"
+          cd deploy-package
+          # Create zip file preserving directory structure including hidden directories
+          zip -r ../deploy-package.zip . -q
+          echo "✅ Deployment zip created"
+          echo "Zip file size:"
+          ls -lh ../deploy-package.zip
+          echo "Verifying zip contents:"
+          unzip -l ../deploy-package.zip | grep -E "(\.next|static|server\.js)" | head -10
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: ./deploy-package
+          path: ./deploy-package.zip
           retention-days: 1
 
   deploy:
@@ -128,74 +129,52 @@ jobs:
           name: node-app
           path: .
       
-      - name: Verify artifact structure
+      - name: Extract deployment package
         run: |
           set -e
           echo "Current directory contents:"
           ls -la
-          echo "Checking for deploy-package directory:"
-          if [ -d "./deploy-package" ]; then
-            echo "✅ deploy-package directory found"
-            if [ ! -f "./deploy-package/server.js" ]; then
-              echo "❌ Error: server.js not found in deploy-package (required for Next.js standalone)"
-              exit 1
-            fi
-            if [ ! -d "./deploy-package/.next/static" ]; then
-              echo "❌ Error: .next/static directory not found in deploy-package"
-              exit 1
-            fi
-            # Public directory is optional (may be empty)
-            if [ ! -d "./deploy-package/public" ]; then
-              echo "⚠️ Warning: public directory not found in deploy-package (creating empty directory)"
-              mkdir -p ./deploy-package/public
-            fi
-            echo "Deployment package structure verified:"
-            echo "- server.js: $(test -f ./deploy-package/server.js && echo '✅' || echo '❌')"
-            echo "- .next/static: $(test -d ./deploy-package/.next/static && echo '✅' || echo '❌')"
-            echo "- public: $(test -d ./deploy-package/public && echo '✅' || echo '❌')"
-            ls -la ./deploy-package | head -20
-            echo "PACKAGE_PATH=./deploy-package" >> $GITHUB_ENV
-          elif [ -f "./server.js" ] || [ -f "./package.json" ]; then
-            echo "✅ Deployment files found in root (artifact extracted to root)"
-            # Check if .next/static exists
-            if [ ! -d "./.next/static" ]; then
-              echo "⚠️ Warning: .next/static directory not found in root"
-              echo "Checking available directories:"
-              find . -maxdepth 3 -type d -name ".next" 2>/dev/null || echo "No .next directories found"
-              find . -maxdepth 3 -type d -name "static" 2>/dev/null || echo "No static directories found"
-              # Try to find static files in deploy-package if it exists
-              if [ -d "./deploy-package/.next/static" ]; then
-                echo "Found .next/static in deploy-package, copying to root..."
-                mkdir -p ./.next
-                cp -r ./deploy-package/.next/static ./.next/static
-                echo "✅ .next/static copied to root"
-              else
-                echo "❌ Error: .next/static not found in artifact. This is required for Next.js deployment."
-                echo "The artifact may not have been prepared correctly."
-                exit 1
-              fi
-            fi
-            # Verify server.js exists
-            if [ ! -f "./server.js" ]; then
-              echo "❌ Error: server.js not found in root"
-              exit 1
-            fi
-            # Verify .next/static exists now
-            if [ ! -d "./.next/static" ]; then
-              echo "❌ Error: .next/static directory still not found after attempts to fix"
-              exit 1
-            fi
-            echo "Deployment package structure verified:"
-            echo "- server.js: ✅"
-            echo "- .next/static: ✅"
-            ls -la | head -20
-            echo "PACKAGE_PATH=." >> $GITHUB_ENV
+          if [ -f "./deploy-package.zip" ]; then
+            echo "✅ deploy-package.zip found, extracting..."
+            unzip -q deploy-package.zip -d deploy-package
+            echo "✅ Extracted to deploy-package directory"
+          elif [ -d "./deploy-package" ]; then
+            echo "✅ deploy-package directory found (already extracted)"
           else
-            echo "❌ Error: Deployment package not found"
-            echo "Available directories:"
-            find . -maxdepth 2 -type d
+            echo "❌ Error: deploy-package.zip not found"
             exit 1
           fi
+      
+      - name: Verify artifact structure
+        run: |
+          set -e
+          echo "Verifying deployment package structure..."
+          if [ ! -d "./deploy-package" ]; then
+            echo "❌ Error: deploy-package directory not found"
+            exit 1
+          fi
+          if [ ! -f "./deploy-package/server.js" ]; then
+            echo "❌ Error: server.js not found in deploy-package (required for Next.js standalone)"
+            exit 1
+          fi
+          if [ ! -d "./deploy-package/.next/static" ]; then
+            echo "❌ Error: .next/static directory not found in deploy-package"
+            echo "Checking deploy-package structure:"
+            ls -la ./deploy-package
+            echo "Checking for .next directory:"
+            find ./deploy-package -type d -name ".next" 2>/dev/null || echo "No .next directories found"
+            exit 1
+          fi
+          # Public directory is optional (may be empty)
+          if [ ! -d "./deploy-package/public" ]; then
+            echo "⚠️ Warning: public directory not found in deploy-package (creating empty directory)"
+            mkdir -p ./deploy-package/public
+          fi
+          echo "✅ Deployment package structure verified:"
+          echo "- server.js: ✅"
+          echo "- .next/static: ✅"
+          echo "- public: $(test -d ./deploy-package/public && echo '✅' || echo '⚠️')"
+          echo "PACKAGE_PATH=./deploy-package" >> $GITHUB_ENV
       
       - name: Login to Azure
         uses: azure/login@v2
