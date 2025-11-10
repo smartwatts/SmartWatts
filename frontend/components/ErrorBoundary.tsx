@@ -27,7 +27,7 @@ class ErrorBoundary extends Component<Props, State> {
     this.setState({ error, errorInfo })
     
     // Log error to monitoring service
-    if (typeof window !== 'undefined' && window.gtag) {
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
       window.gtag('event', 'exception', {
         description: error.toString(),
         fatal: false
