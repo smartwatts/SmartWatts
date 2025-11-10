@@ -99,14 +99,49 @@ jobs:
 
       - name: Create deployment zip
         run: |
+          set -e
           cd deploy-package
-          # Create zip file preserving directory structure including hidden directories
-          zip -r ../deploy-package.zip . -q
+          
+          # Calculate package size before optimization
+          echo "📦 Package size analysis before optimization:"
+          du -sh . || echo "Could not calculate size"
+          echo "File count:"
+          find . -type f | wc -l || echo "Could not count files"
+          
+          # Create zip file excluding unnecessary files
+          echo "Creating optimized deployment zip..."
+          zip -r ../deploy-package.zip . \
+            -x "*.test.*" \
+            -x "*.spec.*" \
+            -x "__tests__/*" \
+            -x "coverage/*" \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "*.map" \
+            -x "*.log" \
+            -x ".DS_Store" \
+            -x "Thumbs.db" \
+            -q
+          
           echo "✅ Deployment zip created"
-          echo "Zip file size:"
+          echo "📊 Zip file size:"
           ls -lh ../deploy-package.zip
-          echo "Verifying zip contents:"
-          unzip -l ../deploy-package.zip | grep -E "(\.next|static|server\.js)" | head -10
+          ZIP_SIZE=$(du -h ../deploy-package.zip | cut -f1)
+          echo "Zip size: $ZIP_SIZE"
+          
+          # Check if zip is too large (>500MB)
+          ZIP_SIZE_BYTES=$(stat -f%z ../deploy-package.zip 2>/dev/null || stat -c%s ../deploy-package.zip 2>/dev/null || echo "0")
+          if [ "$ZIP_SIZE_BYTES" -gt 524288000 ]; then
+            echo "⚠️ Warning: Zip file is larger than 500MB ($ZIP_SIZE). This may cause slow deployments."
+          fi
+          
+          echo "📋 Verifying zip contents:"
+          echo "Essential files:"
+          unzip -l ../deploy-package.zip | grep -E "(server\.js|package\.json)" | head -5
+          echo "Next.js files:"
+          unzip -l ../deploy-package.zip | grep -E "\.next" | head -5
+          echo "Total files in zip:"
+          unzip -l ../deploy-package.zip | tail -1
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -138,7 +173,28 @@ jobs:
           # Use zip file for deployment (preserves directory structure)
           if [ -f "./deploy-package.zip" ]; then
             echo "✅ deploy-package.zip found"
-            echo "Verifying zip contents..."
+            
+            # Log package size and details
+            echo "📊 Deployment package analysis:"
+            ZIP_SIZE=$(du -h deploy-package.zip | cut -f1)
+            ZIP_SIZE_BYTES=$(stat -f%z deploy-package.zip 2>/dev/null || stat -c%s deploy-package.zip 2>/dev/null || echo "0")
+            echo "Zip file size: $ZIP_SIZE ($ZIP_SIZE_BYTES bytes)"
+            
+            if [ "$ZIP_SIZE_BYTES" -gt 524288000 ]; then
+              echo "⚠️ Warning: Package is larger than 500MB. Deployment may be slow."
+            elif [ "$ZIP_SIZE_BYTES" -gt 104857600 ]; then
+              echo "ℹ️ Info: Package is larger than 100MB. Consider optimizing further."
+            else
+              echo "✅ Package size is reasonable for deployment."
+            fi
+            
+            echo "📋 Package contents summary:"
+            echo "Total files in package:"
+            unzip -l deploy-package.zip | tail -1
+            echo "Top 10 largest files:"
+            unzip -l deploy-package.zip | sort -k1 -rn | head -11 | tail -10 || echo "Could not list files"
+            
+            echo "Verifying essential files..."
             if unzip -l deploy-package.zip | grep -q "server.js"; then
               echo "✅ server.js found in zip"
             else
@@ -151,6 +207,12 @@ jobs:
               echo "❌ Error: .next/static not found in zip"
               exit 1
             fi
+            if unzip -l deploy-package.zip | grep -q "package.json"; then
+              echo "✅ package.json found in zip"
+            else
+              echo "⚠️ Warning: package.json not found in zip"
+            fi
+            
             echo "Using zip file for deployment (preserves .next directory structure)"
             echo "PACKAGE_PATH=./deploy-package.zip" >> $GITHUB_ENV
             echo "PACKAGE_TYPE=zip" >> $GITHUB_ENV
@@ -199,8 +261,15 @@ jobs:
               SCM_DO_BUILD_DURING_DEPLOYMENT=false \
               WEBSITE_ENABLE_SYNC_UPDATE_SITE=false \
               WEBSITE_NODE_DEFAULT_VERSION=20.x \
+              SCM_COMMAND_IDLE_TIMEOUT=3600 \
+              WEBSITE_HTTPLOGGING_RETENTION_DAYS=7 \
             --output none
           echo "✅ App settings configured"
+          echo "  - SCM_DO_BUILD_DURING_DEPLOYMENT=false (skip build during deployment)"
+          echo "  - WEBSITE_ENABLE_SYNC_UPDATE_SITE=false (disable sync updates)"
+          echo "  - WEBSITE_NODE_DEFAULT_VERSION=20.x (Node.js version)"
+          echo "  - SCM_COMMAND_IDLE_TIMEOUT=3600 (1 hour timeout for deployments)"
+          echo "  - WEBSITE_HTTPLOGGING_RETENTION_DAYS=7 (enable logging for debugging)"
           
           echo "Setting startup command to 'node server.js'..."
           az webapp config set \
@@ -212,10 +281,26 @@ jobs:
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
-        timeout-minutes: 10
+        timeout-minutes: 20
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'SmartWatts'
           package: ${{ env.PACKAGE_PATH }}
           type: ${{ env.PACKAGE_TYPE }}
+        env:
+          AZURE_HTTP_USER_AGENT: 'GITHUBACTIONS'
+          ACTIONS_STEP_DEBUG: 'true'
+      
+      - name: Check deployment status
+        if: always()
+        run: |
+          echo "📊 Deployment step completed with status: ${{ job.status }}"
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Deployment completed successfully"
+          else
+            echo "❌ Deployment failed or was cancelled"
+            echo "Check Azure App Service logs for more details:"
+            echo "  az webapp log tail --name SmartWatts --resource-group <RESOURCE_GROUP>"
+            echo "  Or view logs in Azure Portal: https://portal.azure.com"
+          fi
           
