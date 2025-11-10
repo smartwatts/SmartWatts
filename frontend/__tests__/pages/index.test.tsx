@@ -101,16 +101,16 @@ describe('Index Page (Landing Page)', () => {
   it('displays pricing tiers with correct information', () => {
     render(<Index />)
 
-    // Check Essential Home pricing
-    expect(screen.getByText('₦15,000')).toBeInTheDocument()
+    // Check Essential Home pricing - use regex to match text that may be split across elements
+    expect(screen.getByText(/₦15,000/)).toBeInTheDocument()
     expect(screen.getAllByText('/month').length).toBeGreaterThan(0)
 
     // Check Smart Home Plus pricing
-    expect(screen.getByText('₦25,000')).toBeInTheDocument()
+    expect(screen.getByText(/₦25,000/)).toBeInTheDocument()
     expect(screen.getByText('Most Popular')).toBeInTheDocument()
 
     // Check SME Professional pricing
-    expect(screen.getByText('₦45,000')).toBeInTheDocument()
+    expect(screen.getByText(/₦45,000/)).toBeInTheDocument()
 
     // Check Enterprise pricing
     expect(screen.getByText('Custom')).toBeInTheDocument()
