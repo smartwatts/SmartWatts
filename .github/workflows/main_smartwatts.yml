@@ -52,8 +52,19 @@ jobs:
           
           # Copy static files (standalone doesn't include static assets)
           echo "Copying static files..."
+          echo "Source .next/static exists: $(test -d .next/static && echo 'yes' || echo 'no')"
+          echo "Source .next/static contents:"
+          ls -la .next/static 2>/dev/null | head -5 || echo "Cannot list .next/static"
           mkdir -p ../deploy-package/.next
           cp -r .next/static ../deploy-package/.next/static
+          echo "Verifying copy..."
+          if [ ! -d "../deploy-package/.next/static" ]; then
+            echo "❌ Error: Failed to copy .next/static"
+            exit 1
+          fi
+          echo "✅ .next/static copied successfully"
+          echo "Copied .next/static contents:"
+          ls -la ../deploy-package/.next/static 2>/dev/null | head -5 || echo "Cannot list copied .next/static"
           
           # Copy public files (standalone doesn't include public assets)
           echo "Copying public files..."
@@ -72,17 +83,36 @@ jobs:
           fi
           if [ ! -d "../deploy-package/.next/static" ]; then
             echo "❌ Error: .next/static directory not found in deploy-package"
+            echo "Checking deploy-package structure:"
+            ls -la ../deploy-package
+            echo "Checking for .next directory:"
+            ls -la ../deploy-package/.next 2>/dev/null || echo ".next directory not found"
             exit 1
           fi
           echo "✅ Deployment package prepared and verified"
           echo "Package contents:"
           ls -la ../deploy-package | head -20
+          echo "Checking .next directory:"
+          ls -la ../deploy-package/.next 2>/dev/null || echo ".next directory not found"
+          echo "Checking .next/static:"
+          ls -la ../deploy-package/.next/static 2>/dev/null | head -10 || echo ".next/static not found"
+
+      - name: Verify artifact before upload
+        run: |
+          echo "Verifying deploy-package structure before upload..."
+          echo "Checking for .next directory:"
+          ls -la deploy-package/.next 2>/dev/null || echo ".next directory not found"
+          echo "Checking for .next/static:"
+          ls -la deploy-package/.next/static 2>/dev/null | head -5 || echo ".next/static not found"
+          echo "Full directory tree:"
+          find deploy-package -type d -name ".next" -o -name "static" 2>/dev/null || echo "No .next or static directories found"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
           path: ./deploy-package
+          retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
@@ -127,10 +157,37 @@ jobs:
             echo "PACKAGE_PATH=./deploy-package" >> $GITHUB_ENV
           elif [ -f "./server.js" ] || [ -f "./package.json" ]; then
             echo "✅ Deployment files found in root (artifact extracted to root)"
+            # Check if .next/static exists
             if [ ! -d "./.next/static" ]; then
-              echo "❌ Error: .next/static directory not found"
+              echo "⚠️ Warning: .next/static directory not found in root"
+              echo "Checking available directories:"
+              find . -maxdepth 3 -type d -name ".next" 2>/dev/null || echo "No .next directories found"
+              find . -maxdepth 3 -type d -name "static" 2>/dev/null || echo "No static directories found"
+              # Try to find static files in deploy-package if it exists
+              if [ -d "./deploy-package/.next/static" ]; then
+                echo "Found .next/static in deploy-package, copying to root..."
+                mkdir -p ./.next
+                cp -r ./deploy-package/.next/static ./.next/static
+                echo "✅ .next/static copied to root"
+              else
+                echo "❌ Error: .next/static not found in artifact. This is required for Next.js deployment."
+                echo "The artifact may not have been prepared correctly."
+                exit 1
+              fi
+            fi
+            # Verify server.js exists
+            if [ ! -f "./server.js" ]; then
+              echo "❌ Error: server.js not found in root"
               exit 1
             fi
+            # Verify .next/static exists now
+            if [ ! -d "./.next/static" ]; then
+              echo "❌ Error: .next/static directory still not found after attempts to fix"
+              exit 1
+            fi
+            echo "Deployment package structure verified:"
+            echo "- server.js: ✅"
+            echo "- .next/static: ✅"
             ls -la | head -20
             echo "PACKAGE_PATH=." >> $GITHUB_ENV
           else
