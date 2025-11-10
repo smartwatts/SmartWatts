@@ -55,7 +55,8 @@ class PWAManager implements PWAUtils {
     // Listen for install prompt
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
-      this.deferredPrompt = e as PWAInstallPrompt;
+      // TypeScript doesn't recognize beforeinstallprompt event type, so we use unknown first
+      this.deferredPrompt = e as unknown as PWAInstallPrompt;
       this.notifyInstallabilityChange();
     });
 
@@ -233,8 +234,14 @@ class PWAManager implements PWAUtils {
 
     try {
       const registration = await navigator.serviceWorker.ready;
-      await registration.sync.register(tag);
-      console.log(`[PWA] Background sync registered: ${tag}`);
+      // TypeScript doesn't recognize sync property, so we use type assertion
+      const syncManager = (registration as any).sync;
+      if (syncManager) {
+        await syncManager.register(tag);
+        console.log(`[PWA] Background sync registered: ${tag}`);
+      } else {
+        console.warn('[PWA] Background sync not available');
+      }
     } catch (error) {
       console.error('[PWA] Background sync registration failed:', error);
       throw error;
