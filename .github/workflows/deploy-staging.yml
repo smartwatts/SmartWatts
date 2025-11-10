@@ -146,8 +146,26 @@ jobs:
               echo "✅ All critical resources exist - skipping deployment"
               exit 0
             else
-              echo "⚠️ VM exists but missing SSH keys - redeploying to add SSH keys..."
-              echo "This will update the existing VM with SSH key configuration"
+              echo "⚠️ VM exists but missing SSH keys"
+              echo "Azure doesn't allow updating SSH keys via Bicep on existing VMs"
+              echo "Adding SSH key to existing VM using Azure CLI..."
+              
+              # Add SSH key to existing VM using az vm user update
+              # This works without VM agent dependency
+              if az vm user update \
+                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                --name sw-staging-vm \
+                --username azureuser \
+                --ssh-key-value "$SSH_PUBLIC_KEY" 2>&1; then
+                echo "✅ SSH key added to existing VM successfully"
+                echo "Waiting 30 seconds for key to propagate..."
+                sleep 30
+                exit 0
+              else
+                echo "⚠️ Warning: Failed to add SSH key via az vm user update"
+                echo "This might require VM agent or the VM might need to be recreated"
+                echo "Proceeding with deployment anyway (VM will remain without SSH keys)"
+              fi
             fi
           else
             echo "⚠️ Some resources are missing - redeploying..."
@@ -199,6 +217,34 @@ jobs:
           
           if eval "$DEPLOY_CMD"; then
             echo "✅ Infrastructure deployed successfully"
+            
+            # If VM exists and we have SSH key but VM doesn't have it, add it now
+            # Azure doesn't allow updating SSH keys via Bicep on existing VMs
+            if [ -n "$SSH_PUBLIC_KEY" ]; then
+              VM_SSH_KEYS_AFTER=$(az vm show \
+                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                --name sw-staging-vm \
+                --query "osProfile.linuxConfiguration.ssh.publicKeys" -o json 2>/dev/null || echo "[]")
+              
+              if [ "$VM_SSH_KEYS_AFTER" = "[]" ] || [ "$VM_SSH_KEYS_AFTER" = "null" ] || [ -z "$VM_SSH_KEYS_AFTER" ]; then
+                echo "VM still has no SSH keys - adding via Azure CLI..."
+                if az vm user update \
+                  --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                  --name sw-staging-vm \
+                  --username azureuser \
+                  --ssh-key-value "$SSH_PUBLIC_KEY" 2>&1; then
+                  echo "✅ SSH key added to VM successfully"
+                  echo "Waiting 30 seconds for key to propagate..."
+                  sleep 30
+                else
+                  echo "⚠️ Warning: Failed to add SSH key to existing VM"
+                  echo "You may need to manually add the SSH key or recreate the VM"
+                fi
+              else
+                echo "✅ VM has SSH keys configured"
+              fi
+            fi
+            
             exit 0
           else
             DEPLOYMENT_ERROR=$?

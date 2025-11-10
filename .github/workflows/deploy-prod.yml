@@ -1,10 +1,13 @@
 name: Deploy Production (prod branch)
 
-on:
-  # DISABLED - Production deployment is disabled
-  # Use deploy-staging.yml for staging deployments
-  # To enable production deployment, uncomment the workflow_dispatch line below
-  # workflow_dispatch:
+# DISABLED - This workflow is completely disabled
+# Production deployment is disabled. Use deploy-staging.yml for staging deployments.
+# To enable this workflow, uncomment the on: section below and add a trigger
+# on:
+#   workflow_dispatch:
+
+# No triggers = workflow will never run
+on: {}
 
 env:
   AZURE_RESOURCE_GROUP: sw-prod-rg
@@ -15,23 +18,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Check if workflow is disabled
+      - name: Workflow Disabled
         run: |
-          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
-            echo "❌ Error: This workflow is disabled"
-            echo "   Production deployment is disabled. Use deploy-staging.yml for staging deployments."
-            echo "   To enable, uncomment workflow_dispatch in the on: section"
-            exit 1
-          fi
-    - name: Checkout code
-      uses: actions/checkout@v4
+          echo "❌ Error: This workflow is disabled"
+          echo "   Production deployment is disabled. Use deploy-staging.yml for staging deployments."
+          echo "   To enable, uncomment the on: section in the workflow file"
+          exit 1
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
 
-    - name: Create Resource Group
+      - name: Create Resource Group
       timeout-minutes: 2
       run: |
         # Check if resource group exists, create if it doesn't
@@ -45,7 +46,7 @@ jobs:
           echo "Resource group already exists"
         fi
 
-    - name: Register Required Resource Providers
+      - name: Register Required Resource Providers
       timeout-minutes: 5
       run: |
         # Only register if not already registered
@@ -69,7 +70,7 @@ jobs:
         register_provider microsoft.keyvault
         register_provider microsoft.network
 
-    - name: Deploy Infrastructure (Bicep)
+      - name: Deploy Infrastructure (Bicep)
       timeout-minutes: 20
       run: |
         # Retry deployment up to 3 times
@@ -96,7 +97,7 @@ jobs:
           fi
         done
 
-    - name: Get VM Public IP
+      - name: Get VM Public IP
       id: get-vm-ip
       timeout-minutes: 2
       run: |
@@ -111,7 +112,7 @@ jobs:
         echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
         echo "VM Public IP: $VM_IP"
 
-    - name: Wait for VM Readiness
+      - name: Wait for VM Readiness
       timeout-minutes: 5
       run: |
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
@@ -192,7 +193,7 @@ jobs:
         
         echo "VM is ready for SSH connections"
 
-    - name: Setup SSH Key
+      - name: Setup SSH Key
       timeout-minutes: 5
       run: |
         mkdir -p ~/.ssh
@@ -319,7 +320,7 @@ jobs:
           exit 1
         fi
 
-    - name: Copy Repository to VM
+      - name: Copy Repository to VM
       timeout-minutes: 5
       run: |
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
@@ -380,7 +381,7 @@ jobs:
           fi
         done
 
-    - name: Deploy Application to VM
+      - name: Deploy Application to VM
       timeout-minutes: 30
       run: |
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
@@ -470,7 +471,7 @@ jobs:
           fi
         done
 
-    - name: Deploy Frontend to Static Web Apps
+      - name: Deploy Frontend to Static Web Apps
       timeout-minutes: 10
       continue-on-error: true
       uses: Azure/static-web-apps-deploy@v1
@@ -483,7 +484,7 @@ jobs:
         skip_app_build: false
         skip_api_build: true
 
-    - name: Get Deployment Outputs
+      - name: Get Deployment Outputs
       run: |
         echo "VM Public IP: ${{ steps.get-vm-ip.outputs.vm_ip }}"
         echo "Static Web App URL: $(az staticwebapp show \
@@ -491,7 +492,7 @@ jobs:
           --name sw-prod-dashboard \
           --query defaultHostname -o tsv)"
 
-    - name: Health Check
+      - name: Health Check
       timeout-minutes: 5
       run: |
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
