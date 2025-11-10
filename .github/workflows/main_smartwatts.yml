@@ -32,15 +32,38 @@ jobs:
       - name: Prepare deployment package
         working-directory: ./frontend
         run: |
+          set -e
+          # Verify build completed successfully
+          if [ ! -d ".next/standalone" ]; then
+            echo "❌ Error: .next/standalone directory not found. Build may have failed."
+            exit 1
+          fi
+          if [ ! -d ".next/static" ]; then
+            echo "❌ Error: .next/static directory not found. Build may have failed."
+            exit 1
+          fi
+          
           # Create deployment directory structure
           mkdir -p ../deploy-package
+          
           # Copy standalone output (contains everything needed including node_modules)
+          echo "Copying standalone output..."
           cp -r .next/standalone/* ../deploy-package/
+          
           # Copy static files (standalone doesn't include static assets)
+          echo "Copying static files..."
           mkdir -p ../deploy-package/.next
           cp -r .next/static ../deploy-package/.next/static
+          
           # Copy public files (standalone doesn't include public assets)
-          cp -r public ../deploy-package/public
+          echo "Copying public files..."
+          if [ -d "public" ]; then
+            cp -r public ../deploy-package/public
+          else
+            echo "⚠️ Warning: public directory not found, creating empty directory"
+            mkdir -p ../deploy-package/public
+          fi
+          
           # Verify package structure
           echo "Verifying deployment package structure..."
           if [ ! -f "../deploy-package/server.js" ]; then
@@ -49,10 +72,6 @@ jobs:
           fi
           if [ ! -d "../deploy-package/.next/static" ]; then
             echo "❌ Error: .next/static directory not found in deploy-package"
-            exit 1
-          fi
-          if [ ! -d "../deploy-package/public" ]; then
-            echo "❌ Error: public directory not found in deploy-package"
             exit 1
           fi
           echo "✅ Deployment package prepared and verified"
@@ -95,9 +114,10 @@ jobs:
               echo "❌ Error: .next/static directory not found in deploy-package"
               exit 1
             fi
+            # Public directory is optional (may be empty)
             if [ ! -d "./deploy-package/public" ]; then
-              echo "❌ Error: public directory not found in deploy-package"
-              exit 1
+              echo "⚠️ Warning: public directory not found in deploy-package (creating empty directory)"
+              mkdir -p ./deploy-package/public
             fi
             echo "Deployment package structure verified:"
             echo "- server.js: $(test -f ./deploy-package/server.js && echo '✅' || echo '❌')"
