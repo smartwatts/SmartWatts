@@ -129,52 +129,37 @@ jobs:
           name: node-app
           path: .
       
-      - name: Extract deployment package
+      - name: Verify deployment package
         run: |
           set -e
           echo "Current directory contents:"
           ls -la
+          
+          # Use zip file for deployment (preserves directory structure)
           if [ -f "./deploy-package.zip" ]; then
-            echo "✅ deploy-package.zip found, extracting..."
-            unzip -q deploy-package.zip -d deploy-package
-            echo "✅ Extracted to deploy-package directory"
-          elif [ -d "./deploy-package" ]; then
-            echo "✅ deploy-package directory found (already extracted)"
+            echo "✅ deploy-package.zip found"
+            echo "Verifying zip contents..."
+            if unzip -l deploy-package.zip | grep -q "server.js"; then
+              echo "✅ server.js found in zip"
+            else
+              echo "❌ Error: server.js not found in zip"
+              exit 1
+            fi
+            if unzip -l deploy-package.zip | grep -q "\.next/static"; then
+              echo "✅ .next/static found in zip"
+            else
+              echo "❌ Error: .next/static not found in zip"
+              exit 1
+            fi
+            echo "Using zip file for deployment (preserves .next directory structure)"
+            echo "PACKAGE_PATH=./deploy-package.zip" >> $GITHUB_ENV
+            echo "PACKAGE_TYPE=zip" >> $GITHUB_ENV
           else
             echo "❌ Error: deploy-package.zip not found"
+            echo "Available files:"
+            ls -la
             exit 1
           fi
-      
-      - name: Verify artifact structure
-        run: |
-          set -e
-          echo "Verifying deployment package structure..."
-          if [ ! -d "./deploy-package" ]; then
-            echo "❌ Error: deploy-package directory not found"
-            exit 1
-          fi
-          if [ ! -f "./deploy-package/server.js" ]; then
-            echo "❌ Error: server.js not found in deploy-package (required for Next.js standalone)"
-            exit 1
-          fi
-          if [ ! -d "./deploy-package/.next/static" ]; then
-            echo "❌ Error: .next/static directory not found in deploy-package"
-            echo "Checking deploy-package structure:"
-            ls -la ./deploy-package
-            echo "Checking for .next directory:"
-            find ./deploy-package -type d -name ".next" 2>/dev/null || echo "No .next directories found"
-            exit 1
-          fi
-          # Public directory is optional (may be empty)
-          if [ ! -d "./deploy-package/public" ]; then
-            echo "⚠️ Warning: public directory not found in deploy-package (creating empty directory)"
-            mkdir -p ./deploy-package/public
-          fi
-          echo "✅ Deployment package structure verified:"
-          echo "- server.js: ✅"
-          echo "- .next/static: ✅"
-          echo "- public: $(test -d ./deploy-package/public && echo '✅' || echo '⚠️')"
-          echo "PACKAGE_PATH=./deploy-package" >> $GITHUB_ENV
       
       - name: Login to Azure
         uses: azure/login@v2
@@ -232,5 +217,5 @@ jobs:
         with:
           app-name: 'SmartWatts'
           package: ${{ env.PACKAGE_PATH }}
-          type: zip
+          type: ${{ env.PACKAGE_TYPE }}
           
