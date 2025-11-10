@@ -34,16 +34,18 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
       computerName: vmName
       adminUsername: vmAdminUsername
       adminPassword: vmAdminPassword
-      linuxConfiguration: {
+      linuxConfiguration: vmSshPublicKey != '' ? {
         disablePasswordAuthentication: false
         ssh: {
-          publicKeys: vmSshPublicKey != '' ? [
+          publicKeys: [
             {
               keyData: vmSshPublicKey
               path: '/home/${vmAdminUsername}/.ssh/authorized_keys'
             }
-          ] : []
+          ]
         }
+      } : {
+        disablePasswordAuthentication: false
       }
     }
     storageProfile: {
@@ -323,7 +325,12 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 }
 
 // Azure Key Vault (Optional - for secrets management)
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
+// Note: Key Vault names are globally unique. If it already exists, this will fail.
+// In that case, the existing Key Vault will be used.
+@description('Whether to create Key Vault (set to false if it already exists)')
+param createKeyVault bool = true
+
+resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = if createKeyVault {
   name: keyVaultName
   location: location
   properties: {

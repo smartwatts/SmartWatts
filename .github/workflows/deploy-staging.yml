@@ -149,6 +149,17 @@ jobs:
             chmod 600 ~/.ssh/id_rsa
           fi
 
+      - name: Check if Key Vault exists
+        id: kvcheck
+        run: |
+          if az keyvault show --name sw-staging-kv --resource-group ${{ env.AZURE_RESOURCE_GROUP }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Key Vault already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Key Vault does not exist - will be created"
+          fi
+
       - name: Deploy Infrastructure via Bicep
         id: deploy
         timeout-minutes: 20
@@ -160,6 +171,7 @@ jobs:
             --template-file ${{ env.TEMPLATE_FILE }} \
             --parameters @${{ env.PARAM_FILE }} \
             --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\" \
+            --parameters createKeyVault=$([ "${{ steps.kvcheck.outputs.exists }}" = "true" ] && echo "false" || echo "true") \
             --mode Incremental"
 
           # Only pass SSH key if VM doesn't already exist
