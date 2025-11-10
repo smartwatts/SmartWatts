@@ -344,17 +344,18 @@ jobs:
           echo "Using direct Kudu zip deployment API (bypasses build system)..."
           DEPLOYMENT_START_TIME=$(date +%s)
           
-          # Get publishing credentials
-          echo "Getting publishing credentials..."
-          PUBLISH_USER=$(az webapp deployment list-publishing-profiles \
+          # Get publishing credentials for Kudu API
+          echo "Getting publishing credentials for Kudu API..."
+          # Get SCM site credentials (used for Kudu API)
+          PUBLISH_USER=$(az webapp deployment list-publishing-credentials \
             --name SmartWatts \
             --resource-group "$RESOURCE_GROUP" \
-            --query "[?publishMethod=='MSDeploy'].userName" -o tsv | head -1)
+            --query publishingUserName -o tsv)
           
-          PUBLISH_PASS=$(az webapp deployment list-publishing-profiles \
+          PUBLISH_PASS=$(az webapp deployment list-publishing-credentials \
             --name SmartWatts \
             --resource-group "$RESOURCE_GROUP" \
-            --query "[?publishMethod=='MSDeploy'].userPWD" -o tsv | head -1)
+            --query publishingPassword -o tsv)
           
           if [ -z "$PUBLISH_USER" ] || [ -z "$PUBLISH_PASS" ]; then
             echo "❌ Error: Could not get publishing credentials"
@@ -379,9 +380,41 @@ jobs:
             # Use direct Kudu API deployment (doesn't trigger builds)
             # Publishing credentials already retrieved above
             
-            # Get SCM site URL
+            # Get SCM site URL from webapp properties
             DEFAULT_HOST=$(az webapp show --name SmartWatts --resource-group "$RESOURCE_GROUP" --query "defaultHostName" -o tsv)
-            SCM_URL="https://${DEFAULT_HOST%%.*}.scm.${DEFAULT_HOST#*.}"
+            # SCM URL format: https://<app-name>.scm.<region>.azurewebsites.net
+            # Replace the first dot with .scm.
+            SCM_URL=$(echo "$DEFAULT_HOST" | sed 's/\./.scm./')
+            # Ensure it starts with https://
+            if [[ ! "$SCM_URL" =~ ^https:// ]]; then
+              SCM_URL="https://$SCM_URL"
+            fi
+            echo "SCM URL: $SCM_URL"
+            
+            # Verify credentials are not empty
+            if [ -z "$PUBLISH_USER" ] || [ -z "$PUBLISH_PASS" ]; then
+              echo "❌ Error: Publishing credentials are empty"
+              echo "PUBLISH_USER length: ${#PUBLISH_USER}"
+              echo "PUBLISH_PASS length: ${#PUBLISH_PASS}"
+              exit 1
+            fi
+            
+            echo "Testing Kudu API connection..."
+            # Test connection to Kudu API
+            TEST_RESPONSE=$(curl -s -u "$PUBLISH_USER:$PUBLISH_PASS" \
+              "$SCM_URL/api/settings" \
+              --max-time 10 \
+              --write-out "\nHTTP_CODE:%{http_code}" \
+              2>&1 || echo "HTTP_CODE:000")
+            
+            TEST_HTTP_CODE=$(echo "$TEST_RESPONSE" | grep -o 'HTTP_CODE:[0-9]*' | cut -d: -f2 || echo "000")
+            
+            if [ "$TEST_HTTP_CODE" = "200" ]; then
+              echo "✅ Kudu API connection successful"
+            else
+              echo "⚠️ Warning: Kudu API connection test returned HTTP $TEST_HTTP_CODE"
+              echo "This may indicate credential issues, but continuing with deployment..."
+            fi
             
             echo "Uploading package to Kudu zip deployment endpoint (no build will be triggered)..."
             DEPLOYMENT_RESPONSE=$(curl -X POST \
