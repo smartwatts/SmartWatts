@@ -47,6 +47,27 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
+          path: .
+      
+      - name: Verify artifact structure
+        run: |
+          echo "Current directory contents:"
+          ls -la
+          echo "Checking for frontend directory:"
+          if [ -d "./frontend" ]; then
+            echo "✅ frontend directory found"
+            ls -la ./frontend | head -20
+            echo "PACKAGE_PATH=./frontend" >> $GITHUB_ENV
+          elif [ -f "./package.json" ]; then
+            echo "✅ package.json found in root (artifact extracted to root)"
+            ls -la | head -20
+            echo "PACKAGE_PATH=." >> $GITHUB_ENV
+          else
+            echo "❌ Neither frontend directory nor package.json found"
+            echo "Available directories:"
+            find . -maxdepth 2 -type d
+            echo "PACKAGE_PATH=./frontend" >> $GITHUB_ENV
+          fi
       
       - name: Login to Azure
         uses: azure/login@v2
@@ -61,5 +82,5 @@ jobs:
         with:
           app-name: 'SmartWatts'
           slot-name: 'Production'
-          package: ./frontend
+          package: ${{ env.PACKAGE_PATH }}
           
