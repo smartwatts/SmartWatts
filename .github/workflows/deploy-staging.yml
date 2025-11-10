@@ -73,25 +73,80 @@ jobs:
     - name: Deploy Infrastructure (Bicep)
       timeout-minutes: 20
       run: |
-        # Retry deployment up to 3 times
+        # Check if deployment already exists and succeeded
+        EXISTING_DEPLOYMENT=$(az deployment group show \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name main \
+          --query "properties.provisioningState" -o tsv 2>/dev/null || echo "")
+        
+        if [ "$EXISTING_DEPLOYMENT" = "Succeeded" ]; then
+          echo "✅ Infrastructure deployment already exists and succeeded"
+          echo "Verifying critical resources exist..."
+          
+          # Check if critical resources exist
+          VM_EXISTS=$(az vm show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-vm --query "name" -o tsv 2>/dev/null || echo "")
+          IOTHUB_EXISTS=$(az iot hub show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-iothub --query "name" -o tsv 2>/dev/null || echo "")
+          STORAGE_EXISTS=$(az storage account show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name swstagingstg --query "name" -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$VM_EXISTS" ] && [ -n "$IOTHUB_EXISTS" ] && [ -n "$STORAGE_EXISTS" ]; then
+            echo "✅ All critical resources exist - skipping deployment"
+            exit 0
+          else
+            echo "⚠️ Some resources are missing - redeploying..."
+            echo "Missing: VM=$([ -z "$VM_EXISTS" ] && echo 'yes' || echo 'no'), IoT Hub=$([ -z "$IOTHUB_EXISTS" ] && echo 'yes' || echo 'no'), Storage=$([ -z "$STORAGE_EXISTS" ] && echo 'yes' || echo 'no')"
+          fi
+        elif [ "$EXISTING_DEPLOYMENT" = "InProgress" ] || [ "$EXISTING_DEPLOYMENT" = "Running" ]; then
+          echo "⚠️ Warning: Infrastructure deployment is already in progress"
+          echo "Waiting for existing deployment to complete (max 15 minutes)..."
+          if az deployment group wait \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name main \
+            --created \
+            --timeout 900; then
+            echo "✅ Existing deployment completed"
+            exit 0
+          else
+            echo "⚠️ Warning: Existing deployment wait timed out"
+            echo "Cancelling stuck deployment and starting fresh..."
+            az deployment group cancel \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --name main 2>/dev/null || true
+            sleep 10
+          fi
+        fi
+        
+        # Retry deployment up to 3 times (synchronous like the working version)
         MAX_RETRIES=3
         RETRY_COUNT=0
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          echo "Starting infrastructure deployment (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
           if az deployment group create \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --template-file infrastructure/bicep/main.bicep \
             --parameters @infrastructure/bicep/params.staging.json \
             --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}" \
             --name main; then
-            echo "Infrastructure deployed successfully"
+            echo "✅ Infrastructure deployed successfully"
             exit 0
           else
+            DEPLOYMENT_ERROR=$?
             RETRY_COUNT=$((RETRY_COUNT + 1))
             if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Deployment failed, retrying ($RETRY_COUNT/$MAX_RETRIES)..."
+              echo "Deployment failed (exit code: $DEPLOYMENT_ERROR), retrying ($RETRY_COUNT/$MAX_RETRIES)..."
+              # Check what failed
+              DEPLOYMENT_STATUS=$(az deployment group show \
+                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                --name main \
+                --query "properties.provisioningState" -o tsv 2>/dev/null || echo "unknown")
+              echo "Deployment status: $DEPLOYMENT_STATUS"
               sleep $((RETRY_COUNT * 10))
             else
-              echo "Error: Infrastructure deployment failed after $MAX_RETRIES attempts"
+              echo "❌ Error: Infrastructure deployment failed after $MAX_RETRIES attempts"
+              echo "Checking final deployment status and errors..."
+              az deployment group show \
+                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                --name main \
+                --query "{state:properties.provisioningState,error:properties.error}" -o json || true
               exit 1
             fi
           fi

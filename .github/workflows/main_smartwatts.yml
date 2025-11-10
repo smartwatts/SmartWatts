@@ -405,76 +405,20 @@ jobs:
           echo "  - Modified package.json (no build scripts)"
           echo "  - .deployment file included"
           
-          # Install jq for reliable JSON parsing
-          echo "Installing jq for JSON parsing..."
-          sudo apt-get update -qq && sudo apt-get install -y -qq jq > /dev/null 2>&1 || {
-            echo "⚠️ Warning: Could not install jq, will use grep fallback"
-          }
-          
-          # Use Kudu API directly to bypass Oryx build system
-          # This prevents Azure from building the app during deployment
-          echo "Deploying via Kudu API to bypass build system..."
-          
-          # Get SCM/Kudu credentials
-          echo "Getting Kudu publishing credentials..."
-          PUBLISHING_CREDENTIALS=$(az webapp deployment list-publishing-credentials \
-            --name SmartWatts \
+          if az webapp deploy \
             --resource-group "$RESOURCE_GROUP" \
-            --query "{username:publishingUserName,password:publishingPassword}" -o json 2>/dev/null || echo "")
-          
-          if [ -z "$PUBLISHING_CREDENTIALS" ] || [ "$PUBLISHING_CREDENTIALS" = "{}" ]; then
-            echo "❌ Error: Could not get Kudu credentials"
-            echo "Falling back to az webapp deploy (may trigger build)..."
-            if az webapp deploy \
-              --resource-group "$RESOURCE_GROUP" \
-              --name SmartWatts \
-              --src-path "${{ env.PACKAGE_PATH }}" \
-              --type zip \
-              --async false \
-              --timeout 1800 \
-              --verbose 2>&1; then
-              echo "✅ Deployment completed successfully"
-            else
-              DEPLOYMENT_ERROR=$?
-              echo "❌ Error: Deployment failed (exit code: $DEPLOYMENT_ERROR)"
-              echo "Check Azure Portal logs for details"
-              exit 1
-            fi
+            --name SmartWatts \
+            --src-path "${{ env.PACKAGE_PATH }}" \
+            --type zip \
+            --async false \
+            --timeout 1800 \
+            --verbose 2>&1; then
+            echo "✅ Deployment completed successfully"
           else
-            # Extract credentials using jq (more reliable than grep)
-            if command -v jq > /dev/null 2>&1; then
-              KUDU_USER=$(echo "$PUBLISHING_CREDENTIALS" | jq -r '.username' 2>/dev/null || echo "")
-              KUDU_PASS=$(echo "$PUBLISHING_CREDENTIALS" | jq -r '.password' 2>/dev/null || echo "")
-            else
-              # Fallback to grep if jq not available
-              KUDU_USER=$(echo "$PUBLISHING_CREDENTIALS" | grep -o '"username":"[^"]*' | cut -d'"' -f4 || echo "")
-              KUDU_PASS=$(echo "$PUBLISHING_CREDENTIALS" | grep -o '"password":"[^"]*' | cut -d'"' -f4 || echo "")
-            fi
-            
-            if [ -z "$KUDU_USER" ] || [ -z "$KUDU_PASS" ]; then
-              echo "❌ Error: Failed to extract Kudu credentials"
-              exit 1
-            fi
-            
-            # Deploy via Kudu API synchronously (bypasses build system)
-            echo "Uploading package to Kudu (synchronous deployment)..."
-            HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/kudu_response.json \
-              -X POST \
-              -u "${KUDU_USER}:${KUDU_PASS}" \
-              -H "Content-Type: application/zip" \
-              --data-binary @"${{ env.PACKAGE_PATH }}" \
-              --fail \
-              "https://SmartWatts.scm.azurewebsites.net/api/zipdeploy?isAsync=false" || echo "000")
-            
-            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ]; then
-              echo "✅ Deployment completed successfully (HTTP $HTTP_CODE)"
-            else
-              echo "❌ Error: Kudu deployment failed (HTTP $HTTP_CODE)"
-              if [ -f /tmp/kudu_response.json ]; then
-                echo "Response: $(cat /tmp/kudu_response.json | head -20)"
-              fi
-              exit 1
-            fi
+            DEPLOYMENT_ERROR=$?
+            echo "❌ Error: Deployment failed (exit code: $DEPLOYMENT_ERROR)"
+            echo "Check Azure Portal logs for details"
+            exit 1
           fi
           
           
