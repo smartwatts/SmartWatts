@@ -145,10 +145,12 @@ jobs:
           exit 1
         fi
         
-        # Wait for VM agent to be ready
+        # Wait for VM agent to be ready (non-blocking - we'll proceed if SSH is accessible)
         echo "Checking VM agent status..."
         ELAPSED=0
-        while [ $ELAPSED -lt $MAX_WAIT ]; do
+        AGENT_READY=false
+        AGENT_MAX_WAIT=120  # 2 minutes for agent check
+        while [ $ELAPSED -lt $AGENT_MAX_WAIT ]; do
           AGENT_STATUS=$(az vm show -d \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name sw-staging-vm \
@@ -156,13 +158,21 @@ jobs:
           
           if [ -n "$AGENT_STATUS" ] && echo "$AGENT_STATUS" | grep -q "succeeded"; then
             echo "VM agent is ready"
+            AGENT_READY=true
             break
           else
-            echo "VM agent not ready yet (waiting...)"
+            if [ $((ELAPSED % 30)) -eq 0 ]; then
+              echo "VM agent not ready yet (waiting... elapsed: ${ELAPSED}s)"
+            fi
             sleep $WAIT_INTERVAL
             ELAPSED=$((ELAPSED + WAIT_INTERVAL))
           fi
         done
+        
+        if [ "$AGENT_READY" != "true" ]; then
+          echo "⚠️ Warning: VM agent did not become ready within ${AGENT_MAX_WAIT}s"
+          echo "   This is non-critical - proceeding with SSH check..."
+        fi
         
         # Wait for SSH port 22 to be accessible
         echo "Checking SSH port 22 accessibility..."
