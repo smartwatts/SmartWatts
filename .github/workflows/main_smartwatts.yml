@@ -185,10 +185,31 @@ jobs:
 
       - name: Configure Azure App Service settings
         run: |
+          set -e
           echo "Configuring Azure App Service settings for Next.js standalone deployment..."
+          
+          # Get resource group for the web app
+          echo "Finding resource group for SmartWatts web app..."
+          RESOURCE_GROUP=$(az webapp show --name SmartWatts --query resourceGroup -o tsv 2>/dev/null || echo "")
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "⚠️ Warning: Could not find resource group automatically. Trying to list web apps..."
+            # Try to find the resource group by listing web apps
+            RESOURCE_GROUP=$(az webapp list --query "[?name=='SmartWatts'].resourceGroup" -o tsv 2>/dev/null | head -1 || echo "")
+          fi
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "❌ Error: Could not determine resource group for SmartWatts web app"
+            echo "Please ensure the web app exists and is accessible"
+            exit 1
+          fi
+          
+          echo "✅ Found resource group: $RESOURCE_GROUP"
+          
+          echo "Setting app settings..."
           az webapp config appsettings set \
             --name SmartWatts \
-            --resource-group $(az webapp show --name SmartWatts --query resourceGroup -o tsv) \
+            --resource-group "$RESOURCE_GROUP" \
             --settings \
               SCM_DO_BUILD_DURING_DEPLOYMENT=false \
               WEBSITE_ENABLE_SYNC_UPDATE_SITE=false \
@@ -199,7 +220,7 @@ jobs:
           echo "Setting startup command to 'node server.js'..."
           az webapp config set \
             --name SmartWatts \
-            --resource-group $(az webapp show --name SmartWatts --query resourceGroup -o tsv) \
+            --resource-group "$RESOURCE_GROUP" \
             --startup-file "node server.js" \
             --output none
           echo "✅ Startup command configured"
