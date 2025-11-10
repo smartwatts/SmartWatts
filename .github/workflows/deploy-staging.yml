@@ -18,32 +18,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Validate Required Secrets
-      run: |
-        MISSING_SECRETS=0
-        if [ -z "${{ secrets.AZURE_CREDENTIALS_STAGING }}" ]; then
-          echo "Error: AZURE_CREDENTIALS_STAGING secret is missing"
-          MISSING_SECRETS=$((MISSING_SECRETS + 1))
-        fi
-        if [ -z "${{ secrets.VM_ADMIN_PASSWORD_STAGING }}" ]; then
-          echo "Error: VM_ADMIN_PASSWORD_STAGING secret is missing"
-          MISSING_SECRETS=$((MISSING_SECRETS + 1))
-        fi
-        if [ -z "${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}" ]; then
-          echo "Error: VM_SSH_PRIVATE_KEY_STAGING secret is missing"
-          MISSING_SECRETS=$((MISSING_SECRETS + 1))
-        fi
-        if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}" ]; then
-          echo "Error: AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING secret is missing"
-          MISSING_SECRETS=$((MISSING_SECRETS + 1))
-        fi
-        
-        if [ $MISSING_SECRETS -gt 0 ]; then
-          echo "Error: $MISSING_SECRETS required secret(s) are missing"
-          exit 1
-        fi
-        echo "✓ All required secrets are present"
-
     - name: Azure Login
       uses: azure/login@v1
       with:
@@ -51,86 +25,27 @@ jobs:
 
     - name: Create Resource Group
       run: |
-        # Check if resource group exists, create if it doesn't
-        if az group show --name ${{ env.AZURE_RESOURCE_GROUP }} --output none 2>/dev/null; then
-          echo "Resource group ${{ env.AZURE_RESOURCE_GROUP }} already exists"
-        else
-          echo "Creating resource group ${{ env.AZURE_RESOURCE_GROUP }}..."
-          az group create \
-            --name ${{ env.AZURE_RESOURCE_GROUP }} \
-            --location ${{ env.LOCATION }} \
-            --output none
-        fi
+        az group create \
+          --name ${{ env.AZURE_RESOURCE_GROUP }} \
+          --location ${{ env.LOCATION }} \
+          --output none
 
     - name: Register Required Resource Providers
       run: |
-        register_provider() {
-          local namespace=$1
-          MAX_RETRIES=3
-          RETRY_COUNT=0
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if az provider register --namespace "$namespace" --wait; then
-              echo "Successfully registered $namespace"
-              return 0
-            else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "Failed to register $namespace, retrying in 5 seconds..."
-                sleep 5
-              else
-                echo "Warning: Failed to register $namespace after $MAX_RETRIES attempts"
-                return 1
-              fi
-            fi
-          done
-        }
-        
-        register_provider microsoft.operationalinsights
-        register_provider microsoft.devices
-        register_provider microsoft.storage
-        register_provider microsoft.web
-        register_provider microsoft.keyvault
-        register_provider microsoft.network
+        az provider register --namespace microsoft.operationalinsights --wait
+        az provider register --namespace microsoft.devices --wait
+        az provider register --namespace microsoft.storage --wait
+        az provider register --namespace microsoft.web --wait
+        az provider register --namespace microsoft.keyvault --wait
+        az provider register --namespace microsoft.network --wait
 
     - name: Deploy Infrastructure (Bicep)
       run: |
-        MAX_RETRIES=3
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          echo "Deploying infrastructure (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-          
-          if az deployment group create \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --template-file infrastructure/bicep/main.bicep \
-            --parameters @infrastructure/bicep/params.staging.json \
-            --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}" \
-            --output none; then
-            echo "Infrastructure deployment succeeded"
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Deployment failed, retrying in 10 seconds..."
-              sleep 10
-            else
-              echo "Error: Infrastructure deployment failed after $MAX_RETRIES attempts"
-              exit 1
-            fi
-          fi
-        done
-        
-        # Validate deployment outputs
-        echo "Validating deployment outputs..."
-        DEPLOYMENT_OUTPUTS=$(az deployment group show \
+        az deployment group create \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name main \
-          --query properties.outputs -o json 2>/dev/null || echo "{}")
-        
-        if [ "$DEPLOYMENT_OUTPUTS" = "{}" ]; then
-          echo "Warning: Could not retrieve deployment outputs"
-        else
-          echo "Deployment outputs retrieved successfully"
-        fi
+          --template-file infrastructure/bicep/main.bicep \
+          --parameters @infrastructure/bicep/params.staging.json \
+          --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
 
     - name: Get VM Public IP
       id: get-vm-ip
@@ -139,77 +54,11 @@ jobs:
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
           --query publicIps -o tsv)
-        if [ -z "$VM_IP" ]; then
-          echo "Error: Failed to get VM public IP"
-          exit 1
-        fi
         echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
-        echo "VM Public IP: $VM_IP"
-
-    - name: Wait for VM Readiness
-      run: |
-        echo "Waiting for VM to be in running state..."
-        MAX_RETRIES=30
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          VM_STATE=$(az vm show -d \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name sw-staging-vm \
-            --query powerState -o tsv 2>/dev/null || echo "unknown")
-          
-          if [ "$VM_STATE" = "VM running" ]; then
-            echo "VM is running"
-            break
-          fi
-          
-          RETRY_COUNT=$((RETRY_COUNT + 1))
-          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-            echo "VM state: $VM_STATE (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 10 seconds..."
-            sleep 10
-          else
-            echo "Error: VM did not reach running state after $MAX_RETRIES attempts"
-            exit 1
-          fi
-        done
-        
-        # Additional wait for VM agent and SSH service to be ready
-        echo "Waiting for VM agent and SSH service to be ready..."
-        sleep 30
-        
-        # Verify SSH port is accessible
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        echo "Testing SSH connectivity to $VM_IP..."
-        MAX_SSH_RETRIES=20
-        SSH_RETRY_COUNT=0
-        while [ $SSH_RETRY_COUNT -lt $MAX_SSH_RETRIES ]; do
-          if timeout 5 bash -c "echo > /dev/tcp/$VM_IP/22" 2>/dev/null; then
-            echo "SSH port 22 is accessible"
-            break
-          else
-            SSH_RETRY_COUNT=$((SSH_RETRY_COUNT + 1))
-            if [ $SSH_RETRY_COUNT -lt $MAX_SSH_RETRIES ]; then
-              echo "SSH port not accessible yet (attempt $SSH_RETRY_COUNT/$MAX_SSH_RETRIES), waiting 10 seconds..."
-              sleep 10
-            else
-              echo "Warning: SSH port 22 not accessible after $MAX_SSH_RETRIES attempts, but will continue with SSH connection attempts"
-            fi
-          fi
-        done
-
-    - name: Install sshpass
-      run: |
-        # Install sshpass for password-based SSH authentication
-        sudo apt-get update -qq && sudo apt-get install -y sshpass || {
-          echo "Warning: Could not install sshpass, will use expect script as fallback"
-        }
 
     - name: Setup SSH Key
-      timeout-minutes: 5
       run: |
         mkdir -p ~/.ssh
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        VM_PASSWORD="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
-        
         # Write SSH private key - decode from base64 if needed
         SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
         # Check if key starts with BEGIN marker (plain text PEM format)
@@ -259,318 +108,48 @@ jobs:
         else
           echo "SSH key validated successfully"
           # Extract public key
-          if ! ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub 2>/dev/null; then
-            echo "Error: Failed to extract public key from private key"
-            exit 1
-          fi
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
         fi
-        
-        # Add VM to known_hosts (non-blocking)
-        ssh-keyscan -H $VM_IP >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
-        
-        # Quick check if VM agent is ready (fail fast)
-        echo "Checking VM agent status..."
-        VM_AGENT_READY=false
-        if timeout 10 az vm show -d \
+        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts
+        # Add public key to VM using Azure CLI
+        echo "Adding public key to VM..."
+        az vm user update \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
-          --query "instanceView.vmAgent.statuses[?code=='ProvisioningState/succeeded']" -o tsv 2>/dev/null | grep -q "succeeded"; then
-          VM_AGENT_READY=true
-          echo "VM agent is ready"
-        else
-          echo "VM agent is not ready (will use password authentication)"
-        fi
-        
-        # Try Azure CLI method first (only if VM agent is ready)
-        if [ "$VM_AGENT_READY" = "true" ]; then
-          echo "Attempting to add public key via Azure CLI..."
-          if timeout 30 az vm user update \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name sw-staging-vm \
-            --username azureuser \
-            --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" 2>&1; then
-            echo "SSH key added successfully via Azure CLI"
-            SSH_KEY_ADDED=true
-          else
-            echo "Azure CLI method failed, will use password authentication"
-            SSH_KEY_ADDED=false
-          fi
-        else
-          SSH_KEY_ADDED=false
-        fi
-        
-        # If Azure CLI failed or VM agent not ready, use password authentication
-        if [ "$SSH_KEY_ADDED" != "true" ]; then
-          echo "Using password authentication to add SSH key..."
-          PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
-          
-          # Use sshpass if available, otherwise use expect
-          if command -v sshpass &> /dev/null; then
-            echo "Using sshpass for password authentication..."
-            sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP bash << EOF
-              mkdir -p ~/.ssh
-              chmod 700 ~/.ssh
-              if ! grep -q "$PUBLIC_KEY" ~/.ssh/authorized_keys 2>/dev/null; then
-                echo "$PUBLIC_KEY" >> ~/.ssh/authorized_keys
-                chmod 600 ~/.ssh/authorized_keys
-                echo "SSH key added successfully"
-              else
-                echo "SSH key already exists in authorized_keys"
-              fi
-EOF
-            SSH_KEY_ADDED=true
-          else
-            echo "sshpass not available, using expect script..."
-            # Create expect script with proper variable substitution
-            cat > /tmp/add_ssh_key.exp << EXPSCRIPT
-              set timeout 30
-              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP}
-              expect {
-                "password:" {
-                  send "${VM_PASSWORD}\r"
-                  expect {
-                    "$ " {
-                      send "mkdir -p ~/.ssh && chmod 700 ~/.ssh\r"
-                      expect "$ "
-                      send "if ! grep -q \"${PUBLIC_KEY}\" ~/.ssh/authorized_keys 2>/dev/null; then echo \"${PUBLIC_KEY}\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo \"SSH key added successfully\"; else echo \"SSH key already exists\"; fi\r"
-                      expect "$ "
-                      send "exit\r"
-                      expect eof
-                    }
-                    timeout {
-                      puts "Connection timeout"
-                      exit 1
-                    }
-                  }
-                }
-                timeout {
-                  puts "Password prompt timeout"
-                  exit 1
-                }
-              }
-EXPSCRIPT
-            if expect /tmp/add_ssh_key.exp 2>&1; then
-              SSH_KEY_ADDED=true
-              echo "SSH key added successfully via expect script"
-            else
-              echo "Error: Failed to add SSH key via password authentication"
-              exit 1
-            fi
-          fi
-        fi
-        
-        # Verify SSH key was added by testing key-based authentication
-        if [ "$SSH_KEY_ADDED" = "true" ]; then
-          echo "Verifying SSH key-based authentication..."
-          sleep 2
-          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH key authentication successful'" 2>/dev/null; then
-            echo "SSH key authentication verified successfully"
-          else
-            echo "Warning: SSH key authentication verification failed, but key was added"
-          fi
-        fi
+          --username azureuser \
+          --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" 2>&1 || {
+          echo "Note: Could not add public key via Azure CLI, will add via SSH during deployment"
+        }
+        # Also add public key directly via Azure VM run-command as fallback
+        echo "Adding public key to VM authorized_keys via Azure run-command (fallback)..."
+        PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
+        az vm run-command invoke \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --name sw-staging-vm \
+          --command-id RunShellScript \
+          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (may already exist)"
 
     - name: Copy Repository to VM
       run: |
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        VM_PASSWORD="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
-        MAX_RETRIES=10
-        RETRY_COUNT=0
-        USE_PASSWORD=false
-        
-        # Ensure SSH key has correct permissions
-        chmod 600 ~/.ssh/id_rsa
-        chmod 644 ~/.ssh/id_rsa.pub 2>/dev/null || true
-        
-        # Try key-based authentication first
-        echo "Attempting SSH connection with key-based authentication..."
-        SSH_OUTPUT=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
-        SSH_EXIT_CODE=$?
-        
-        if [ $SSH_EXIT_CODE -eq 0 ]; then
-          echo "SSH connection established successfully with key-based authentication"
-        else
-          echo "Key-based authentication failed, trying password authentication..."
-          USE_PASSWORD=true
-          
-          # Retry with password authentication
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "Attempting SSH connection with password (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-            
-            if command -v sshpass &> /dev/null; then
-              SSH_OUTPUT=$(sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
-              SSH_EXIT_CODE=$?
-            else
-              # Use expect as fallback
-              cat > /tmp/test_ssh.exp << EXPSCRIPT
-                set timeout 20
-                spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP} "echo 'SSH connection successful'"
-                expect {
-                  "password:" {
-                    send "${VM_PASSWORD}\r"
-                    expect {
-                      "SSH connection successful" {
-                        exit 0
-                      }
-                      timeout {
-                        exit 1
-                      }
-                    }
-                  }
-                  timeout {
-                    exit 1
-                  }
-                }
-EXPSCRIPT
-              expect /tmp/test_ssh.exp 2>&1
-              SSH_EXIT_CODE=$?
-            fi
-            
-            if [ $SSH_EXIT_CODE -eq 0 ]; then
-              echo "SSH connection established successfully with password authentication"
-              break
-            else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                WAIT_TIME=$((RETRY_COUNT * 10))
-                echo "SSH connection failed (attempt $RETRY_COUNT/$MAX_RETRIES)"
-                if [ $RETRY_COUNT -eq 1 ]; then
-                  echo "SSH error details:"
-                  echo "$SSH_OUTPUT" | grep -i "error\|denied\|refused\|timeout" | head -5 || echo "No specific error details found"
-                fi
-                echo "Waiting ${WAIT_TIME}s before retry..."
-                sleep $WAIT_TIME
-              else
-                echo "Error: Failed to establish SSH connection after $MAX_RETRIES attempts"
-                echo "Final SSH error output:"
-                echo "$SSH_OUTPUT" | tail -20
-                echo ""
-                echo "Diagnostics:"
-                echo "- VM IP: $VM_IP"
-                echo "- Testing port 22 connectivity..."
-                timeout 5 bash -c "echo > /dev/tcp/$VM_IP/22" 2>/dev/null && echo "Port 22 is open" || echo "Port 22 is not accessible"
-                exit 1
-              fi
-            fi
-          done
-        fi
-        
         # Create tarball of repository
-        echo "Creating repository tarball..."
         tar czf /tmp/smartwatts.tar.gz --exclude='.git' --exclude='node_modules' --exclude='.next' .
-        
-        # Copy repository to VM with retry (use password if key-based auth failed)
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if [ "$USE_PASSWORD" = "true" ]; then
-            if command -v sshpass &> /dev/null; then
-              if sshpass -p "$VM_PASSWORD" scp -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null /tmp/smartwatts.tar.gz azureuser@$VM_IP:/tmp/ 2>/dev/null; then
-                echo "Repository copied successfully using password authentication"
-                break
-              fi
-            else
-              # Use expect for SCP
-              cat > /tmp/scp_repo.exp << EXPSCRIPT
-                set timeout 60
-                spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/smartwatts.tar.gz azureuser@${VM_IP}:/tmp/
-                expect {
-                  "password:" {
-                    send "${VM_PASSWORD}\r"
-                    expect {
-                      eof { exit 0 }
-                      timeout { exit 1 }
-                    }
-                  }
-                  timeout { exit 1 }
-                }
-EXPSCRIPT
-              if expect /tmp/scp_repo.exp 2>&1; then
-                echo "Repository copied successfully using password authentication"
-                break
-              fi
-            fi
-          else
-            if scp -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa /tmp/smartwatts.tar.gz azureuser@$VM_IP:/tmp/ 2>/dev/null; then
-              echo "Repository copied successfully using key-based authentication"
-              break
-            fi
+        # Copy repository to VM
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa /tmp/smartwatts.tar.gz azureuser@${{ steps.get-vm-ip.outputs.vm_ip }}:/tmp/
+        # Extract repository on VM
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
+          cd /home/azureuser
+          if [ -d "smartwatts" ]; then
+            rm -rf smartwatts
           fi
-          
-          RETRY_COUNT=$((RETRY_COUNT + 1))
-          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-            WAIT_TIME=$((RETRY_COUNT * 5))
-            echo "Copy failed (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${WAIT_TIME}s..."
-            sleep $WAIT_TIME
-          else
-            echo "Error: Failed to copy repository after $MAX_RETRIES attempts"
-            exit 1
-          fi
-        done
-        
-        # Extract repository on VM (use password if key-based auth failed)
-        if [ "$USE_PASSWORD" = "true" ]; then
-          if command -v sshpass &> /dev/null; then
-            sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP bash << 'EOF'
-              cd /home/azureuser
-              if [ -d "smartwatts" ]; then
-                rm -rf smartwatts
-              fi
-              mkdir -p smartwatts
-              cd smartwatts
-              tar xzf /tmp/smartwatts.tar.gz
-              rm /tmp/smartwatts.tar.gz
-              echo "Repository extracted successfully"
-EOF
-          else
-            # Use expect for SSH
-            cat > /tmp/extract_repo.exp << EXPSCRIPT
-              set timeout 120
-              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP}
-              expect {
-                "password:" {
-                  send "${VM_PASSWORD}\r"
-                  expect "$ "
-                  send "cd /home/azureuser && if [ -d \"smartwatts\" ]; then rm -rf smartwatts; fi && mkdir -p smartwatts && cd smartwatts && tar xzf /tmp/smartwatts.tar.gz && rm /tmp/smartwatts.tar.gz && echo \"Repository extracted successfully\"\r"
-                  expect "$ "
-                  send "exit\r"
-                  expect eof
-                }
-                timeout { exit 1 }
-              }
-EXPSCRIPT
-            expect /tmp/extract_repo.exp 2>&1
-          fi
-        else
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i ~/.ssh/id_rsa azureuser@$VM_IP bash << 'EOF'
-            cd /home/azureuser
-            if [ -d "smartwatts" ]; then
-              rm -rf smartwatts
-            fi
-            mkdir -p smartwatts
-            cd smartwatts
-            tar xzf /tmp/smartwatts.tar.gz
-            rm /tmp/smartwatts.tar.gz
-            echo "Repository extracted successfully"
-EOF
-        fi
+          mkdir -p smartwatts
+          cd smartwatts
+          tar xzf /tmp/smartwatts.tar.gz
+          rm /tmp/smartwatts.tar.gz
+        EOF
 
     - name: Deploy Application to VM
-      timeout-minutes: 30
       run: |
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        VM_PASSWORD="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
-        
-        # Test key-based authentication first
-        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'test'" 2>/dev/null; then
-          echo "Using key-based authentication for deployment"
-          USE_PASSWORD=false
-        else
-          echo "Key-based authentication failed, using password authentication for deployment"
-          USE_PASSWORD=true
-        fi
-        
-        # Create deployment script
-        cat > /tmp/deploy_script.sh << 'DEPLOYSCRIPT'
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
           # Install Docker if not present
           if ! command -v docker &> /dev/null; then
             echo "Installing Docker..."
@@ -668,153 +247,12 @@ EOF
           
           echo "All Gradle wrapper files verified successfully"
           
-          # Deploy with optimized sequential build process
+          # Deploy with Docker Compose (use sudo since group membership may not be active)
           cd azure-deployment
-          
-          # Enable BuildKit for better caching
-          export DOCKER_BUILDKIT=1
-          export COMPOSE_DOCKER_CLI_BUILD=1
-          
-          # Create shared Gradle cache volume
-          echo "Creating shared Gradle cache volume..."
-          sudo docker volume create gradle-cache 2>/dev/null || echo "Gradle cache volume already exists"
-          
-          # Pre-download Gradle 8.5 distribution
-          echo "Pre-downloading Gradle 8.5 distribution..."
-          GRADLE_VERSION="8.5"
-          GRADLE_DIST_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-          GRADLE_CACHE_DIR="/tmp/gradle-cache"
-          
-          mkdir -p $GRADLE_CACHE_DIR
-          if [ ! -f "$GRADLE_CACHE_DIR/gradle-${GRADLE_VERSION}-bin.zip" ]; then
-            echo "Downloading Gradle ${GRADLE_VERSION}..."
-            curl -L -o "$GRADLE_CACHE_DIR/gradle-${GRADLE_VERSION}-bin.zip" "$GRADLE_DIST_URL" || {
-              echo "Warning: Could not pre-download Gradle, builds will download it"
-            }
-          else
-            echo "Gradle ${GRADLE_VERSION} already downloaded"
-          fi
-          
-          # Pull infrastructure images first (quick, no build needed)
-          echo "Pulling infrastructure images..."
-          sudo docker-compose -f docker-compose.azure.yml pull postgres redis 2>/dev/null || true
-          
-          # Build services sequentially in dependency order
-          echo "Starting sequential build process..."
-          BUILD_START=$(date +%s)
-          TOTAL_SERVICES=13
-          BUILT_SERVICES=0
-          
-          # Function to build a service with progress tracking
-          build_service() {
-            local service=$1
-            local start_time=$(date +%s)
-            BUILT_SERVICES=$((BUILT_SERVICES + 1))
-            local progress=$((BUILT_SERVICES * 100 / TOTAL_SERVICES))
-            echo "=== Building $service (${BUILT_SERVICES}/$TOTAL_SERVICES - ${progress}%) ==="
-            echo "Started at: $(date '+%H:%M:%S')"
-            
-            if sudo docker-compose -f docker-compose.azure.yml build --progress=plain $service 2>&1 | tee /tmp/build-$service.log; then
-              local end_time=$(date +%s)
-              local duration=$((end_time - start_time))
-              echo "✓ Built $service in ${duration}s"
-              return 0
-            else
-              echo "ERROR: Failed to build $service"
-              echo "Last 20 lines of build log:"
-              tail -20 /tmp/build-$service.log || true
-              return 1
-            fi
-          }
-          
-          # 1. Core services (no dependencies)
-          build_service "service-discovery"
-          
-          # 2. Services that depend on service-discovery
-          build_service "api-gateway"
-          build_service "user-service"
-          
-          # 3. Application services (sequential for resource management)
-          build_service "energy-service"
-          build_service "device-service"
-          build_service "analytics-service"
-          build_service "billing-service"
-          build_service "facility-service"
-          build_service "notification-service"
-          build_service "feature-flag-service"
-          build_service "device-verification-service"
-          build_service "appliance-monitoring-service"
-          build_service "edge-gateway"
-          
-          # 4. Frontend (independent, build last)
-          build_service "frontend"
-          
-          # Calculate total build time
-          BUILD_END=$(date +%s)
-          TOTAL_DURATION=$((BUILD_END - BUILD_START))
-          MINUTES=$((TOTAL_DURATION / 60))
-          SECONDS=$((TOTAL_DURATION % 60))
-          
-          echo ""
-          echo "========================================"
-          echo "All services built successfully!"
-          echo "Total build time: ${MINUTES}m ${SECONDS}s"
-          echo "========================================"
-          
-          # Start all containers
-          echo ""
-          echo "Starting all containers..."
-          sudo docker-compose -f docker-compose.azure.yml up -d
-          
-          echo "Deployment complete!"
-DEPLOYSCRIPT
-        
-        # Execute deployment script using appropriate authentication method
-        if [ "$USE_PASSWORD" = "true" ]; then
-          if command -v sshpass &> /dev/null; then
-            sshpass -p "$VM_PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/deploy_script.sh azureuser@$VM_IP:/tmp/ 2>/dev/null
-            sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP "bash /tmp/deploy_script.sh"
-          else
-            # Use expect for SCP and SSH
-            cat > /tmp/scp_deploy.exp << EXPSCRIPT
-              set timeout 60
-              spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/deploy_script.sh azureuser@${VM_IP}:/tmp/
-              expect {
-                "password:" {
-                  send "${VM_PASSWORD}\r"
-                  expect {
-                    eof { exit 0 }
-                    timeout { exit 1 }
-                  }
-                }
-                timeout { exit 1 }
-              }
-EXPSCRIPT
-            expect /tmp/scp_deploy.exp 2>&1
-            
-            cat > /tmp/exec_deploy.exp << EXPSCRIPT
-              set timeout 1800
-              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP} "bash /tmp/deploy_script.sh"
-              expect {
-                "password:" {
-                  send "${VM_PASSWORD}\r"
-                  expect {
-                    eof { exit 0 }
-                    timeout { exit 1 }
-                  }
-                }
-                timeout { exit 1 }
-              }
-EXPSCRIPT
-            expect /tmp/exec_deploy.exp 2>&1
-          fi
-        else
-          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i ~/.ssh/id_rsa /tmp/deploy_script.sh azureuser@$VM_IP:/tmp/ 2>/dev/null
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i ~/.ssh/id_rsa azureuser@$VM_IP "bash /tmp/deploy_script.sh"
-        fi
+          sudo docker-compose -f docker-compose.azure.yml up -d --build
+        EOF
 
     - name: Deploy Frontend to Static Web Apps
-      continue-on-error: true
       uses: Azure/static-web-apps-deploy@v1
       with:
         azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}
@@ -835,93 +273,7 @@ EXPSCRIPT
 
     - name: Health Check
       run: |
+        sleep 60  # Wait for services to start
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        MAX_RETRIES=10
-        RETRY_COUNT=0
-        RETRY_DELAY=10
-        
-        echo "Waiting for services to start and checking health..."
-        
-        # Check API Gateway health
-        API_GATEWAY_HEALTHY=false
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if curl -f -s http://$VM_IP:8080/actuator/health > /dev/null 2>&1; then
-            echo "✓ API Gateway is healthy"
-            API_GATEWAY_HEALTHY=true
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "API Gateway not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${RETRY_DELAY}s..."
-              sleep $RETRY_DELAY
-            fi
-          fi
-        done
-        
-        # Check Service Discovery health
-        SERVICE_DISCOVERY_HEALTHY=false
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if curl -f -s http://$VM_IP:8761/actuator/health > /dev/null 2>&1; then
-            echo "✓ Service Discovery is healthy"
-            SERVICE_DISCOVERY_HEALTHY=true
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Service Discovery not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${RETRY_DELAY}s..."
-              sleep $RETRY_DELAY
-            fi
-          fi
-        done
-        
-        # Final validation
-        if [ "$API_GATEWAY_HEALTHY" = "true" ] && [ "$SERVICE_DISCOVERY_HEALTHY" = "true" ]; then
-          echo "✓ All critical services are healthy"
-          exit 0
-        else
-          echo "Error: Some services failed health check"
-          echo "API Gateway: $API_GATEWAY_HEALTHY"
-          echo "Service Discovery: $SERVICE_DISCOVERY_HEALTHY"
-          exit 1
-        fi
-
-    - name: Deployment Summary
-      if: always()
-      run: |
-        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        if [ -n "$VM_IP" ]; then
-          echo "### VM Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **VM Public IP**: $VM_IP" >> $GITHUB_STEP_SUMMARY
-          echo "- **API Gateway URL**: http://$VM_IP:8080" >> $GITHUB_STEP_SUMMARY
-          echo "- **Service Discovery URL**: http://$VM_IP:8761" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        STATIC_WEB_APP_URL=$(az staticwebapp show \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name sw-staging-dashboard \
-          --query defaultHostname -o tsv 2>/dev/null || echo "N/A")
-        
-        if [ "$STATIC_WEB_APP_URL" != "N/A" ]; then
-          echo "### Static Web App" >> $GITHUB_STEP_SUMMARY
-          echo "- **URL**: https://$STATIC_WEB_APP_URL" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        echo "### Deployment Status" >> $GITHUB_STEP_SUMMARY
-        if [ "${{ job.status }}" = "success" ]; then
-          echo "✅ **Deployment completed successfully**" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ **Deployment failed or was cancelled**" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-        echo "1. Verify all services are running: \`curl http://$VM_IP:8080/actuator/health\`" >> $GITHUB_STEP_SUMMARY
-        echo "2. Access the dashboard at: https://$STATIC_WEB_APP_URL" >> $GITHUB_STEP_SUMMARY
-        echo "3. Monitor services in Azure Portal" >> $GITHUB_STEP_SUMMARY
+        curl -f http://$VM_IP:8080/actuator/health || exit 1
 
