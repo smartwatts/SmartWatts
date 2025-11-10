@@ -16,8 +16,8 @@ import {
   LightBulbIcon,
   SunIcon,
   BoltIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
   GlobeAltIcon,
   ShieldCheckIcon,
   ArrowPathIcon

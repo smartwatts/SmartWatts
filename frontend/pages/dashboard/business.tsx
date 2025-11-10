@@ -16,8 +16,8 @@ import {
   LightBulbIcon,
   SunIcon,
   BoltIcon,
-  TrendingUpIcon,
-  TrendingDownIcon
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon
 } from '@heroicons/react/24/outline'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts'
 
@@ -390,7 +390,7 @@ export default function BusinessDashboard() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
             <div className="flex items-center space-x-3 mb-6">
               <div className="p-2 bg-green-500 rounded-xl">
-                <TrendingUpIcon className="h-6 w-6 text-white" />
+                <ArrowTrendingUpIcon className="h-6 w-6 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Cost Optimizations</h3>
             </div>
