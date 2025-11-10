@@ -196,9 +196,20 @@ jobs:
           fi
         done
 
+    - name: Install sshpass
+      run: |
+        # Install sshpass for password-based SSH authentication
+        sudo apt-get update -qq && sudo apt-get install -y sshpass || {
+          echo "Warning: Could not install sshpass, will use expect script as fallback"
+        }
+
     - name: Setup SSH Key
+      timeout-minutes: 5
       run: |
         mkdir -p ~/.ssh
+        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
+        VM_PASSWORD="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
+        
         # Write SSH private key - decode from base64 if needed
         SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
         # Check if key starts with BEGIN marker (plain text PEM format)
@@ -253,122 +264,322 @@ jobs:
             exit 1
           fi
         fi
+        
         # Add VM to known_hosts (non-blocking)
-        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
-        # Add public key to VM using Azure CLI
-        echo "Adding public key to VM..."
-        az vm user update \
+        ssh-keyscan -H $VM_IP >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
+        
+        # Quick check if VM agent is ready (fail fast)
+        echo "Checking VM agent status..."
+        VM_AGENT_READY=false
+        if timeout 10 az vm show -d \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --name sw-staging-vm \
-          --username azureuser \
-          --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" 2>&1 || {
-          echo "Note: Could not add public key via Azure CLI, will add via SSH during deployment"
-        }
-        # Also add public key directly via Azure VM run-command as fallback
-        # Note: This may fail if VM agent isn't ready, but SSH will still work
-        echo "Adding public key to VM authorized_keys via Azure run-command (fallback)..."
-        PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
-        timeout 30 az vm run-command invoke \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name sw-staging-vm \
-          --command-id RunShellScript \
-          --scripts "sudo -u azureuser bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo \"$PUBLIC_KEY\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'" 2>&1 || echo "Note: Could not add public key via run-command (VM agent may not be ready - SSH will still work)"
+          --query "instanceView.vmAgent.statuses[?code=='ProvisioningState/succeeded']" -o tsv 2>/dev/null | grep -q "succeeded"; then
+          VM_AGENT_READY=true
+          echo "VM agent is ready"
+        else
+          echo "VM agent is not ready (will use password authentication)"
+        fi
+        
+        # Try Azure CLI method first (only if VM agent is ready)
+        if [ "$VM_AGENT_READY" = "true" ]; then
+          echo "Attempting to add public key via Azure CLI..."
+          if timeout 30 az vm user update \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name sw-staging-vm \
+            --username azureuser \
+            --ssh-key-value "$(cat ~/.ssh/id_rsa.pub)" 2>&1; then
+            echo "SSH key added successfully via Azure CLI"
+            SSH_KEY_ADDED=true
+          else
+            echo "Azure CLI method failed, will use password authentication"
+            SSH_KEY_ADDED=false
+          fi
+        else
+          SSH_KEY_ADDED=false
+        fi
+        
+        # If Azure CLI failed or VM agent not ready, use password authentication
+        if [ "$SSH_KEY_ADDED" != "true" ]; then
+          echo "Using password authentication to add SSH key..."
+          PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
+          
+          # Use sshpass if available, otherwise use expect
+          if command -v sshpass &> /dev/null; then
+            echo "Using sshpass for password authentication..."
+            sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP bash << EOF
+              mkdir -p ~/.ssh
+              chmod 700 ~/.ssh
+              if ! grep -q "$PUBLIC_KEY" ~/.ssh/authorized_keys 2>/dev/null; then
+                echo "$PUBLIC_KEY" >> ~/.ssh/authorized_keys
+                chmod 600 ~/.ssh/authorized_keys
+                echo "SSH key added successfully"
+              else
+                echo "SSH key already exists in authorized_keys"
+              fi
+EOF
+            SSH_KEY_ADDED=true
+          else
+            echo "sshpass not available, using expect script..."
+            # Create expect script
+            cat > /tmp/add_ssh_key.exp << 'EXPSCRIPT'
+              set timeout 30
+              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP)
+              expect {
+                "password:" {
+                  send "$env(VM_PASSWORD)\r"
+                  expect {
+                    "$ " {
+                      send "mkdir -p ~/.ssh && chmod 700 ~/.ssh\r"
+                      expect "$ "
+                      send "if ! grep -q \"$env(PUBLIC_KEY)\" ~/.ssh/authorized_keys 2>/dev/null; then echo \"$env(PUBLIC_KEY)\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo \"SSH key added successfully\"; else echo \"SSH key already exists\"; fi\r"
+                      expect "$ "
+                      send "exit\r"
+                      expect eof
+                    }
+                    timeout {
+                      puts "Connection timeout"
+                      exit 1
+                    }
+                  }
+                }
+                timeout {
+                  puts "Password prompt timeout"
+                  exit 1
+                }
+              }
+EXPSCRIPT
+            export VM_IP
+            export VM_PASSWORD
+            export PUBLIC_KEY
+            if expect /tmp/add_ssh_key.exp 2>&1; then
+              SSH_KEY_ADDED=true
+              echo "SSH key added successfully via expect script"
+            else
+              echo "Error: Failed to add SSH key via password authentication"
+              exit 1
+            fi
+          fi
+        fi
+        
+        # Verify SSH key was added by testing key-based authentication
+        if [ "$SSH_KEY_ADDED" = "true" ]; then
+          echo "Verifying SSH key-based authentication..."
+          sleep 2
+          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH key authentication successful'" 2>/dev/null; then
+            echo "SSH key authentication verified successfully"
+          else
+            echo "Warning: SSH key authentication verification failed, but key was added"
+          fi
+        fi
 
     - name: Copy Repository to VM
       run: |
         VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
+        VM_PASSWORD="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
         MAX_RETRIES=10
         RETRY_COUNT=0
+        USE_PASSWORD=false
         
         # Ensure SSH key has correct permissions
         chmod 600 ~/.ssh/id_rsa
         chmod 644 ~/.ssh/id_rsa.pub 2>/dev/null || true
         
-        # Retry SSH connection with exponential backoff and better diagnostics
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          echo "Attempting SSH connection (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+        # Try key-based authentication first
+        echo "Attempting SSH connection with key-based authentication..."
+        SSH_OUTPUT=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
+        SSH_EXIT_CODE=$?
+        
+        if [ $SSH_EXIT_CODE -eq 0 ]; then
+          echo "SSH connection established successfully with key-based authentication"
+        else
+          echo "Key-based authentication failed, trying password authentication..."
+          USE_PASSWORD=true
           
-          # Test SSH connection with verbose output on first attempt
-          if [ $RETRY_COUNT -eq 0 ]; then
-            SSH_OUTPUT=$(ssh -v -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
-            SSH_EXIT_CODE=$?
-          else
-            SSH_OUTPUT=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
-            SSH_EXIT_CODE=$?
-          fi
-          
-          if [ $SSH_EXIT_CODE -eq 0 ]; then
-            echo "SSH connection established successfully"
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              WAIT_TIME=$((RETRY_COUNT * 10))
-              echo "SSH connection failed (attempt $RETRY_COUNT/$MAX_RETRIES)"
-              if [ $RETRY_COUNT -eq 1 ]; then
-                echo "SSH error details:"
-                echo "$SSH_OUTPUT" | grep -i "error\|denied\|refused\|timeout" | head -5 || echo "No specific error details found"
-              fi
-              echo "Waiting ${WAIT_TIME}s before retry..."
-              sleep $WAIT_TIME
+          # Retry with password authentication
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempting SSH connection with password (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+            
+            if command -v sshpass &> /dev/null; then
+              SSH_OUTPUT=$(sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP "echo 'SSH connection successful'" 2>&1)
+              SSH_EXIT_CODE=$?
             else
-              echo "Error: Failed to establish SSH connection after $MAX_RETRIES attempts"
-              echo "Final SSH error output:"
-              echo "$SSH_OUTPUT" | tail -20
-              echo ""
-              echo "Diagnostics:"
-              echo "- VM IP: $VM_IP"
-              echo "- Testing port 22 connectivity..."
-              timeout 5 bash -c "echo > /dev/tcp/$VM_IP/22" 2>/dev/null && echo "Port 22 is open" || echo "Port 22 is not accessible"
-              echo "- Checking SSH key..."
-              ls -la ~/.ssh/id_rsa
-              echo "- Attempting to verify SSH key format..."
-              ssh-keygen -l -f ~/.ssh/id_rsa 2>&1 | head -1 || echo "Could not read SSH key"
-              exit 1
+              # Use expect as fallback
+              cat > /tmp/test_ssh.exp << 'EXPSCRIPT'
+                set timeout 20
+                spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP) "echo 'SSH connection successful'"
+                expect {
+                  "password:" {
+                    send "$env(VM_PASSWORD)\r"
+                    expect {
+                      "SSH connection successful" {
+                        exit 0
+                      }
+                      timeout {
+                        exit 1
+                      }
+                    }
+                  }
+                  timeout {
+                    exit 1
+                  }
+                }
+EXPSCRIPT
+              export VM_IP
+              export VM_PASSWORD
+              expect /tmp/test_ssh.exp 2>&1
+              SSH_EXIT_CODE=$?
             fi
-          fi
-        done
+            
+            if [ $SSH_EXIT_CODE -eq 0 ]; then
+              echo "SSH connection established successfully with password authentication"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                WAIT_TIME=$((RETRY_COUNT * 10))
+                echo "SSH connection failed (attempt $RETRY_COUNT/$MAX_RETRIES)"
+                if [ $RETRY_COUNT -eq 1 ]; then
+                  echo "SSH error details:"
+                  echo "$SSH_OUTPUT" | grep -i "error\|denied\|refused\|timeout" | head -5 || echo "No specific error details found"
+                fi
+                echo "Waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              else
+                echo "Error: Failed to establish SSH connection after $MAX_RETRIES attempts"
+                echo "Final SSH error output:"
+                echo "$SSH_OUTPUT" | tail -20
+                echo ""
+                echo "Diagnostics:"
+                echo "- VM IP: $VM_IP"
+                echo "- Testing port 22 connectivity..."
+                timeout 5 bash -c "echo > /dev/tcp/$VM_IP/22" 2>/dev/null && echo "Port 22 is open" || echo "Port 22 is not accessible"
+                exit 1
+              fi
+            fi
+          done
+        fi
         
         # Create tarball of repository
         echo "Creating repository tarball..."
         tar czf /tmp/smartwatts.tar.gz --exclude='.git' --exclude='node_modules' --exclude='.next' .
         
-        # Copy repository to VM with retry
+        # Copy repository to VM with retry (use password if key-based auth failed)
         RETRY_COUNT=0
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa /tmp/smartwatts.tar.gz azureuser@$VM_IP:/tmp/ 2>/dev/null; then
-            echo "Repository copied successfully"
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              WAIT_TIME=$((RETRY_COUNT * 5))
-              echo "Copy failed (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${WAIT_TIME}s..."
-              sleep $WAIT_TIME
+          if [ "$USE_PASSWORD" = "true" ]; then
+            if command -v sshpass &> /dev/null; then
+              if sshpass -p "$VM_PASSWORD" scp -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null /tmp/smartwatts.tar.gz azureuser@$VM_IP:/tmp/ 2>/dev/null; then
+                echo "Repository copied successfully using password authentication"
+                break
+              fi
             else
-              echo "Error: Failed to copy repository after $MAX_RETRIES attempts"
-              exit 1
+              # Use expect for SCP
+              cat > /tmp/scp_repo.exp << 'EXPSCRIPT'
+                set timeout 60
+                spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/smartwatts.tar.gz azureuser@$env(VM_IP):/tmp/
+                expect {
+                  "password:" {
+                    send "$env(VM_PASSWORD)\r"
+                    expect {
+                      eof { exit 0 }
+                      timeout { exit 1 }
+                    }
+                  }
+                  timeout { exit 1 }
+                }
+EXPSCRIPT
+              export VM_IP
+              export VM_PASSWORD
+              if expect /tmp/scp_repo.exp 2>&1; then
+                echo "Repository copied successfully using password authentication"
+                break
+              fi
             fi
+          else
+            if scp -o StrictHostKeyChecking=no -o ConnectTimeout=15 -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_rsa /tmp/smartwatts.tar.gz azureuser@$VM_IP:/tmp/ 2>/dev/null; then
+              echo "Repository copied successfully using key-based authentication"
+              break
+            fi
+          fi
+          
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            WAIT_TIME=$((RETRY_COUNT * 5))
+            echo "Copy failed (attempt $RETRY_COUNT/$MAX_RETRIES), waiting ${WAIT_TIME}s..."
+            sleep $WAIT_TIME
+          else
+            echo "Error: Failed to copy repository after $MAX_RETRIES attempts"
+            exit 1
           fi
         done
         
-        # Extract repository on VM
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@$VM_IP << 'EOF'
-          cd /home/azureuser
-          if [ -d "smartwatts" ]; then
-            rm -rf smartwatts
+        # Extract repository on VM (use password if key-based auth failed)
+        if [ "$USE_PASSWORD" = "true" ]; then
+          if command -v sshpass &> /dev/null; then
+            sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP bash << 'EOF'
+              cd /home/azureuser
+              if [ -d "smartwatts" ]; then
+                rm -rf smartwatts
+              fi
+              mkdir -p smartwatts
+              cd smartwatts
+              tar xzf /tmp/smartwatts.tar.gz
+              rm /tmp/smartwatts.tar.gz
+              echo "Repository extracted successfully"
+EOF
+          else
+            # Use expect for SSH
+            cat > /tmp/extract_repo.exp << 'EXPSCRIPT'
+              set timeout 120
+              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP)
+              expect {
+                "password:" {
+                  send "$env(VM_PASSWORD)\r"
+                  expect "$ "
+                  send "cd /home/azureuser && if [ -d \"smartwatts\" ]; then rm -rf smartwatts; fi && mkdir -p smartwatts && cd smartwatts && tar xzf /tmp/smartwatts.tar.gz && rm /tmp/smartwatts.tar.gz && echo \"Repository extracted successfully\"\r"
+                  expect "$ "
+                  send "exit\r"
+                  expect eof
+                }
+                timeout { exit 1 }
+              }
+EXPSCRIPT
+            export VM_IP
+            export VM_PASSWORD
+            expect /tmp/extract_repo.exp 2>&1
           fi
-          mkdir -p smartwatts
-          cd smartwatts
-          tar xzf /tmp/smartwatts.tar.gz
-          rm /tmp/smartwatts.tar.gz
-          echo "Repository extracted successfully"
-        EOF
+        else
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i ~/.ssh/id_rsa azureuser@$VM_IP bash << 'EOF'
+            cd /home/azureuser
+            if [ -d "smartwatts" ]; then
+              rm -rf smartwatts
+            fi
+            mkdir -p smartwatts
+            cd smartwatts
+            tar xzf /tmp/smartwatts.tar.gz
+            rm /tmp/smartwatts.tar.gz
+            echo "Repository extracted successfully"
+EOF
+        fi
 
     - name: Deploy Application to VM
       timeout-minutes: 30
       run: |
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} << 'EOF'
+        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
+        VM_PASSWORD="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}"
+        
+        # Test key-based authentication first
+        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i ~/.ssh/id_rsa azureuser@$VM_IP "echo 'test'" 2>/dev/null; then
+          echo "Using key-based authentication for deployment"
+          USE_PASSWORD=false
+        else
+          echo "Key-based authentication failed, using password authentication for deployment"
+          USE_PASSWORD=true
+        fi
+        
+        # Create deployment script
+        cat > /tmp/deploy_script.sh << 'DEPLOYSCRIPT'
           # Install Docker if not present
           if ! command -v docker &> /dev/null; then
             echo "Installing Docker..."
@@ -565,7 +776,55 @@ jobs:
           sudo docker-compose -f docker-compose.azure.yml up -d
           
           echo "Deployment complete!"
-        EOF
+DEPLOYSCRIPT
+        
+        # Execute deployment script using appropriate authentication method
+        if [ "$USE_PASSWORD" = "true" ]; then
+          if command -v sshpass &> /dev/null; then
+            sshpass -p "$VM_PASSWORD" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/deploy_script.sh azureuser@$VM_IP:/tmp/ 2>/dev/null
+            sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP "bash /tmp/deploy_script.sh"
+          else
+            # Use expect for SCP and SSH
+            cat > /tmp/scp_deploy.exp << 'EXPSCRIPT'
+              set timeout 60
+              spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/deploy_script.sh azureuser@$env(VM_IP):/tmp/
+              expect {
+                "password:" {
+                  send "$env(VM_PASSWORD)\r"
+                  expect {
+                    eof { exit 0 }
+                    timeout { exit 1 }
+                  }
+                }
+                timeout { exit 1 }
+              }
+EXPSCRIPT
+            export VM_IP
+            export VM_PASSWORD
+            expect /tmp/scp_deploy.exp 2>&1
+            
+            cat > /tmp/exec_deploy.exp << 'EXPSCRIPT'
+              set timeout 1800
+              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP) "bash /tmp/deploy_script.sh"
+              expect {
+                "password:" {
+                  send "$env(VM_PASSWORD)\r"
+                  expect {
+                    eof { exit 0 }
+                    timeout { exit 1 }
+                  }
+                }
+                timeout { exit 1 }
+              }
+EXPSCRIPT
+            export VM_IP
+            export VM_PASSWORD
+            expect /tmp/exec_deploy.exp 2>&1
+          fi
+        else
+          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i ~/.ssh/id_rsa /tmp/deploy_script.sh azureuser@$VM_IP:/tmp/ 2>/dev/null
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 -i ~/.ssh/id_rsa azureuser@$VM_IP "bash /tmp/deploy_script.sh"
+        fi
 
     - name: Deploy Frontend to Static Web Apps
       continue-on-error: true
