@@ -9,6 +9,8 @@ param vmAdminUsername string = 'azureuser'
 @description('VM admin password (will be stored in Key Vault)')
 @secure()
 param vmAdminPassword string
+@description('SSH public key for VM access (optional - if not provided, password authentication will be used)')
+param vmSshPublicKey string = ''
 
 // Variables
 var vmName = 'sw-${environment}-vm'
@@ -35,7 +37,12 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
       linuxConfiguration: {
         disablePasswordAuthentication: false
         ssh: {
-          publicKeys: []
+          publicKeys: vmSshPublicKey != '' ? [
+            {
+              keyData: vmSshPublicKey
+              path: '/home/${vmAdminUsername}/.ssh/authorized_keys'
+            }
+          ] : []
         }
       }
     }

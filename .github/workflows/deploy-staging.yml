@@ -73,6 +73,43 @@ jobs:
     - name: Deploy Infrastructure (Bicep)
       timeout-minutes: 20
       run: |
+        # Extract SSH public key from private key for VM configuration
+        echo "Extracting SSH public key from private key..."
+        mkdir -p ~/.ssh
+        SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
+        # Write private key temporarily to extract public key
+        if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
+          echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
+        else
+          echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key
+        fi
+        chmod 600 ~/.ssh/temp_key
+        
+        # Convert key format if needed (similar to Setup SSH Key step)
+        KEY_START=$(head -c 20 ~/.ssh/temp_key | xxd -p | tr -d '\n')
+        if echo "$KEY_START" | grep -q "^3082"; then
+          # DER format - convert to PEM
+          openssl rsa -inform DER -in ~/.ssh/temp_key -outform PEM -out ~/.ssh/temp_key.pem 2>/dev/null && mv ~/.ssh/temp_key.pem ~/.ssh/temp_key || {
+            ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || true
+          }
+        elif head -c 15 ~/.ssh/temp_key | grep -q "openssh-key-v1"; then
+          # OpenSSH format - convert to PEM
+          ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || true
+        fi
+        
+        # Extract public key
+        SSH_PUBLIC_KEY=$(ssh-keygen -y -f ~/.ssh/temp_key 2>/dev/null || echo "")
+        rm -f ~/.ssh/temp_key
+        
+        if [ -z "$SSH_PUBLIC_KEY" ]; then
+          echo "⚠️ Warning: Could not extract SSH public key from private key"
+          echo "VM will be created without SSH keys (password authentication only)"
+          SSH_PUBLIC_KEY=""
+        else
+          echo "✅ SSH public key extracted successfully"
+          echo "Public key preview: $(echo "$SSH_PUBLIC_KEY" | cut -d' ' -f1-2)..."
+        fi
+        
         # Check if deployment already exists and succeeded
         EXISTING_DEPLOYMENT=$(az deployment group show \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
@@ -120,12 +157,21 @@ jobs:
         RETRY_COUNT=0
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
           echo "Starting infrastructure deployment (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-          if az deployment group create \
+          
+          # Build deployment command with SSH key if available
+          DEPLOY_CMD="az deployment group create \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --template-file infrastructure/bicep/main.bicep \
             --parameters @infrastructure/bicep/params.staging.json \
-            --parameters vmAdminPassword="${{ secrets.VM_ADMIN_PASSWORD_STAGING }}" \
-            --name main; then
+            --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\""
+          
+          if [ -n "$SSH_PUBLIC_KEY" ]; then
+            DEPLOY_CMD="$DEPLOY_CMD --parameters vmSshPublicKey=\"$SSH_PUBLIC_KEY\""
+          fi
+          
+          DEPLOY_CMD="$DEPLOY_CMD --name main"
+          
+          if eval "$DEPLOY_CMD"; then
             echo "✅ Infrastructure deployed successfully"
             exit 0
           else
@@ -314,9 +360,9 @@ jobs:
         # Add VM to known_hosts (non-blocking)
         ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
         
-        # Test direct SSH connection (VM must be created with SSH keys pre-configured)
+        # Test direct SSH connection (VM should have SSH keys configured during creation)
         echo "Testing direct SSH connection..."
-        echo "Note: VM must have been created with SSH keys pre-configured"
+        echo "Note: VM should have SSH keys configured during Bicep deployment"
         SSH_CONNECTED=false
         MAX_RETRIES=5
         RETRY_COUNT=0
@@ -346,9 +392,9 @@ jobs:
           echo "VM IP: ${{ steps.get-vm-ip.outputs.vm_ip }}"
           echo "VM State: $(az vm show -d --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-vm --query powerState -o tsv 2>/dev/null || echo 'unknown')"
           echo ""
-          echo "The SSH key must be pre-configured on the VM during creation."
-          echo "This workflow does not add SSH keys via Azure CLI (VM agent dependency removed)."
-          echo "Please ensure the VM was created with the SSH public key in authorized_keys."
+          echo "The SSH key should have been configured during VM creation via Bicep template."
+          echo "If this error persists, check that the SSH public key was passed to the Bicep deployment."
+          echo "You can verify SSH keys on the VM with: az vm show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-vm --query 'osProfile.linuxConfiguration.ssh.publicKeys' -o json"
           exit 1
         fi
 
