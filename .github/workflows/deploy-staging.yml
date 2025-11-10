@@ -18,652 +18,394 @@ env:
   AZURE_RESOURCE_GROUP: sw-staging-rg
   ENVIRONMENT: staging
   LOCATION: westeurope
+  VM_NAME: sw-staging-vm
+  VM_ADMIN_USERNAME: azureuser
+  TEMPLATE_FILE: infrastructure/bicep/main.bicep
+  PARAM_FILE: infrastructure/bicep/params.staging.json
+  PUBLIC_IP_NAME: sw-staging-vm-pip
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
 
-    - name: Create Resource Group
-      timeout-minutes: 2
-      run: |
-        # Check if resource group exists, create if it doesn't
-        if ! az group show --name ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null; then
-          echo "Creating resource group..."
-          az group create \
-            --name ${{ env.AZURE_RESOURCE_GROUP }} \
-            --location ${{ env.LOCATION }} \
-            --output none
-        else
-          echo "Resource group already exists"
-        fi
+      - name: Create Resource Group
+        timeout-minutes: 2
+        run: |
+          # Check if resource group exists, create if it doesn't
+          if ! az group show --name ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null; then
+            echo "Creating resource group..."
+            az group create \
+              --name ${{ env.AZURE_RESOURCE_GROUP }} \
+              --location ${{ env.LOCATION }} \
+              --output none
+          else
+            echo "Resource group already exists"
+          fi
 
-    - name: Register Required Resource Providers
-      timeout-minutes: 5
-      run: |
-        # Only register if not already registered
-        register_provider() {
-          local provider=$1
-          local status=$(az provider show --namespace $provider --query registrationState -o tsv 2>/dev/null || echo "NotRegistered")
-          if [ "$status" != "Registered" ]; then
-            echo "Registering $provider..."
-            az provider register --namespace $provider --wait || {
-              echo "Warning: Failed to register $provider, continuing..."
+      - name: Check if VM exists
+        id: vmcheck
+        run: |
+          echo "Checking if ${{ env.VM_NAME }} exists in resource group ${{ env.AZURE_RESOURCE_GROUP }}"
+          if az vm show --name ${{ env.VM_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "VM already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "VM does not exist - will be created"
+          fi
+
+      - name: Extract SSH public key from secret
+        id: sshkey
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
+          
+          # Write private key temporarily to extract public key
+          if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
+            echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
+          else
+            echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key
+          fi
+          chmod 600 ~/.ssh/temp_key
+          
+          # Convert key format if needed
+          KEY_START=$(head -c 20 ~/.ssh/temp_key | xxd -p | tr -d '\n')
+          if echo "$KEY_START" | grep -q "^3082"; then
+            # DER format - convert to PEM
+            openssl rsa -inform DER -in ~/.ssh/temp_key -outform PEM -out ~/.ssh/temp_key.pem 2>/dev/null && mv ~/.ssh/temp_key.pem ~/.ssh/temp_key || {
+              ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || true
             }
-          else
-            echo "$provider is already registered"
-          fi
-        }
-        
-        register_provider microsoft.operationalinsights
-        register_provider microsoft.devices
-        register_provider microsoft.storage
-        register_provider microsoft.web
-        register_provider microsoft.keyvault
-        register_provider microsoft.network
-
-    - name: Deploy Infrastructure (Bicep)
-      timeout-minutes: 20
-      run: |
-        # Extract SSH public key from private key for VM configuration
-        echo "Extracting SSH public key from private key..."
-        mkdir -p ~/.ssh
-        SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
-        # Write private key temporarily to extract public key
-        if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
-          echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
-        else
-          echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key
-        fi
-        chmod 600 ~/.ssh/temp_key
-        
-        # Convert key format if needed (similar to Setup SSH Key step)
-        KEY_START=$(head -c 20 ~/.ssh/temp_key | xxd -p | tr -d '\n')
-        if echo "$KEY_START" | grep -q "^3082"; then
-          # DER format - convert to PEM
-          openssl rsa -inform DER -in ~/.ssh/temp_key -outform PEM -out ~/.ssh/temp_key.pem 2>/dev/null && mv ~/.ssh/temp_key.pem ~/.ssh/temp_key || {
+          elif head -c 15 ~/.ssh/temp_key | grep -q "openssh-key-v1"; then
+            # OpenSSH format - convert to PEM
             ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || true
-          }
-        elif head -c 15 ~/.ssh/temp_key | grep -q "openssh-key-v1"; then
-          # OpenSSH format - convert to PEM
-          ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || true
-        fi
-        
-        # Extract public key
-        SSH_PUBLIC_KEY=$(ssh-keygen -y -f ~/.ssh/temp_key 2>/dev/null || echo "")
-        rm -f ~/.ssh/temp_key
-        
-        if [ -z "$SSH_PUBLIC_KEY" ]; then
-          echo "⚠️ Warning: Could not extract SSH public key from private key"
-          echo "VM will be created without SSH keys (password authentication only)"
-          SSH_PUBLIC_KEY=""
-        else
-          echo "✅ SSH public key extracted successfully"
-          echo "Public key preview: $(echo "$SSH_PUBLIC_KEY" | cut -d' ' -f1-2)..."
-        fi
-        
-        # Check if deployment already exists and succeeded
-        EXISTING_DEPLOYMENT=$(az deployment group show \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name main \
-          --query "properties.provisioningState" -o tsv 2>/dev/null || echo "")
-        
-        if [ "$EXISTING_DEPLOYMENT" = "Succeeded" ]; then
-          echo "✅ Infrastructure deployment already exists and succeeded"
-          echo "Verifying critical resources exist..."
-          
-          # Check if critical resources exist
-          VM_EXISTS=$(az vm show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-vm --query "name" -o tsv 2>/dev/null || echo "")
-          IOTHUB_EXISTS=$(az iot hub show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-iothub --query "name" -o tsv 2>/dev/null || echo "")
-          STORAGE_EXISTS=$(az storage account show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name swstagingstg --query "name" -o tsv 2>/dev/null || echo "")
-          
-          # Check if VM has SSH keys configured (critical for workflow)
-          VM_HAS_SSH_KEYS=false
-          if [ -n "$VM_EXISTS" ] && [ -n "$SSH_PUBLIC_KEY" ]; then
-            VM_SSH_KEYS=$(az vm show \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --name sw-staging-vm \
-              --query "osProfile.linuxConfiguration.ssh.publicKeys" -o json 2>/dev/null || echo "[]")
-            if [ "$VM_SSH_KEYS" != "[]" ] && [ "$VM_SSH_KEYS" != "null" ] && [ -n "$VM_SSH_KEYS" ]; then
-              VM_HAS_SSH_KEYS=true
-              echo "✅ VM has SSH keys configured"
-            else
-              echo "⚠️ VM exists but has no SSH keys configured"
-              echo "VM SSH keys: $VM_SSH_KEYS"
-            fi
           fi
           
-          if [ -n "$VM_EXISTS" ] && [ -n "$IOTHUB_EXISTS" ] && [ -n "$STORAGE_EXISTS" ]; then
-            if [ "$VM_HAS_SSH_KEYS" = "true" ] || [ -z "$SSH_PUBLIC_KEY" ]; then
-              echo "✅ All critical resources exist - skipping deployment"
-              exit 0
-            else
-              echo "⚠️ VM exists but missing SSH keys"
-              echo "Azure doesn't allow updating SSH keys via Bicep on existing VMs"
-              echo "Adding SSH key to existing VM using Azure CLI..."
-              
-              # Add SSH key to existing VM using az vm user update
-              # This works without VM agent dependency
-              if az vm user update \
-                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-                --name sw-staging-vm \
-                --username azureuser \
-                --ssh-key-value "$SSH_PUBLIC_KEY" 2>&1; then
-                echo "✅ SSH key added to existing VM successfully"
-                echo "Waiting 30 seconds for key to propagate..."
-                sleep 30
-                exit 0
-              else
-                echo "⚠️ Warning: Failed to add SSH key via az vm user update"
-                echo "This might require VM agent or the VM might need to be recreated"
-                echo "Proceeding with deployment anyway (VM will remain without SSH keys)"
-              fi
-            fi
+          # Extract public key
+          SSH_PUBLIC_KEY=$(ssh-keygen -y -f ~/.ssh/temp_key 2>/dev/null || echo "")
+          rm -f ~/.ssh/temp_key
+          
+          if [ -z "$SSH_PUBLIC_KEY" ]; then
+            echo "⚠️ Warning: Could not extract SSH public key from private key"
+            echo "VM will be created without SSH keys (password authentication only)"
+            echo "public_key=" >> $GITHUB_OUTPUT
           else
-            echo "⚠️ Some resources are missing - redeploying..."
-            echo "Missing: VM=$([ -z "$VM_EXISTS" ] && echo 'yes' || echo 'no'), IoT Hub=$([ -z "$IOTHUB_EXISTS" ] && echo 'yes' || echo 'no'), Storage=$([ -z "$STORAGE_EXISTS" ] && echo 'yes' || echo 'no')"
+            echo "✅ SSH public key extracted successfully"
+            echo "public_key=$SSH_PUBLIC_KEY" >> $GITHUB_OUTPUT
+            # Also save to file for later use
+            echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
+            cp ~/.ssh/temp_key ~/.ssh/id_rsa 2>/dev/null || true
           fi
-        elif [ "$EXISTING_DEPLOYMENT" = "InProgress" ] || [ "$EXISTING_DEPLOYMENT" = "Running" ]; then
-          echo "⚠️ Warning: Infrastructure deployment is already in progress"
-          echo "Waiting for existing deployment to complete (max 15 minutes)..."
-          if az deployment group wait \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name main \
-            --created \
-            --timeout 900; then
-            echo "✅ Existing deployment completed"
-            exit 0
-          else
-            echo "⚠️ Warning: Existing deployment wait timed out"
-            echo "Cancelling stuck deployment and starting fresh..."
-            az deployment group cancel \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --name main 2>/dev/null || true
-            sleep 10
-          fi
-        fi
-        
-        # Retry deployment up to 3 times (synchronous like the working version)
-        MAX_RETRIES=3
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          echo "Starting infrastructure deployment (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
           
-          # Build deployment command with SSH key if available
-          # Use --mode Incremental (default) to update existing resources (adds SSH keys to existing VM)
+          # Save private key for SSH connection
+          if [ -n "$SSH_KEY" ]; then
+            if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
+              echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/id_rsa
+            else
+              echo "$SSH_KEY" | base64 -d > ~/.ssh/id_rsa
+            fi
+            chmod 600 ~/.ssh/id_rsa
+          fi
+
+      - name: Deploy Infrastructure via Bicep
+        id: deploy
+        timeout-minutes: 20
+        run: |
+          set -e
           DEPLOY_CMD="az deployment group create \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --template-file infrastructure/bicep/main.bicep \
-            --parameters @infrastructure/bicep/params.staging.json \
+            --name main \
+            --template-file ${{ env.TEMPLATE_FILE }} \
+            --parameters @${{ env.PARAM_FILE }} \
             --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\" \
             --mode Incremental"
-          
-          if [ -n "$SSH_PUBLIC_KEY" ]; then
-            DEPLOY_CMD="$DEPLOY_CMD --parameters vmSshPublicKey=\"$SSH_PUBLIC_KEY\""
-            echo "SSH public key will be added to VM during deployment"
+
+          # Only pass SSH key if VM doesn't already exist
+          if [ "${{ steps.vmcheck.outputs.exists }}" = "false" ] && [ -n "${{ steps.sshkey.outputs.public_key }}" ]; then
+            echo "VM not found. Injecting SSH key for initial creation."
+            DEPLOY_CMD="$DEPLOY_CMD --parameters vmSshPublicKey=\"${{ steps.sshkey.outputs.public_key }}\""
           else
-            echo "⚠️ Warning: No SSH public key available - VM will be created/updated without SSH keys"
-          fi
-          
-          DEPLOY_CMD="$DEPLOY_CMD --name main"
-          
-          if eval "$DEPLOY_CMD"; then
-            echo "✅ Infrastructure deployed successfully"
-            
-            # If VM exists and we have SSH key but VM doesn't have it, add it now
-            # Azure doesn't allow updating SSH keys via Bicep on existing VMs
-            if [ -n "$SSH_PUBLIC_KEY" ]; then
-              VM_SSH_KEYS_AFTER=$(az vm show \
-                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-                --name sw-staging-vm \
-                --query "osProfile.linuxConfiguration.ssh.publicKeys" -o json 2>/dev/null || echo "[]")
-              
-              if [ "$VM_SSH_KEYS_AFTER" = "[]" ] || [ "$VM_SSH_KEYS_AFTER" = "null" ] || [ -z "$VM_SSH_KEYS_AFTER" ]; then
-                echo "VM still has no SSH keys - adding via Azure CLI..."
-                if az vm user update \
-                  --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-                  --name sw-staging-vm \
-                  --username azureuser \
-                  --ssh-key-value "$SSH_PUBLIC_KEY" 2>&1; then
-                  echo "✅ SSH key added to VM successfully"
-                  echo "Waiting 30 seconds for key to propagate..."
-                  sleep 30
-                else
-                  echo "⚠️ Warning: Failed to add SSH key to existing VM"
-                  echo "You may need to manually add the SSH key or recreate the VM"
-                fi
-              else
-                echo "✅ VM has SSH keys configured"
-              fi
-            fi
-            
-            exit 0
-          else
-            DEPLOYMENT_ERROR=$?
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Deployment failed (exit code: $DEPLOYMENT_ERROR), retrying ($RETRY_COUNT/$MAX_RETRIES)..."
-              # Check what failed
-              DEPLOYMENT_STATUS=$(az deployment group show \
-                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-                --name main \
-                --query "properties.provisioningState" -o tsv 2>/dev/null || echo "unknown")
-              echo "Deployment status: $DEPLOYMENT_STATUS"
-              sleep $((RETRY_COUNT * 10))
+            if [ "${{ steps.vmcheck.outputs.exists }}" = "true" ]; then
+              echo "VM already exists. Skipping vmSshPublicKey parameter (Azure doesn't allow updating SSH keys via Bicep)."
             else
-              echo "❌ Error: Infrastructure deployment failed after $MAX_RETRIES attempts"
-              echo "Checking final deployment status and errors..."
-              az deployment group show \
-                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-                --name main \
-                --query "{state:properties.provisioningState,error:properties.error}" -o json || true
-              exit 1
+              echo "No SSH public key available. VM will be created without SSH keys."
             fi
           fi
-        done
 
-    - name: Get VM Public IP
-      id: get-vm-ip
-      timeout-minutes: 2
-      run: |
-        VM_IP=$(az vm show -d \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name sw-staging-vm \
-          --query publicIps -o tsv)
-        if [ -z "$VM_IP" ]; then
-          echo "Error: Failed to get VM public IP"
-          exit 1
-        fi
-        echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
-        echo "VM Public IP: $VM_IP"
+          echo "Running deployment command..."
+          eval "$DEPLOY_CMD"
 
-    - name: Wait for VM Readiness
-      timeout-minutes: 5
-      run: |
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        MAX_WAIT=300  # 5 minutes
-        WAIT_INTERVAL=10
-        ELAPSED=0
-        
-        echo "Waiting for VM to be ready..."
-        
-        # Wait for VM to be in running state
-        echo "Checking VM power state..."
-        while [ $ELAPSED -lt $MAX_WAIT ]; do
-          VM_STATE=$(az vm show -d \
+      - name: Retrieve VM Public IP
+        id: get_ip
+        run: |
+          VM_IP=$(az network public-ip show \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name sw-staging-vm \
-            --query powerState -o tsv 2>/dev/null || echo "unknown")
-          
-          if [ "$VM_STATE" = "VM running" ]; then
-            echo "VM is in running state"
-            break
-          else
-            echo "VM state: $VM_STATE (waiting...)"
-            sleep $WAIT_INTERVAL
-            ELAPSED=$((ELAPSED + WAIT_INTERVAL))
-          fi
-        done
-        
-        if [ "$VM_STATE" != "VM running" ]; then
-          echo "Error: VM did not reach running state within timeout"
-          exit 1
-        fi
-        
-        # Check VM agent status (non-blocking - warning only, never fails)
-        echo "Checking VM agent status (non-blocking)..."
-        ELAPSED=0
-        AGENT_READY=false
-        AGENT_MAX_WAIT=60  # 1 minute max for agent check
-        while [ $ELAPSED -lt $AGENT_MAX_WAIT ]; do
-          AGENT_STATUS=$(az vm show -d \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name sw-staging-vm \
-            --query "instanceView.vmAgent.statuses[?code=='ProvisioningState/succeeded']" -o tsv 2>/dev/null || echo "")
-          
-          if [ -n "$AGENT_STATUS" ] && echo "$AGENT_STATUS" | grep -q "succeeded"; then
-            echo "✅ VM agent is ready"
-            AGENT_READY=true
-            break
-          else
-            sleep $WAIT_INTERVAL
-            ELAPSED=$((ELAPSED + WAIT_INTERVAL))
-          fi
-        done
-        
-        if [ "$AGENT_READY" != "true" ]; then
-          echo "⚠️ Warning: VM agent did not become ready within ${AGENT_MAX_WAIT}s"
-          echo "   This is non-critical - workflow does not depend on VM agent"
-          echo "   Proceeding with SSH check (SSH keys must be pre-configured)..."
-        fi
-        
-        # Wait for SSH port 22 to be accessible
-        echo "Checking SSH port 22 accessibility..."
-        ELAPSED=0
-        SSH_READY=false
-        while [ $ELAPSED -lt $MAX_WAIT ]; do
-          if timeout 5 bash -c "echo > /dev/tcp/$VM_IP/22" 2>/dev/null; then
-            echo "SSH port 22 is accessible"
-            SSH_READY=true
-            break
-          else
-            echo "SSH port 22 not accessible yet (waiting...)"
-            sleep $WAIT_INTERVAL
-            ELAPSED=$((ELAPSED + WAIT_INTERVAL))
-          fi
-        done
-        
-        if [ "$SSH_READY" != "true" ]; then
-          echo "Error: SSH port 22 did not become accessible within timeout"
+            --name ${{ env.PUBLIC_IP_NAME }} \
+            --query "ipAddress" -o tsv)
+          echo "VM_IP=$VM_IP" >> $GITHUB_ENV
           echo "VM IP: $VM_IP"
-          echo "VM State: $VM_STATE"
-          exit 1
-        fi
-        
-        # Additional wait for SSH service to be fully ready
-        echo "Waiting for SSH service to be fully ready..."
-        sleep 15
-        
-        echo "VM is ready for SSH connections"
 
-    - name: Setup SSH Key
-      timeout-minutes: 5
-      run: |
-        mkdir -p ~/.ssh
-        # Write SSH private key - decode from base64 if needed
-        SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
-        # Check if key starts with BEGIN marker (plain text PEM format)
-        if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
-          # Key is already in plain text PEM format
-          echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/id_rsa
-        else
-          # Key appears to be base64 encoded - decode it
-          echo "$SSH_KEY" | base64 -d > ~/.ssh/id_rsa
-        fi
-        chmod 600 ~/.ssh/id_rsa
-        # Check key format and convert to PEM if needed
-        KEY_START=$(head -c 20 ~/.ssh/id_rsa | xxd -p | tr -d '\n')
-        # Check if key is in DER format (starts with 30 82 - ASN.1 SEQUENCE)
-        if echo "$KEY_START" | grep -q "^3082"; then
-          echo "Key is in DER format - converting to PEM format"
-          # Convert DER to PEM using openssl
-          openssl rsa -inform DER -in ~/.ssh/id_rsa -outform PEM -out ~/.ssh/id_rsa.pem 2>/dev/null && mv ~/.ssh/id_rsa.pem ~/.ssh/id_rsa || {
-            echo "Warning: Could not convert DER key to PEM format, trying ssh-keygen"
-            # Try using ssh-keygen to convert
-            cp ~/.ssh/id_rsa ~/.ssh/id_rsa.der
-            ssh-keygen -p -N "" -m PEM -f ~/.ssh/id_rsa.der > /dev/null 2>&1 && mv ~/.ssh/id_rsa.der ~/.ssh/id_rsa || {
-              echo "Error: Could not convert DER key to PEM format"
-              exit 1
-            }
-          }
-        elif head -c 15 ~/.ssh/id_rsa | grep -q "openssh-key-v1"; then
-          echo "Key is in OpenSSH format - converting to PEM format"
-          # Convert OpenSSH format to PEM format (no passphrase change, just format conversion)
-          ssh-keygen -p -N "" -m PEM -f ~/.ssh/id_rsa > /dev/null 2>&1 || {
-            echo "Warning: Could not convert OpenSSH key to PEM format, trying to use as-is"
-          }
-        fi
-        # Verify key can be read by ssh-keygen
-        if ! ssh-keygen -l -f ~/.ssh/id_rsa > /dev/null 2>&1; then
-          # Try extracting public key as alternative validation
-          if ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub 2>/dev/null; then
-            echo "SSH key validated by extracting public key"
+      - name: Update VM SSH key (if VM already existed)
+        if: steps.vmcheck.outputs.exists == 'true' && steps.sshkey.outputs.public_key != ''
+        run: |
+          echo "Updating VM authorized_keys using Azure CLI..."
+          if az vm user update \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.VM_NAME }} \
+            --username ${{ env.VM_ADMIN_USERNAME }} \
+            --ssh-key-value "${{ steps.sshkey.outputs.public_key }}" 2>&1; then
+            echo "✅ SSH key updated successfully"
+            echo "Waiting 30 seconds for key to propagate..."
+            sleep 30
           else
-            echo "Error: SSH key cannot be read by ssh-keygen"
-            echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
-            echo "Number of lines: $(wc -l < ~/.ssh/id_rsa)"
-            echo "First 50 characters (hex):"
-            head -c 50 ~/.ssh/id_rsa | xxd | head -n 3
+            echo "⚠️ Warning: Failed to update SSH key via Azure CLI"
+            echo "You may need to manually add the SSH key or recreate the VM"
+          fi
+
+      - name: Verify SSH Connection
+        timeout-minutes: 5
+        run: |
+          set -e
+          MAX_RETRIES=5
+          RETRY_DELAY=15
+          COUNT=0
+
+          echo "Verifying SSH connection to ${{ env.VM_IP }}..."
+          
+          # Add VM to known_hosts (non-blocking)
+          ssh-keyscan -H ${{ env.VM_IP }} >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
+
+          until ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=10 \
+            -o BatchMode=yes \
+            ${{ env.VM_ADMIN_USERNAME }}@${{ env.VM_IP }} 'echo "SSH connection successful"' 2>/dev/null \
+            || [ $COUNT -eq $MAX_RETRIES ]; do
+              echo "Attempt $((COUNT + 1)) of $MAX_RETRIES failed. Retrying in $RETRY_DELAY seconds..."
+              COUNT=$((COUNT + 1))
+              sleep $RETRY_DELAY
+          done
+
+          if [ $COUNT -eq $MAX_RETRIES ]; then
+            echo "❌ SSH connection verification failed after $MAX_RETRIES attempts."
+            echo "VM IP: ${{ env.VM_IP }}"
+            echo "VM State: $(az vm show -d --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.VM_NAME }} --query powerState -o tsv 2>/dev/null || echo 'unknown')"
+            echo ""
+            echo "The SSH key should be configured on the VM."
+            echo "If this error persists, check that the SSH key was added correctly."
             exit 1
           fi
-        else
-          echo "SSH key validated successfully"
-          # Extract public key
-          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
-        fi
-        # Add VM to known_hosts (non-blocking)
-        ssh-keyscan -H ${{ steps.get-vm-ip.outputs.vm_ip }} >> ~/.ssh/known_hosts 2>&1 || echo "Note: Could not add VM to known_hosts (will continue)"
-        
-        # Test direct SSH connection (VM should have SSH keys configured during creation)
-        echo "Testing direct SSH connection..."
-        echo "Note: VM should have SSH keys configured during Bicep deployment"
-        SSH_CONNECTED=false
-        MAX_RETRIES=5
-        RETRY_COUNT=0
-        
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if ssh -o StrictHostKeyChecking=no \
-               -o UserKnownHostsFile=/dev/null \
-               -o ConnectTimeout=10 \
-               -o BatchMode=yes \
-               -i ~/.ssh/id_rsa \
-               azureuser@${{ steps.get-vm-ip.outputs.vm_ip }} \
-               "echo 'SSH connection successful'" 2>/dev/null; then
-            echo "✅ SSH connection works - key is pre-configured"
-            SSH_CONNECTED=true
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "SSH connection failed, retrying ($RETRY_COUNT/$MAX_RETRIES)..."
-              sleep 10
-            fi
-          fi
-        done
-        
-        if [ "$SSH_CONNECTED" != "true" ]; then
-          echo "❌ Error: SSH connection verification failed after $MAX_RETRIES attempts"
-          echo "VM IP: ${{ steps.get-vm-ip.outputs.vm_ip }}"
-          echo "VM State: $(az vm show -d --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-vm --query powerState -o tsv 2>/dev/null || echo 'unknown')"
-          echo ""
-          echo "The SSH key should have been configured during VM creation via Bicep template."
-          echo "If this error persists, check that the SSH public key was passed to the Bicep deployment."
-          echo "You can verify SSH keys on the VM with: az vm show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name sw-staging-vm --query 'osProfile.linuxConfiguration.ssh.publicKeys' -o json"
-          exit 1
-        fi
+          
+          echo "✅ SSH connection verified successfully!"
 
-    - name: Copy Repository to VM
-      timeout-minutes: 5
-      run: |
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        MAX_RETRIES=5
-        RETRY_COUNT=0
-        
-        # Create tarball of repository
-        echo "Creating repository tarball..."
-        tar czf /tmp/smartwatts.tar.gz --exclude='.git' --exclude='node_modules' --exclude='.next' . || {
-          echo "Error: Failed to create repository tarball"
-          exit 1
-        }
-        
-        # Copy repository to VM with retry logic
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          echo "Copying repository to VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-          if scp -o StrictHostKeyChecking=no \
-               -o UserKnownHostsFile=/dev/null \
-               -o ConnectTimeout=15 \
-               -i ~/.ssh/id_rsa \
-               /tmp/smartwatts.tar.gz \
-               azureuser@$VM_IP:/tmp/ 2>&1; then
-            echo "Repository copied successfully"
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Copy failed, retrying in $((RETRY_COUNT * 5)) seconds..."
-              sleep $((RETRY_COUNT * 5))
+      - name: Copy Repository to VM
+        timeout-minutes: 5
+        run: |
+          VM_IP="${{ env.VM_IP }}"
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Copying repository to VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+            if scp -o StrictHostKeyChecking=no \
+                   -o UserKnownHostsFile=/dev/null \
+                   -o ConnectTimeout=15 \
+                   -i ~/.ssh/id_rsa \
+                   -r ./* azureuser@$VM_IP:/tmp/smartwatts.tar.gz; then
+              echo "Repository copied successfully"
+              break
             else
-              echo "Error: Failed to copy repository after $MAX_RETRIES attempts"
-              exit 1
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Copy failed, retrying in $((RETRY_COUNT * 5)) seconds..."
+                sleep $((RETRY_COUNT * 5))
+              else
+                echo "Error: Failed to copy repository after $MAX_RETRIES attempts"
+                exit 1
+              fi
             fi
-          fi
-        done
-        
-        # Extract repository on VM with retry logic
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          echo "Extracting repository on VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-          EXTRACT_SCRIPT=$(printf 'cd /home/azureuser\nif [ -d "smartwatts" ]; then\n  rm -rf smartwatts\nfi\nmkdir -p smartwatts\ncd smartwatts\ntar xzf /tmp/smartwatts.tar.gz\nrm /tmp/smartwatts.tar.gz\necho "Repository extracted successfully"')
-          if ssh -o StrictHostKeyChecking=no \
-               -o UserKnownHostsFile=/dev/null \
-               -o ConnectTimeout=15 \
-               -i ~/.ssh/id_rsa \
-               azureuser@$VM_IP "$EXTRACT_SCRIPT"; then
-            echo "Repository extracted successfully"
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Extraction failed, retrying in $((RETRY_COUNT * 5)) seconds..."
-              sleep $((RETRY_COUNT * 5))
+          done
+
+      - name: Extract repository on VM
+        timeout-minutes: 5
+        run: |
+          VM_IP="${{ env.VM_IP }}"
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Extracting repository on VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+            EXTRACT_SCRIPT=$(printf 'cd /home/azureuser\nif [ -d "smartwatts" ]; then\n  rm -rf smartwatts\nfi\nmkdir -p smartwatts\ncd smartwatts\ntar xzf /tmp/smartwatts.tar.gz\nrm /tmp/smartwatts.tar.gz\necho "Repository extracted successfully"')
+            if ssh -o StrictHostKeyChecking=no \
+                 -o UserKnownHostsFile=/dev/null \
+                 -o ConnectTimeout=15 \
+                 -i ~/.ssh/id_rsa \
+                 azureuser@$VM_IP "$EXTRACT_SCRIPT"; then
+              echo "Repository extracted successfully"
+              break
             else
-              echo "Error: Failed to extract repository after $MAX_RETRIES attempts"
-              exit 1
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Extraction failed, retrying in $((RETRY_COUNT * 5)) seconds..."
+                sleep $((RETRY_COUNT * 5))
+              else
+                echo "Error: Failed to extract repository after $MAX_RETRIES attempts"
+                exit 1
+              fi
             fi
-          fi
-        done
+          done
 
-    - name: Deploy Application to VM
-      timeout-minutes: 30
-      run: |
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        MAX_RETRIES=3
-        RETRY_COUNT=0
-        
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          echo "Deploying application to VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-          DEPLOY_SCRIPT=$(printf '%s\n' \
-            'if ! command -v docker &> /dev/null; then' \
-            '  echo "Installing Docker...";' \
-            '  sudo apt-get update -qq;' \
-            '  sudo apt-get install -y -qq ca-certificates curl gnupg lsb-release || true;' \
-            '  sudo mkdir -p /etc/apt/keyrings;' \
-            '  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg;' \
-            '  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null;' \
-            '  sudo apt-get update -qq;' \
-            '  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {' \
-            '    echo "Docker CE installation failed, trying docker.io...";' \
-            '    sudo apt-get install -y -qq docker.io docker-compose || { echo "Error: Docker installation failed"; exit 1; };' \
-            '  };' \
-            '  if ! command -v docker &> /dev/null; then' \
-            '    echo "Error: Docker installation failed - docker command not found";' \
-            '    exit 1;' \
-            '  fi;' \
-            '  if getent group docker > /dev/null 2>&1; then sudo usermod -aG docker $USER; fi;' \
-            '  echo "Docker installed successfully";' \
-            'fi;' \
-            'if systemctl list-unit-files | grep -q docker.service; then' \
-            '  sudo systemctl start docker || true;' \
-            '  sudo systemctl enable docker || true;' \
-            'else' \
-            '  if ! sudo docker info > /dev/null 2>&1; then' \
-            '    echo "Warning: Docker service not found, but Docker may still work";' \
-            '    sudo dockerd > /dev/null 2>&1 &' \
-            '    sleep 5;' \
-            '  fi;' \
-            'fi;' \
-            'if ! sudo docker info > /dev/null 2>&1; then' \
-            '  echo "Error: Docker daemon is not running";' \
-            '  exit 1;' \
-            'fi;' \
-            'echo "Docker is installed and running";' \
-            'if ! command -v docker-compose &> /dev/null && ! (command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1); then' \
-            '  sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose;' \
-            '  sudo chmod +x /usr/local/bin/docker-compose;' \
-            'fi;' \
-            'cd /home/azureuser/smartwatts;' \
-            'echo "Verifying Gradle wrapper files exist...";' \
-            'MISSING_FILES=0;' \
-            'for service_dir in backend/*-service backend/*-gateway backend/service-discovery; do' \
-            '  if [ -d "$service_dir" ]; then' \
-            '    if [ ! -f "$service_dir/gradle/wrapper/gradle-wrapper.jar" ]; then' \
-            '      echo "ERROR: Missing gradle-wrapper.jar in $service_dir";' \
-            '      MISSING_FILES=$((MISSING_FILES + 1));' \
-            '    else' \
-            '      echo "✓ Found gradle-wrapper.jar in $service_dir";' \
-            '    fi;' \
-            '  fi;' \
-            'done;' \
-            'if [ $MISSING_FILES -gt 0 ]; then' \
-            '  echo "ERROR: $MISSING_FILES service(s) missing gradle-wrapper.jar files";' \
-            '  echo "Listing backend directory structure:";' \
-            '  find backend -name "gradle-wrapper.jar" -type f || echo "No gradle-wrapper.jar files found";' \
-            '  exit 1;' \
-            'fi;' \
-            'echo "All Gradle wrapper files verified successfully";' \
-            'cd azure-deployment;' \
-            'sudo docker-compose -f docker-compose.azure.yml up -d --build;' \
-            'echo "Application deployed successfully"')
-          if ssh -o StrictHostKeyChecking=no \
-               -o UserKnownHostsFile=/dev/null \
-               -o ConnectTimeout=15 \
-               -i ~/.ssh/id_rsa \
-               azureuser@$VM_IP "$DEPLOY_SCRIPT"; then
-            echo "Application deployed successfully"
-            break
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Deployment failed, retrying in $((RETRY_COUNT * 10)) seconds..."
-              sleep $((RETRY_COUNT * 10))
+      - name: Deploy Application to VM
+        timeout-minutes: 30
+        run: |
+          VM_IP="${{ env.VM_IP }}"
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Deploying application to VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+            DEPLOY_SCRIPT=$(printf '%s\n' \
+              'if ! command -v docker &> /dev/null; then' \
+              '  echo "Installing Docker...";' \
+              '  sudo apt-get update -qq;' \
+              '  sudo apt-get install -y -qq ca-certificates curl gnupg lsb-release || true;' \
+              '  sudo mkdir -p /etc/apt/keyrings;' \
+              '  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg;' \
+              '  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null;' \
+              '  sudo apt-get update -qq;' \
+              '  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {' \
+              '    echo "Docker CE installation failed, trying docker.io...";' \
+              '    sudo apt-get install -y -qq docker.io docker-compose || { echo "Error: Docker installation failed"; exit 1; };' \
+              '  };' \
+              '  if ! command -v docker &> /dev/null; then' \
+              '    echo "Error: Docker installation failed - docker command not found";' \
+              '    exit 1;' \
+              '  fi;' \
+              '  if getent group docker > /dev/null 2>&1; then sudo usermod -aG docker $USER; fi;' \
+              '  echo "Docker installed successfully";' \
+              'fi;' \
+              'if systemctl list-unit-files | grep -q docker.service; then' \
+              '  sudo systemctl start docker || true;' \
+              '  sudo systemctl enable docker || true;' \
+              'else' \
+              '  if ! sudo docker info > /dev/null 2>&1; then' \
+              '    echo "Warning: Docker service not found, but Docker may still work";' \
+              '    sudo dockerd > /dev/null 2>&1 &;' \
+              '    sleep 5;' \
+              '  fi;' \
+              'fi;' \
+              'if ! sudo docker info > /dev/null 2>&1; then' \
+              '  echo "Error: Docker daemon is not running";' \
+              '  exit 1;' \
+              'fi;' \
+              'echo "Docker is installed and running";' \
+              'if ! command -v docker-compose &> /dev/null && ! (command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1); then' \
+              '  sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose;' \
+              '  sudo chmod +x /usr/local/bin/docker-compose;' \
+              'fi;' \
+              'cd /home/azureuser/smartwatts;' \
+              'echo "Verifying Gradle wrapper files exist...";' \
+              'MISSING_FILES=0;' \
+              'for service_dir in backend/*-service backend/*-gateway backend/service-discovery; do' \
+              '  if [ -d "$service_dir" ]; then' \
+              '    if [ ! -f "$service_dir/gradle/wrapper/gradle-wrapper.jar" ]; then' \
+              '      echo "ERROR: Missing gradle-wrapper.jar in $service_dir";' \
+              '      MISSING_FILES=$((MISSING_FILES + 1));' \
+              '    else' \
+              '      echo "✓ Found gradle-wrapper.jar in $service_dir";' \
+              '    fi;' \
+              '  fi;' \
+              'done;' \
+              'if [ $MISSING_FILES -gt 0 ]; then' \
+              '  echo "ERROR: $MISSING_FILES service(s) missing gradle-wrapper.jar files";' \
+              '  echo "Listing backend directory structure:";' \
+              '  find backend -name "gradle-wrapper.jar" -type f || echo "No gradle-wrapper.jar files found";' \
+              '  exit 1;' \
+              'fi;' \
+              'echo "All Gradle wrapper files verified successfully";' \
+              'cd azure-deployment;' \
+              'sudo docker-compose -f docker-compose.azure.yml up -d --build;' \
+              'echo "Application deployed successfully"')
+            if ssh -o StrictHostKeyChecking=no \
+                 -o UserKnownHostsFile=/dev/null \
+                 -o ConnectTimeout=15 \
+                 -i ~/.ssh/id_rsa \
+                 azureuser@$VM_IP "$DEPLOY_SCRIPT"; then
+              echo "Application deployed successfully"
+              break
             else
-              echo "Error: Failed to deploy application after $MAX_RETRIES attempts"
-              exit 1
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Deployment failed, retrying in $((RETRY_COUNT * 10)) seconds..."
+                sleep $((RETRY_COUNT * 10))
+              else
+                echo "Error: Failed to deploy application after $MAX_RETRIES attempts"
+                exit 1
+              fi
             fi
-          fi
-        done
+          done
 
-    - name: Deploy Frontend to Static Web Apps
-      timeout-minutes: 10
-      continue-on-error: true
-      uses: Azure/static-web-apps-deploy@v1
-      with:
-        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        action: "upload"
-        app_location: "frontend"
-        output_location: ".next"
-        skip_app_build: false
-        skip_api_build: true
+      - name: Deploy Frontend to Static Web Apps
+        timeout-minutes: 10
+        continue-on-error: true
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "frontend"
+          output_location: ".next"
+          skip_app_build: false
+          skip_api_build: true
 
-    - name: Get Deployment Outputs
-      run: |
-        echo "VM Public IP: ${{ steps.get-vm-ip.outputs.vm_ip }}"
-        echo "Static Web App URL: $(az staticwebapp show \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --name sw-staging-dashboard \
-          --query defaultHostname -o tsv)"
+      - name: Get Deployment Outputs
+        run: |
+          echo "VM Public IP: ${{ env.VM_IP }}"
+          echo "Static Web App URL: $(az staticwebapp show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name sw-staging-dashboard \
+            --query defaultHostname -o tsv 2>/dev/null || echo 'Not available')"
 
-    - name: Health Check
-      timeout-minutes: 5
-      run: |
-        VM_IP="${{ steps.get-vm-ip.outputs.vm_ip }}"
-        MAX_RETRIES=10
-        RETRY_COUNT=0
-        WAIT_INTERVAL=10
-        
-        echo "Waiting for services to start and checking health..."
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if curl -f -s --max-time 5 http://$VM_IP:8080/actuator/health > /dev/null 2>&1; then
-            echo "Health check passed"
-            exit 0
-          else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-              echo "Health check failed, retrying ($RETRY_COUNT/$MAX_RETRIES)..."
-              sleep $WAIT_INTERVAL
+      - name: Health Check
+        timeout-minutes: 5
+        run: |
+          VM_IP="${{ env.VM_IP }}"
+          MAX_RETRIES=10
+          RETRY_COUNT=0
+          WAIT_INTERVAL=10
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Performing health check (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$VM_IP:8080/api/v1/health || echo "000")
+            
+            if [ "$HEALTH_STATUS" = "200" ]; then
+              echo "✅ Backend API is healthy (HTTP 200)"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Health check failed (HTTP $HEALTH_STATUS), retrying in $WAIT_INTERVAL seconds..."
+                sleep $WAIT_INTERVAL
+              else
+                echo "❌ Error: Backend API health check failed after $MAX_RETRIES attempts (HTTP $HEALTH_STATUS)"
+                exit 1
+              fi
             fi
-          fi
-        done
-        
-        echo "Error: Health check failed after $MAX_RETRIES attempts"
-        exit 1
+          done
+          
+          echo "All health checks passed."
 
+      - name: Post-Deployment Summary
+        run: |
+          echo "✅ Deployment completed."
+          echo "VM IP: ${{ env.VM_IP }}"
+          echo "Resource Group: ${{ env.AZURE_RESOURCE_GROUP }}"
+          echo "Deployment Name: main"
