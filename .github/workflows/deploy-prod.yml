@@ -321,18 +321,18 @@ EOF
             SSH_KEY_ADDED=true
           else
             echo "sshpass not available, using expect script..."
-            # Create expect script
-            cat > /tmp/add_ssh_key.exp << 'EXPSCRIPT'
+            # Create expect script with proper variable substitution
+            cat > /tmp/add_ssh_key.exp << EXPSCRIPT
               set timeout 30
-              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP)
+              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP}
               expect {
                 "password:" {
-                  send "$env(VM_PASSWORD)\r"
+                  send "${VM_PASSWORD}\r"
                   expect {
                     "$ " {
                       send "mkdir -p ~/.ssh && chmod 700 ~/.ssh\r"
                       expect "$ "
-                      send "if ! grep -q \"$env(PUBLIC_KEY)\" ~/.ssh/authorized_keys 2>/dev/null; then echo \"$env(PUBLIC_KEY)\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo \"SSH key added successfully\"; else echo \"SSH key already exists\"; fi\r"
+                      send "if ! grep -q \"${PUBLIC_KEY}\" ~/.ssh/authorized_keys 2>/dev/null; then echo \"${PUBLIC_KEY}\" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && echo \"SSH key added successfully\"; else echo \"SSH key already exists\"; fi\r"
                       expect "$ "
                       send "exit\r"
                       expect eof
@@ -349,9 +349,6 @@ EOF
                 }
               }
 EXPSCRIPT
-            export VM_IP
-            export VM_PASSWORD
-            export PUBLIC_KEY
             if expect /tmp/add_ssh_key.exp 2>&1; then
               SSH_KEY_ADDED=true
               echo "SSH key added successfully via expect script"
@@ -405,12 +402,12 @@ EXPSCRIPT
               SSH_EXIT_CODE=$?
             else
               # Use expect as fallback
-              cat > /tmp/test_ssh.exp << 'EXPSCRIPT'
+              cat > /tmp/test_ssh.exp << EXPSCRIPT
                 set timeout 20
-                spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP) "echo 'SSH connection successful'"
+                spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP} "echo 'SSH connection successful'"
                 expect {
                   "password:" {
-                    send "$env(VM_PASSWORD)\r"
+                    send "${VM_PASSWORD}\r"
                     expect {
                       "SSH connection successful" {
                         exit 0
@@ -425,8 +422,6 @@ EXPSCRIPT
                   }
                 }
 EXPSCRIPT
-              export VM_IP
-              export VM_PASSWORD
               expect /tmp/test_ssh.exp 2>&1
               SSH_EXIT_CODE=$?
             fi
@@ -475,12 +470,12 @@ EXPSCRIPT
               fi
             else
               # Use expect for SCP
-              cat > /tmp/scp_repo.exp << 'EXPSCRIPT'
+              cat > /tmp/scp_repo.exp << EXPSCRIPT
                 set timeout 60
-                spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/smartwatts.tar.gz azureuser@$env(VM_IP):/tmp/
+                spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/smartwatts.tar.gz azureuser@${VM_IP}:/tmp/
                 expect {
                   "password:" {
-                    send "$env(VM_PASSWORD)\r"
+                    send "${VM_PASSWORD}\r"
                     expect {
                       eof { exit 0 }
                       timeout { exit 1 }
@@ -489,8 +484,6 @@ EXPSCRIPT
                   timeout { exit 1 }
                 }
 EXPSCRIPT
-              export VM_IP
-              export VM_PASSWORD
               if expect /tmp/scp_repo.exp 2>&1; then
                 echo "Repository copied successfully using password authentication"
                 break
@@ -530,12 +523,12 @@ EXPSCRIPT
 EOF
           else
             # Use expect for SSH
-            cat > /tmp/extract_repo.exp << 'EXPSCRIPT'
+            cat > /tmp/extract_repo.exp << EXPSCRIPT
               set timeout 120
-              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP)
+              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP}
               expect {
                 "password:" {
-                  send "$env(VM_PASSWORD)\r"
+                  send "${VM_PASSWORD}\r"
                   expect "$ "
                   send "cd /home/azureuser && if [ -d \"smartwatts\" ]; then rm -rf smartwatts; fi && mkdir -p smartwatts && cd smartwatts && tar xzf /tmp/smartwatts.tar.gz && rm /tmp/smartwatts.tar.gz && echo \"Repository extracted successfully\"\r"
                   expect "$ "
@@ -545,8 +538,6 @@ EOF
                 timeout { exit 1 }
               }
 EXPSCRIPT
-            export VM_IP
-            export VM_PASSWORD
             expect /tmp/extract_repo.exp 2>&1
           fi
         else
@@ -785,12 +776,12 @@ DEPLOYSCRIPT
             sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$VM_IP "bash /tmp/deploy_script.sh"
           else
             # Use expect for SCP and SSH
-            cat > /tmp/scp_deploy.exp << 'EXPSCRIPT'
+            cat > /tmp/scp_deploy.exp << EXPSCRIPT
               set timeout 60
-              spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/deploy_script.sh azureuser@$env(VM_IP):/tmp/
+              spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 /tmp/deploy_script.sh azureuser@${VM_IP}:/tmp/
               expect {
                 "password:" {
-                  send "$env(VM_PASSWORD)\r"
+                  send "${VM_PASSWORD}\r"
                   expect {
                     eof { exit 0 }
                     timeout { exit 1 }
@@ -799,16 +790,14 @@ DEPLOYSCRIPT
                 timeout { exit 1 }
               }
 EXPSCRIPT
-            export VM_IP
-            export VM_PASSWORD
             expect /tmp/scp_deploy.exp 2>&1
             
-            cat > /tmp/exec_deploy.exp << 'EXPSCRIPT'
+            cat > /tmp/exec_deploy.exp << EXPSCRIPT
               set timeout 1800
-              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@$env(VM_IP) "bash /tmp/deploy_script.sh"
+              spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15 azureuser@${VM_IP} "bash /tmp/deploy_script.sh"
               expect {
                 "password:" {
-                  send "$env(VM_PASSWORD)\r"
+                  send "${VM_PASSWORD}\r"
                   expect {
                     eof { exit 0 }
                     timeout { exit 1 }
@@ -817,8 +806,6 @@ EXPSCRIPT
                 timeout { exit 1 }
               }
 EXPSCRIPT
-            export VM_IP
-            export VM_PASSWORD
             expect /tmp/exec_deploy.exp 2>&1
           fi
         else
