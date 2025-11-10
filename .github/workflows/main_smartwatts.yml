@@ -110,6 +110,5 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'SmartWatts'
-          slot-name: 'Staging'
           package: ${{ env.PACKAGE_PATH }}
           

@@ -238,7 +238,7 @@ class PWAManager implements PWAUtils {
       const syncManager = (registration as any).sync;
       if (syncManager) {
         await syncManager.register(tag);
-        console.log(`[PWA] Background sync registered: ${tag}`);
+      console.log(`[PWA] Background sync registered: ${tag}`);
       } else {
         console.warn('[PWA] Background sync not available');
       }
