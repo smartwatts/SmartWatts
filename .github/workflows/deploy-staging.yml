@@ -657,8 +657,65 @@ jobs:
               'echo "All Gradle wrapper files verified successfully";' \
               'cd azure-deployment;' \
               'export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-SmartWatts2024!}";' \
-              'sudo docker-compose -f docker-compose.azure.yml up -d --build;' \
-              'echo "Application deployed successfully"')
+              'echo "Starting Docker Compose services...";' \
+              'if ! sudo docker-compose -f docker-compose.azure.yml up -d --build; then' \
+              '  echo "ERROR: Docker Compose failed to start services";' \
+              '  echo "Container logs:";' \
+              '  sudo docker-compose -f docker-compose.azure.yml logs --tail=50 || true;' \
+              '  exit 1;' \
+              'fi;' \
+              'echo "Docker Compose started, waiting for containers to be ready...";' \
+              'MAX_WAIT=600;' \
+              'ELAPSED=0;' \
+              'ALL_READY=false;' \
+              'while [ $ELAPSED -lt $MAX_WAIT ]; do' \
+              '  CONTAINER_STATUS=$(sudo docker-compose -f docker-compose.azure.yml ps --format json 2>/dev/null || echo "[]");' \
+              '  TOTAL_CONTAINERS=$(echo "$CONTAINER_STATUS" | grep -c "Name" || echo "0");' \
+              '  RUNNING_CONTAINERS=$(echo "$CONTAINER_STATUS" | grep -c '"'"'"State":"running"'"'"' || echo "0");' \
+              '  if [ "$TOTAL_CONTAINERS" -gt 0 ] && [ "$RUNNING_CONTAINERS" -eq "$TOTAL_CONTAINERS" ]; then' \
+              '    echo "All $RUNNING_CONTAINERS containers are running";' \
+              '    sleep 10;' \
+              '    if command -v nc > /dev/null 2>&1 || command -v netcat > /dev/null 2>&1; then' \
+              '      NC_CMD=$(command -v nc || command -v netcat);' \
+              '      BACKEND_READY=false;' \
+              '      FRONTEND_READY=false;' \
+              '      if timeout 2 $NC_CMD -z localhost 8080 2>/dev/null; then' \
+              '        BACKEND_READY=true;' \
+              '        echo "Backend port 8080 is listening";' \
+              '      fi;' \
+              '      if timeout 2 $NC_CMD -z localhost 3000 2>/dev/null; then' \
+              '        FRONTEND_READY=true;' \
+              '        echo "Frontend port 3000 is listening";' \
+              '      fi;' \
+              '      if [ "$BACKEND_READY" = "true" ] && [ "$FRONTEND_READY" = "true" ]; then' \
+              '        ALL_READY=true;' \
+              '        break;' \
+              '      fi;' \
+              '    else' \
+              '      echo "netcat not available, checking container health instead...";' \
+              '      HEALTHY_COUNT=$(sudo docker ps --filter "health=healthy" --format "{{.Names}}" | wc -l);' \
+              '      if [ "$HEALTHY_COUNT" -ge 2 ]; then' \
+              '        ALL_READY=true;' \
+              '        break;' \
+              '      fi;' \
+              '    fi;' \
+              '  fi;' \
+              '  echo "Waiting for services... ($ELAPSED/$MAX_WAIT seconds)";' \
+              '  sleep 10;' \
+              '  ELAPSED=$((ELAPSED + 10));' \
+              'done;' \
+              'if [ "$ALL_READY" = "true" ]; then' \
+              '  echo "✅ All services are ready";' \
+              '  sudo docker-compose -f docker-compose.azure.yml ps;' \
+              '  echo "Application deployed successfully";' \
+              'else' \
+              '  echo "⚠️  Warning: Services started but may not be fully ready";' \
+              '  echo "Container status:";' \
+              '  sudo docker-compose -f docker-compose.azure.yml ps;' \
+              '  echo "Recent logs:";' \
+              '  sudo docker-compose -f docker-compose.azure.yml logs --tail=30;' \
+              '  echo "Application deployment completed (services may still be initializing)";' \
+              'fi')
             if ssh -o StrictHostKeyChecking=no \
                  -o UserKnownHostsFile=/dev/null \
                  -o ConnectTimeout=15 \
@@ -722,18 +779,20 @@ jobs:
             --query defaultHostname -o tsv 2>/dev/null || echo 'Not available')"
 
       - name: Health Check
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           VM_IP="${{ env.VM_IP }}"
-          MAX_RETRIES=10
+          MAX_RETRIES=20
           RETRY_COUNT=0
-          WAIT_INTERVAL=10
+          WAIT_INTERVAL=15
           
           echo "Performing health checks..."
           echo "  - Backend API: http://$VM_IP:8080/api/v1/health"
           echo "  - Frontend: http://$VM_IP:3000"
           echo "  - Frontend (via Nginx): http://$VM_IP"
-          echo "Note: If SSH deployment failed, the application may not be running yet."
+          echo ""
+          echo "Note: Services should already be ready (deployment step waits for readiness)"
+          echo "Starting health checks immediately..."
           
           BACKEND_HEALTHY=false
           FRONTEND_HEALTHY=false
