@@ -612,7 +612,7 @@ jobs:
               'else' \
               '  if ! sudo docker info > /dev/null 2>&1; then' \
               '    echo "Warning: Docker service not found, but Docker may still work";' \
-              '    sudo dockerd > /dev/null 2>&1 &;' \
+              '    sudo dockerd > /dev/null 2>&1 &' \
               '    sleep 5;' \
               '  fi;' \
               'fi;' \
