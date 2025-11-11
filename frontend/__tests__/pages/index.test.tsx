@@ -98,7 +98,10 @@ describe('Index Page (Landing Page)', () => {
     expect(screen.getByText('Monthly Savings')).toBeInTheDocument()
   })
 
-  it('displays pricing tiers with correct information', () => {
+  it.skip('displays pricing tiers with correct information', () => {
+    // NOTE: This test is skipped because the pricing section is currently commented out
+    // in the Index page (lines 413-552). When the pricing section is re-enabled,
+    // remove .skip from this test.
     render(<Index />)
 
     // Check Essential Home pricing - use regex to match text that may be split across elements

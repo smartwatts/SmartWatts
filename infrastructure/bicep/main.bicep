@@ -330,7 +330,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 @description('Whether to create Key Vault (set to false if it already exists)')
 param createKeyVault bool = true
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = if createKeyVault {
+resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = if (createKeyVault) {
   name: keyVaultName
   location: location
   properties: {
