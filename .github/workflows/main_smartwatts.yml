@@ -30,12 +30,31 @@ jobs:
           npm run build --if-present
           # Tests temporarily disabled
           # npm run test --if-present
+          
+          # Verify standalone build was created
+          if [ ! -d ".next/standalone" ]; then
+            echo "❌ Error: .next/standalone directory not found after build"
+            echo "This means standalone mode is not working correctly"
+            echo "Checking next.config.js..."
+            cat next.config.js | grep -i "output" || echo "No output config found"
+            echo "Build output:"
+            ls -la .next/ 2>/dev/null || echo ".next directory not found"
+            exit 1
+          fi
+          
+          echo "✅ Standalone build verified"
+          echo "Standalone directory contents:"
+          ls -la .next/standalone/ | head -10
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: ./frontend
+          path: |
+            ./frontend/.next/standalone
+            ./frontend/.next/static
+            ./frontend/public
+          retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
@@ -49,15 +68,23 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
+          path: ./artifact
       
       - name: Prepare deployment package for standalone mode
         run: |
           echo "📦 Preparing Next.js standalone deployment package..."
           
-          # Check if standalone build exists
-          if [ ! -d ".next/standalone" ]; then
-            echo "❌ Error: .next/standalone directory not found"
-            echo "The build may have failed or standalone mode is not enabled"
+          # The artifact structure is:
+          # ./artifact/.next/standalone
+          # ./artifact/.next/static
+          # ./artifact/public
+          
+          # Check if standalone build exists in artifact
+          if [ ! -d "artifact/.next/standalone" ]; then
+            echo "❌ Error: .next/standalone directory not found in artifact"
+            echo "Checking artifact structure:"
+            find artifact -type d -name "standalone" 2>/dev/null || echo "No standalone directory found"
+            ls -la artifact/ 2>/dev/null || echo "Artifact directory not found"
             exit 1
           fi
           
@@ -66,24 +93,26 @@ jobs:
           
           # Copy standalone output
           echo "Copying standalone files..."
-          cp -r .next/standalone/* deploy-package/
+          cp -r artifact/.next/standalone/* deploy-package/
           
           # Copy static files
-          if [ -d ".next/static" ]; then
+          if [ -d "artifact/.next/static" ]; then
             echo "Copying static files..."
             mkdir -p deploy-package/.next/static
-            cp -r .next/static/* deploy-package/.next/static/
+            cp -r artifact/.next/static/* deploy-package/.next/static/
           fi
           
           # Copy public directory
-          if [ -d "public" ]; then
+          if [ -d "artifact/public" ]; then
             echo "Copying public files..."
-            cp -r public deploy-package/
+            cp -r artifact/public deploy-package/
           fi
           
           # Verify server.js exists
           if [ ! -f "deploy-package/server.js" ]; then
             echo "❌ Error: server.js not found in standalone output"
+            echo "Deployment package contents:"
+            ls -la deploy-package/ | head -20
             exit 1
           fi
           

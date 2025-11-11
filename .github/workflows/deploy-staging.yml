@@ -145,22 +145,38 @@ jobs:
           FIRST_BYTES=$(head -c 20 ~/.ssh/temp_key 2>/dev/null || echo "")
           echo "Key file first 20 bytes: $(echo "$FIRST_BYTES" | xxd -p | head -c 40)"
           
-          # Validate key
-          if ! ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
-            echo "Key validation failed, attempting format conversion..."
-            # Try to convert OpenSSH format to PEM
+          # Validate key - OpenSSH format keys can be used directly with modern SSH
+          # First, try to extract public key to validate
+          if ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
+            echo "✅ Key validation passed - can extract public key"
+          else
+            echo "Key validation failed, checking format..."
+            # Check if it's OpenSSH format
             if echo "$FIRST_BYTES" | grep -q "openssh-key-v1"; then
-              echo "Detected OpenSSH format, converting to PEM..."
-              ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || {
-                echo "❌ Error: Failed to convert OpenSSH key format"
-                echo "Trying alternative conversion method..."
-                # Alternative: use ssh-keygen to convert
-                ssh-keygen -p -f ~/.ssh/temp_key -m PEM -N "" 2>&1 || {
-                  echo "❌ Error: All conversion attempts failed"
-                  exit 1
-                }
-              }
-              echo "✅ Key converted to PEM format"
+              echo "Detected OpenSSH format key"
+              echo "Modern SSH supports OpenSSH format, but extraction failed"
+              echo "This might indicate the key is encrypted or corrupted"
+              echo "Attempting to use key as-is (SSH client may handle it)..."
+              
+              # Try to extract public key with verbose output to see the error
+              SSH_KEYGEN_OUTPUT=$(ssh-keygen -y -f ~/.ssh/temp_key 2>&1 || true)
+              echo "ssh-keygen output: $SSH_KEYGEN_OUTPUT"
+              
+              # If it's an encrypted key, we can't proceed
+              if echo "$SSH_KEYGEN_OUTPUT" | grep -qi "encrypted\|passphrase"; then
+                echo "❌ Error: Key appears to be encrypted"
+                echo "Please provide an unencrypted private key"
+                exit 1
+              fi
+              
+              # Try one more time - sometimes OpenSSH keys work even if validation fails
+              if ! ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
+                echo "❌ Error: Cannot extract public key from OpenSSH format key"
+                echo "Key file info:"
+                file ~/.ssh/temp_key 2>/dev/null || echo "Could not determine file type"
+                echo "Key file size: $(wc -c < ~/.ssh/temp_key) bytes"
+                exit 1
+              fi
             else
               echo "❌ Error: Invalid SSH key format"
               echo "Key file type: $(file ~/.ssh/temp_key 2>/dev/null || echo 'unknown')"
@@ -168,8 +184,12 @@ jobs:
               head -5 ~/.ssh/temp_key || echo "Could not read key file"
               exit 1
             fi
-          else
-            echo "✅ Key validation passed"
+          fi
+          
+          # Final validation - ensure we can extract public key
+          if ! ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
+            echo "❌ Error: Final key validation failed - cannot extract public key"
+            exit 1
           fi
           
           # Extract public key and validate
