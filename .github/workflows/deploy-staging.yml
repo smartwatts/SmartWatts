@@ -693,6 +693,50 @@ jobs:
             echo "✅ No active deployments found"
           fi
 
+      - name: Clean Up Orphaned OS Disk (if VM doesn't exist)
+        id: cleanup_disk
+        if: steps.vmcheck.outputs.exists == 'false'
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          VM_NAME="${{ env.VM_NAME }}"
+          OS_DISK_NAME="${VM_NAME}-osdisk"
+          
+          echo "Checking for orphaned OS disk (VM doesn't exist)..."
+          
+          # Check if OS disk exists
+          DISK_EXISTS=$(az disk show \
+            --resource-group $RESOURCE_GROUP \
+            --name $OS_DISK_NAME \
+            --query "name" -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$DISK_EXISTS" ]; then
+            echo "⚠️  Found orphaned OS disk: $OS_DISK_NAME"
+            echo "This disk is from a previous VM that was deleted"
+            echo "Deleting orphaned disk to allow fresh VM creation..."
+            
+            # Check if disk is attached to anything
+            DISK_STATE=$(az disk show \
+              --resource-group $RESOURCE_GROUP \
+              --name $OS_DISK_NAME \
+              --query "diskState" -o tsv 2>/dev/null || echo "Unknown")
+            
+            echo "Disk state: $DISK_STATE"
+            
+            # Delete the orphaned disk
+            az disk delete \
+              --resource-group $RESOURCE_GROUP \
+              --name $OS_DISK_NAME \
+              --yes \
+              --output none
+            
+            echo "✅ Orphaned OS disk deleted successfully"
+            echo "Fresh VM can now be created"
+          else
+            echo "✅ No orphaned OS disk found"
+          fi
+
       - name: Check if Infrastructure Deployment is Needed
         id: check_deployment
         run: |
