@@ -74,38 +74,73 @@ jobs:
         run: |
           echo "📦 Preparing Next.js standalone deployment package..."
           
-          # The artifact structure is:
-          # ./artifact/.next/standalone
-          # ./artifact/.next/static
-          # ./artifact/public
+          # Check artifact structure (GitHub Actions preserves path structure)
+          echo "Checking artifact structure..."
+          find artifact -type d -maxdepth 3 2>/dev/null | head -20 || echo "Artifact directory not found"
           
-          # Check if standalone build exists in artifact
-          if [ ! -d "artifact/.next/standalone" ]; then
+          # Find standalone directory (could be at different paths depending on how artifact was uploaded)
+          STANDALONE_DIR=$(find artifact -type d -name "standalone" 2>/dev/null | head -1 || echo "")
+          
+          if [ -z "$STANDALONE_DIR" ]; then
             echo "❌ Error: .next/standalone directory not found in artifact"
-            echo "Checking artifact structure:"
-            find artifact -type d -name "standalone" 2>/dev/null || echo "No standalone directory found"
+            echo "Artifact contents:"
             ls -la artifact/ 2>/dev/null || echo "Artifact directory not found"
+            find artifact -type d 2>/dev/null | head -20 || echo "No directories found"
             exit 1
+          fi
+          
+          echo "✅ Found standalone directory at: $STANDALONE_DIR"
+          
+          # Find static directory
+          STATIC_DIR=$(find artifact -type d -path "*/static" 2>/dev/null | head -1 || echo "")
+          if [ -z "$STATIC_DIR" ]; then
+            echo "⚠️  Warning: .next/static directory not found"
+          else
+            echo "✅ Found static directory at: $STATIC_DIR"
+          fi
+          
+          # Find public directory
+          PUBLIC_DIR=$(find artifact -type d -name "public" 2>/dev/null | head -1 || echo "")
+          if [ -z "$PUBLIC_DIR" ]; then
+            echo "⚠️  Warning: public directory not found"
+          else
+            echo "✅ Found public directory at: $PUBLIC_DIR"
           fi
           
           # Create deployment directory
           mkdir -p deploy-package
           
           # Copy standalone output
-          echo "Copying standalone files..."
-          cp -r artifact/.next/standalone/* deploy-package/
+          echo "Copying standalone files from $STANDALONE_DIR..."
+          cp -r "$STANDALONE_DIR"/* deploy-package/
           
           # Copy static files
-          if [ -d "artifact/.next/static" ]; then
-            echo "Copying static files..."
+          if [ -n "$STATIC_DIR" ]; then
+            echo "Copying static files from $STATIC_DIR..."
             mkdir -p deploy-package/.next/static
-            cp -r artifact/.next/static/* deploy-package/.next/static/
+            cp -r "$STATIC_DIR"/* deploy-package/.next/static/
           fi
           
           # Copy public directory
-          if [ -d "artifact/public" ]; then
-            echo "Copying public files..."
-            cp -r artifact/public deploy-package/
+          if [ -n "$PUBLIC_DIR" ]; then
+            echo "Copying public files from $PUBLIC_DIR..."
+            cp -r "$PUBLIC_DIR" deploy-package/
+          fi
+          
+          # Check if package.json exists in standalone (it should)
+          if [ -f "$STANDALONE_DIR/package.json" ]; then
+            echo "✅ package.json found in standalone build"
+          else
+            echo "⚠️  Warning: package.json not found in standalone build"
+            echo "This may cause Azure to not detect this as a Node.js app"
+            echo "Checking if we need to copy it from source..."
+            # Try to find package.json in artifact
+            PKG_JSON=$(find artifact -name "package.json" -type f 2>/dev/null | head -1 || echo "")
+            if [ -n "$PKG_JSON" ]; then
+              echo "Found package.json at: $PKG_JSON"
+              cp "$PKG_JSON" deploy-package/package.json
+              echo "✅ Copied package.json to deployment package"
+            fi
           fi
           
           # Verify server.js exists
@@ -123,6 +158,64 @@ jobs:
           echo "Verifying server.js:"
           head -5 deploy-package/server.js || echo "Could not read server.js"
       
+      - name: Verify deployment package structure
+        run: |
+          echo "🔍 Verifying deployment package structure..."
+          
+          # Check critical files
+          MISSING_FILES=0
+          
+          if [ ! -f "deploy-package/server.js" ]; then
+            echo "❌ Error: server.js not found"
+            MISSING_FILES=$((MISSING_FILES + 1))
+          else
+            echo "✅ server.js found"
+            # Check if it's executable or at least readable
+            if [ ! -r "deploy-package/server.js" ]; then
+              echo "⚠️  Warning: server.js is not readable"
+            fi
+          fi
+          
+          if [ ! -d "deploy-package/.next/static" ]; then
+            echo "⚠️  Warning: .next/static directory not found"
+          else
+            echo "✅ .next/static directory found"
+          fi
+          
+          if [ ! -d "deploy-package/public" ]; then
+            echo "⚠️  Warning: public directory not found (may be optional)"
+          else
+            echo "✅ public directory found"
+          fi
+          
+          # Check for node_modules (should exist in standalone)
+          if [ ! -d "deploy-package/node_modules" ]; then
+            echo "⚠️  Warning: node_modules directory not found in standalone build"
+            echo "This may cause runtime errors"
+          else
+            echo "✅ node_modules directory found"
+          fi
+          
+          # Check package.json (may be needed for Node.js detection)
+          if [ ! -f "deploy-package/package.json" ]; then
+            echo "⚠️  Warning: package.json not found in deployment package"
+            echo "Azure may have trouble detecting this as a Node.js app"
+          else
+            echo "✅ package.json found"
+          fi
+          
+          if [ $MISSING_FILES -gt 0 ]; then
+            echo "❌ Error: Critical files missing in deployment package"
+            echo "Deployment package structure:"
+            find deploy-package -type f -name "*.js" | head -10
+            find deploy-package -type d | head -10
+            exit 1
+          fi
+          
+          echo "✅ Deployment package structure verified"
+          echo "Package size: $(du -sh deploy-package | awk '{print $1}')"
+          echo "File count: $(find deploy-package -type f | wc -l)"
+      
       - name: Configure Azure Web App for standalone mode
         run: |
           APP_NAME="SmartWatts"
@@ -134,6 +227,47 @@ jobs:
           
           if [ -n "$RESOURCE_GROUP" ]; then
             echo "⚙️  Configuring Azure Web App for Next.js standalone mode..."
+            
+            # Check web app state and start if stopped
+            echo "Checking web app state..."
+            WEB_APP_STATE=$(az webapp show \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --query "{state:properties.state,usageState:properties.usageState}" \
+              -o json 2>/dev/null || echo "{}")
+            
+            STATE=$(echo "$WEB_APP_STATE" | jq -r '.state // "Unknown"' 2>/dev/null || echo "Unknown")
+            USAGE_STATE=$(echo "$WEB_APP_STATE" | jq -r '.usageState // "Unknown"' 2>/dev/null || echo "Unknown")
+            
+            echo "Web app state: $STATE"
+            echo "Usage state: $USAGE_STATE"
+            
+            if [ "$STATE" = "Stopped" ]; then
+              echo "⚠️  Web app is stopped. Starting it now..."
+              az webapp start \
+                --resource-group $RESOURCE_GROUP \
+                --name $APP_NAME \
+                --output none
+              echo "✅ Web app started"
+              # Wait a moment for the app to fully start
+              sleep 5
+            elif [ "$USAGE_STATE" = "Exceeded" ]; then
+              echo "⚠️  Warning: Web app usage state is 'Exceeded' (quota exceeded)"
+              echo "Attempting to start the app anyway..."
+              az webapp start \
+                --resource-group $RESOURCE_GROUP \
+                --name $APP_NAME \
+                --output none 2>/dev/null || echo "Could not start app (quota issue may need manual resolution)"
+              echo "⚠️  Note: Quota issues need to be resolved in the Azure Portal"
+            elif [ "$STATE" = "Running" ]; then
+              echo "✅ Web app is already running"
+            else
+              echo "⚠️  Web app state is '$STATE' - attempting to start..."
+              az webapp start \
+                --resource-group $RESOURCE_GROUP \
+                --name $APP_NAME \
+                --output none 2>/dev/null || echo "Could not start app"
+            fi
             
             # Set startup command to use node server.js
             az webapp config set \
@@ -305,12 +439,78 @@ jobs:
           # No active deployments but deployment failed - this is a real error
           echo "❌ Deployment failed and no active deployments found"
           echo "This appears to be a non-conflict error."
-          echo "Please check the deployment logs above for details."
+          echo ""
+          
+          # Check if this is a 403 "Site Disabled" error
+          echo "Checking web app state..."
+          WEB_APP_STATE=$(az webapp show \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query "{state:properties.state,usageState:properties.usageState}" \
+            -o json 2>/dev/null || echo "{}")
+          
+          STATE=$(echo "$WEB_APP_STATE" | jq -r '.state // "Unknown"' 2>/dev/null || echo "Unknown")
+          USAGE_STATE=$(echo "$WEB_APP_STATE" | jq -r '.usageState // "Unknown"' 2>/dev/null || echo "Unknown")
+          
+          echo "Web app state: $STATE"
+          echo "Usage state: $USAGE_STATE"
+          
+          if [ "$STATE" = "Stopped" ] || [ "$USAGE_STATE" = "Exceeded" ]; then
+            echo ""
+            echo "⚠️  Error: Site Disabled (CODE: 403) - Web app is stopped or quota exceeded"
+            echo "Attempting to start the web app..."
+            az webapp start \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --output none 2>/dev/null && echo "✅ Web app started" || echo "❌ Could not start web app"
+            echo ""
+            echo "If the app was stopped, please retry the deployment."
+            echo "If quota is exceeded, please resolve the quota issue in the Azure Portal."
+            exit 1
+          fi
+          
+          echo ""
+          echo "Retrieving deployment logs..."
+          
+          # Get the latest deployment log
+          DEPLOYMENT_ID=$(az webapp deployment list \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query "[0].id" -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            echo "Latest deployment ID: $DEPLOYMENT_ID"
+            echo "Retrieving deployment log..."
+            az webapp deployment log show \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --deployment-id "$DEPLOYMENT_ID" 2>/dev/null | tail -50 || echo "Could not retrieve deployment log"
+          fi
+          
+          echo ""
+          echo "Checking web app configuration..."
+          az webapp config show \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query "{linuxFxVersion:linuxFxVersion,appCommandLine:appCommandLine}" -o table 2>/dev/null || echo "Could not retrieve web app config"
+          
+          echo ""
+          echo "Checking startup file setting..."
+          STARTUP_FILE=$(az webapp config show \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query "appCommandLine" -o tsv 2>/dev/null || echo "")
+          echo "Startup file: ${STARTUP_FILE:-'Not set'}"
+          
+          echo ""
           echo "Common causes:"
           echo "  - Invalid package structure"
-          echo "  - Missing dependencies"
+          echo "  - Missing server.js or incorrect startup command"
+          echo "  - Missing dependencies in standalone build"
           echo "  - Build errors"
           echo "  - Permission issues"
           echo "  - Web app configuration issues"
+          echo ""
+          echo "Please check the deployment logs above for specific error messages"
           exit 1
           
