@@ -113,25 +113,56 @@ jobs:
           echo "Processing SSH key..."
           
           # Write private key temporarily to extract public key
-          # First, try to detect if it's base64 encoded (OpenSSH keys are often base64 encoded)
-          # Check if it starts with base64 characters and doesn't contain "BEGIN"
+          # Handle multiple possible formats: PEM (plain text), base64-encoded PEM, base64-encoded OpenSSH, or double-encoded
+          
+          # First, check if it's already in PEM format (plain text)
           if echo "$SSH_KEY" | grep -q "BEGIN.*PRIVATE KEY"; then
-            # Key is already in PEM format (plain text)
             echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
-            echo "Detected PEM format (plain text)"
+            echo "✅ Detected PEM format (plain text)"
           else
-            # Try base64 decode first (OpenSSH keys are often base64 encoded)
+            # Try base64 decode first
             echo "Attempting base64 decode..."
-            if echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key 2>/dev/null; then
-              # Check what we got after decoding
-              FIRST_BYTES=$(head -c 20 ~/.ssh/temp_key 2>/dev/null || echo "")
-              if echo "$FIRST_BYTES" | grep -q "openssh-key-v1"; then
+            DECODED_KEY=$(echo "$SSH_KEY" | base64 -d 2>/dev/null || echo "")
+            
+            if [ -n "$DECODED_KEY" ]; then
+              # Check what we got after first decode
+              FIRST_DECODE=$(echo "$DECODED_KEY" | head -c 100)
+              
+              # Check if decoded content is OpenSSH format
+              if echo "$FIRST_DECODE" | grep -q "openssh-key-v1"; then
+                echo "$DECODED_KEY" > ~/.ssh/temp_key
                 echo "✅ Decoded base64 OpenSSH format key"
-              elif echo "$FIRST_BYTES" | grep -q "BEGIN.*PRIVATE KEY"; then
+              # Check if decoded content is PEM format
+              elif echo "$FIRST_DECODE" | grep -q "BEGIN.*PRIVATE KEY"; then
+                echo "$DECODED_KEY" > ~/.ssh/temp_key
                 echo "✅ Decoded base64 PEM format key"
+              # Check if decoded content is still base64-encoded (double encoding)
+              elif echo "$FIRST_DECODE" | base64 -d > /dev/null 2>&1 && [ ${#FIRST_DECODE} -gt 50 ]; then
+                echo "⚠️  Detected possible double base64 encoding, attempting second decode..."
+                DOUBLE_DECODED=$(echo "$DECODED_KEY" | base64 -d 2>/dev/null || echo "")
+                if [ -n "$DOUBLE_DECODED" ]; then
+                  DOUBLE_FIRST=$(echo "$DOUBLE_DECODED" | head -c 100)
+                  if echo "$DOUBLE_FIRST" | grep -q "BEGIN.*PRIVATE KEY\|openssh-key-v1"; then
+                    echo "$DOUBLE_DECODED" > ~/.ssh/temp_key
+                    echo "✅ Decoded double base64-encoded key"
+                  else
+                    # Try the first decode result
+                    echo "$DECODED_KEY" > ~/.ssh/temp_key
+                    echo "⚠️  Double decode didn't produce recognizable format, using first decode result"
+                  fi
+                else
+                  # Fall back to first decode
+                  echo "$DECODED_KEY" > ~/.ssh/temp_key
+                  echo "⚠️  Second decode failed, using first decode result"
+                fi
               else
-                echo "⚠️  Base64 decode succeeded but format unclear, trying as plain text..."
-                echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
+                # Decoded content doesn't match known formats, but might still be valid
+                # Check if it looks like binary data (DER format) that might work
+                # Try using the decoded content - ssh-keygen will validate
+                echo "$DECODED_KEY" > ~/.ssh/temp_key
+                echo "⚠️  Base64 decode succeeded but format unclear"
+                echo "   Decoded content doesn't have standard PEM/OpenSSH markers"
+                echo "   Will attempt to use decoded content - ssh-keygen will validate"
               fi
             else
               # Base64 decode failed, try as plain text
@@ -163,48 +194,50 @@ jobs:
           FIRST_BYTES=$(head -c 20 ~/.ssh/temp_key 2>/dev/null || echo "")
           echo "Key file first 20 bytes: $(echo "$FIRST_BYTES" | xxd -p | head -c 40)"
           
-          # Validate key - OpenSSH format keys can be used directly with modern SSH
-          # First, try to extract public key to validate
-          if ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
-            echo "✅ Key validation passed - can extract public key"
-          else
-            echo "Key validation failed, checking format..."
-            # Check if it's OpenSSH format
-            if echo "$FIRST_BYTES" | grep -q "openssh-key-v1"; then
-              echo "Detected OpenSSH format key"
-              echo "Modern SSH supports OpenSSH format, but extraction failed"
-              echo "This might indicate the key is encrypted or corrupted"
-              echo "Attempting to use key as-is (SSH client may handle it)..."
-              
-              # Try to extract public key with verbose output to see the error
-              SSH_KEYGEN_OUTPUT=$(ssh-keygen -y -f ~/.ssh/temp_key 2>&1 || true)
-              echo "ssh-keygen output: $SSH_KEYGEN_OUTPUT"
-              
-              # If it's an encrypted key, we can't proceed
-              if echo "$SSH_KEYGEN_OUTPUT" | grep -qi "encrypted\|passphrase"; then
-                echo "❌ Error: Key appears to be encrypted"
-                echo "Please provide an unencrypted private key"
-                exit 1
-              fi
-              
-              # Try one more time - sometimes OpenSSH keys work even if validation fails
-              if ! ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
-                echo "⚠️  Warning: Cannot extract public key from OpenSSH format key"
-                echo "This is OK - modern SSH clients support OpenSSH format keys directly"
-                echo "The private key will be used for SSH connections"
-                echo "Key file info:"
-                file ~/.ssh/temp_key 2>/dev/null || echo "Could not determine file type"
-                echo "Key file size: $(wc -c < ~/.ssh/temp_key) bytes"
-                echo "Continuing workflow with private key only..."
-                # Don't exit - continue with private key
-              fi
-            else
-              echo "❌ Error: Invalid SSH key format"
-              echo "Key file type: $(file ~/.ssh/temp_key 2>/dev/null || echo 'unknown')"
-              echo "Key file first 5 lines:"
-              head -5 ~/.ssh/temp_key || echo "Could not read key file"
+          # Validate key - try multiple validation methods
+          echo "Validating key with ssh-keygen..."
+          SSH_KEYGEN_OUTPUT=$(ssh-keygen -y -f ~/.ssh/temp_key 2>&1 || echo "SSH_KEYGEN_FAILED")
+          
+          if echo "$SSH_KEYGEN_OUTPUT" | grep -q "SSH_KEYGEN_FAILED"; then
+            # ssh-keygen failed, get the actual error
+            SSH_KEYGEN_ERROR=$(ssh-keygen -y -f ~/.ssh/temp_key 2>&1 || true)
+            echo "Key validation failed, checking error details..."
+            echo "ssh-keygen error: $SSH_KEYGEN_ERROR"
+            
+            # Check if it's an encrypted key
+            if echo "$SSH_KEYGEN_ERROR" | grep -qi "encrypted\|passphrase"; then
+              echo "❌ Error: Key appears to be encrypted with a passphrase"
+              echo "Please provide an unencrypted private key (no passphrase)"
               exit 1
             fi
+            
+            # Check if it's a format issue
+            if echo "$SSH_KEYGEN_ERROR" | grep -qi "invalid\|corrupt\|error in libcrypto"; then
+              echo "❌ Error: SSH key format is invalid or corrupted"
+              echo ""
+              echo "Key file diagnostics:"
+              echo "  - File type: $(file ~/.ssh/temp_key 2>/dev/null || echo 'unknown')"
+              echo "  - File size: $(wc -c < ~/.ssh/temp_key) bytes"
+              echo "  - First 50 chars (hex): $(head -c 50 ~/.ssh/temp_key | xxd -p | tr -d '\n' | head -c 100)"
+              echo "  - Contains 'BEGIN': $(grep -q 'BEGIN' ~/.ssh/temp_key && echo 'Yes' || echo 'No')"
+              echo "  - Contains 'PRIVATE': $(grep -q 'PRIVATE' ~/.ssh/temp_key && echo 'Yes' || echo 'No')"
+              echo "  - Contains 'openssh-key-v1': $(head -c 50 ~/.ssh/temp_key | grep -q 'openssh-key-v1' && echo 'Yes' || echo 'No')"
+              echo ""
+              echo "The key in VM_SSH_PRIVATE_KEY_STAGING secret may be:"
+              echo "  1. Corrupted during copy/paste"
+              echo "  2. In an unsupported format"
+              echo "  3. Double-encoded or incorrectly encoded"
+              echo "  4. Missing required headers/footers"
+              echo ""
+              echo "Please verify the key content matches your local ~/.ssh/smartwatts_staging file exactly."
+              exit 1
+            fi
+            
+            # Unknown error - try to continue anyway (might work with SSH client)
+            echo "⚠️  Warning: Key validation failed with unknown error"
+            echo "Attempting to continue - SSH client may still accept the key..."
+          else
+            echo "✅ Key validation passed - can extract public key"
           fi
           
           # Try to extract public key (may fail for OpenSSH format, but that's OK)
