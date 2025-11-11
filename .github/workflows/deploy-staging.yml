@@ -432,6 +432,61 @@ jobs:
             echo "You may need to manually add the SSH key or recreate the VM"
           fi
 
+      - name: Check and Start VM
+        timeout-minutes: 5
+        run: |
+          VM_NAME="${{ env.VM_NAME }}"
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          
+          echo "Checking VM state..."
+          VM_STATE=$(az vm show \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --show-details \
+            --query "powerState" \
+            -o tsv 2>/dev/null || echo "Unknown")
+          
+          echo "VM State: $VM_STATE"
+          
+          if [ "$VM_STATE" = "VM deallocated" ] || [ "$VM_STATE" = "VM stopped" ]; then
+            echo "⚠️  VM is stopped. Starting VM..."
+            az vm start \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --output none
+            
+            echo "Waiting for VM to be fully started..."
+            MAX_WAIT=300
+            ELAPSED=0
+            while [ $ELAPSED -lt $MAX_WAIT ]; do
+              CURRENT_STATE=$(az vm show \
+                --resource-group $RESOURCE_GROUP \
+                --name $VM_NAME \
+                --show-details \
+                --query "powerState" \
+                -o tsv 2>/dev/null || echo "Unknown")
+              
+              if [ "$CURRENT_STATE" = "VM running" ]; then
+                echo "✅ VM is running"
+                echo "Waiting additional 30 seconds for SSH service to be ready..."
+                sleep 30
+                break
+              fi
+              
+              echo "VM state: $CURRENT_STATE (waiting...)"
+              sleep 10
+              ELAPSED=$((ELAPSED + 10))
+            done
+            
+            if [ "$CURRENT_STATE" != "VM running" ]; then
+              echo "⚠️  Warning: VM may not be fully started, but continuing..."
+            fi
+          elif [ "$VM_STATE" = "VM running" ]; then
+            echo "✅ VM is already running"
+          else
+            echo "⚠️  Warning: VM state is '$VM_STATE' (unexpected)"
+          fi
+
       - name: Verify SSH Connection
         timeout-minutes: 5
         continue-on-error: true
@@ -463,25 +518,32 @@ jobs:
             echo "SSH connection will likely fail. Continuing anyway..."
           else
             echo "✅ SSH private key file found"
-            # Test SSH connection with verbose output for first attempt
-            until ssh -i ~/.ssh/id_rsa \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              -o ConnectTimeout=10 \
-              -o BatchMode=yes \
-              -v ${{ env.VM_ADMIN_USERNAME }}@${{ env.VM_IP }} 'echo "SSH connection successful"' 2>&1 | tee /tmp/ssh_debug.log \
-              || [ $COUNT -eq $MAX_RETRIES ]; do
-                echo "Attempt $((COUNT + 1)) of $MAX_RETRIES failed. Retrying in $RETRY_DELAY seconds..."
-                if [ $COUNT -eq 0 ]; then
-                  echo "First attempt SSH debug output:"
-                  tail -20 /tmp/ssh_debug.log 2>/dev/null || echo "No debug output available"
-                fi
+            # Test SSH connection with longer timeout and retry logic
+            SSH_SUCCESS=false
+            while [ $COUNT -lt $MAX_RETRIES ]; do
+              echo "SSH connection attempt $((COUNT + 1)) of $MAX_RETRIES..."
+              if ssh -i ~/.ssh/id_rsa \
+                -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null \
+                -o ConnectTimeout=30 \
+                -o ServerAliveInterval=10 \
+                -o ServerAliveCountMax=3 \
+                -o BatchMode=yes \
+                ${{ env.VM_ADMIN_USERNAME }}@${{ env.VM_IP }} 'echo "SSH connection successful"' 2>&1; then
+                SSH_SUCCESS=true
+                break
+              else
+                echo "SSH attempt $((COUNT + 1)) failed"
                 COUNT=$((COUNT + 1))
-                sleep $RETRY_DELAY
+                if [ $COUNT -lt $MAX_RETRIES ]; then
+                  echo "Waiting $RETRY_DELAY seconds before retry..."
+                  sleep $RETRY_DELAY
+                fi
+              fi
             done
           fi
 
-          if [ $COUNT -eq $MAX_RETRIES ]; then
+          if [ "$SSH_SUCCESS" != "true" ]; then
             echo "⚠️  SSH connection verification failed after $MAX_RETRIES attempts."
             echo "VM IP: ${{ env.VM_IP }}"
             echo "VM State: $(az vm show -d --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.VM_NAME }} --query powerState -o tsv 2>/dev/null || echo 'unknown')"
@@ -505,7 +567,9 @@ jobs:
           CHECK_SCRIPT='if [ -d "/home/azureuser/SmartWatts" ] || [ -d "/home/azureuser/smartwatts" ]; then echo "EXISTS"; else echo "NOT_FOUND"; fi'
           REPO_STATUS=$(ssh -o StrictHostKeyChecking=no \
                          -o UserKnownHostsFile=/dev/null \
-                         -o ConnectTimeout=15 \
+                         -o ConnectTimeout=30 \
+                         -o ServerAliveInterval=10 \
+                         -o ServerAliveCountMax=3 \
                          -i ~/.ssh/id_rsa \
                          azureuser@$VM_IP "$CHECK_SCRIPT" 2>/dev/null || echo "NOT_FOUND")
           echo "REPO_STATUS=$REPO_STATUS" >> $GITHUB_ENV
@@ -531,7 +595,9 @@ jobs:
             echo "Copying repository to VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
             if scp -o StrictHostKeyChecking=no \
                    -o UserKnownHostsFile=/dev/null \
-                   -o ConnectTimeout=15 \
+                   -o ConnectTimeout=30 \
+                   -o ServerAliveInterval=10 \
+                   -o ServerAliveCountMax=3 \
                    -i ~/.ssh/id_rsa \
                    -r ./* azureuser@$VM_IP:/tmp/smartwatts.tar.gz; then
               echo "Repository copied successfully"
@@ -560,7 +626,9 @@ jobs:
             EXTRACT_SCRIPT=$(printf 'cd /home/azureuser\nif [ -d "smartwatts" ]; then\n  rm -rf smartwatts\nfi\nmkdir -p smartwatts\ncd smartwatts\ntar xzf /tmp/smartwatts.tar.gz\nrm /tmp/smartwatts.tar.gz\necho "Repository extracted successfully"')
             if ssh -o StrictHostKeyChecking=no \
                  -o UserKnownHostsFile=/dev/null \
-                 -o ConnectTimeout=15 \
+                 -o ConnectTimeout=30 \
+                 -o ServerAliveInterval=10 \
+                 -o ServerAliveCountMax=3 \
                  -i ~/.ssh/id_rsa \
                  azureuser@$VM_IP "$EXTRACT_SCRIPT"; then
               echo "Repository extracted successfully"
@@ -778,7 +846,9 @@ jobs:
               'fi')
             if ssh -o StrictHostKeyChecking=no \
                  -o UserKnownHostsFile=/dev/null \
-                 -o ConnectTimeout=15 \
+                 -o ConnectTimeout=30 \
+                 -o ServerAliveInterval=10 \
+                 -o ServerAliveCountMax=3 \
                  -i ~/.ssh/id_rsa \
                  azureuser@$VM_IP "$DEPLOY_SCRIPT"; then
               echo "Application deployed successfully"
