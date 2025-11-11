@@ -81,19 +81,28 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
 }
 
 // Custom Script Extension to ensure SSH service starts on boot
-// Only deploy this extension when creating a new VM, not when VM already exists
+// This extension is critical - it ensures SSH service is installed, enabled, and started
+// It runs on every VM creation/recreation to guarantee SSH accessibility
 resource vmSshExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03-01' = if (deploySshExtension) {
   name: 'ensure-ssh-service'
   location: location
   parent: vm
+  dependsOn: [vm]
   properties: {
     publisher: 'Microsoft.Azure.Extensions'
     type: 'CustomScript'
     typeHandlerVersion: '2.1'
     autoUpgradeMinorVersion: true
     settings: {
-      commandToExecute: 'bash -c "systemctl enable sshd || systemctl enable ssh || true; systemctl start sshd || systemctl start ssh || true"'
+      // Comprehensive script that:
+      // 1. Updates package list
+      // 2. Installs openssh-server if missing (Ubuntu images should have it, but ensure it's there)
+      // 3. Enables SSH service on boot
+      // 4. Starts SSH service immediately
+      // 5. Verifies SSH service is running
+      commandToExecute: 'bash -c "apt-get update -qq && apt-get install -y openssh-server && systemctl enable sshd && systemctl enable ssh && systemctl start sshd && systemctl start ssh && sleep 2 && systemctl status sshd || systemctl status ssh"'
     }
+    protectedSettings: {}
   }
 }
 

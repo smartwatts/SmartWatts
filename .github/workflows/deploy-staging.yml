@@ -118,6 +118,56 @@ jobs:
             echo "SSH keys: $SSH_KEYS"
           fi
 
+      - name: Test SSH Connectivity (Health Check)
+        id: sshhealthcheck
+        if: steps.vmcheck.outputs.exists == 'true' && steps.vmsshcheck.outputs.has_ssh_keys == 'true'
+        timeout-minutes: 3
+        continue-on-error: true
+        run: |
+          echo "Testing SSH connectivity to verify VM is actually accessible..."
+          
+          # Get VM IP
+          VM_IP=$(az network public-ip show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.PUBLIC_IP_NAME }} \
+            --query "ipAddress" -o tsv 2>/dev/null || echo "")
+          
+          if [ -z "$VM_IP" ]; then
+            echo "⚠️  Could not get VM IP address"
+            echo "ssh_working=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "VM IP: $VM_IP"
+          
+          # Verify SSH key file exists
+          if [ ! -f ~/.ssh/id_rsa ]; then
+            echo "⚠️  SSH private key file not found"
+            echo "ssh_working=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Test SSH connection with short timeout
+          SSH_WORKING=false
+          if ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=10 \
+            -o BatchMode=yes \
+            ${{ env.VM_ADMIN_USERNAME }}@$VM_IP 'echo "SSH_TEST_SUCCESS"' 2>/dev/null | grep -q "SSH_TEST_SUCCESS"; then
+            SSH_WORKING=true
+            echo "✅ SSH connectivity test PASSED - VM is accessible"
+          else
+            echo "❌ SSH connectivity test FAILED - VM is not accessible via SSH"
+            echo "This indicates SSH service is not running or VM is in a bad state"
+          fi
+          
+          if [ "$SSH_WORKING" = "true" ]; then
+            echo "ssh_working=true" >> $GITHUB_OUTPUT
+          else
+            echo "ssh_working=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Extract SSH public key from secret
         id: sshkey
         run: |
@@ -396,17 +446,25 @@ jobs:
             echo "📦 Key Vault does not exist - will be created"
           fi
 
-      - name: Recreate VM if SSH keys are missing
+      - name: Recreate VM if SSH keys are missing or SSH is not working
         id: vmrecreate
-        if: steps.vmcheck.outputs.exists == 'true' && steps.vmsshcheck.outputs.has_ssh_keys == 'false'
+        if: steps.vmcheck.outputs.exists == 'true' && (steps.vmsshcheck.outputs.has_ssh_keys == 'false' || steps.sshhealthcheck.outputs.ssh_working == 'false')
         timeout-minutes: 10
         run: |
           VM_NAME="${{ env.VM_NAME }}"
           RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
           
-          echo "⚠️  VM exists but has no SSH keys configured"
-          echo "This VM was created incorrectly and cannot be accessed via SSH"
-          echo "Recreating VM with proper SSH key configuration..."
+          # Determine reason for recreation
+          if [ "${{ steps.vmsshcheck.outputs.has_ssh_keys }}" = "false" ]; then
+            echo "⚠️  VM exists but has no SSH keys configured"
+            echo "This VM was created incorrectly and cannot be accessed via SSH"
+          elif [ "${{ steps.sshhealthcheck.outputs.ssh_working }}" = "false" ]; then
+            echo "⚠️  VM exists with SSH keys but SSH connectivity test FAILED"
+            echo "SSH service is not running or VM is in a bad state"
+            echo "VM agent may not be responding, making it impossible to fix via extensions"
+          fi
+          
+          echo "Recreating VM with proper SSH configuration..."
           echo ""
           echo "Note: The OS disk will be preserved (Azure keeps disks when VM is deleted)"
           echo "However, any data on the VM will be lost as we're creating a fresh VM"
@@ -618,7 +676,11 @@ jobs:
           elif [ "${{ steps.vmcheck.outputs.exists }}" = "true" ] && [ "${{ steps.vmsshcheck.outputs.has_ssh_keys }}" = "false" ]; then
             NEEDS_DEPLOYMENT=true
             echo "Reason: VM exists but has no SSH keys"
-          # 4. Key Vault doesn't exist and needs to be created
+          # 4. VM exists with SSH keys but SSH connectivity test failed (will be recreated)
+          elif [ "${{ steps.vmcheck.outputs.exists }}" = "true" ] && [ "${{ steps.sshhealthcheck.outputs.ssh_working }}" = "false" ]; then
+            NEEDS_DEPLOYMENT=true
+            echo "Reason: VM exists but SSH connectivity test failed - VM is in a bad state"
+          # 5. Key Vault doesn't exist and needs to be created
           elif [ "${{ steps.kvcheck.outputs.exists }}" = "false" ]; then
             NEEDS_DEPLOYMENT=true
             echo "Reason: Key Vault does not exist"
@@ -627,6 +689,7 @@ jobs:
             NEEDS_DEPLOYMENT=false
             echo "✅ All infrastructure already exists and is properly configured"
             echo "   - VM exists with SSH keys"
+            echo "   - SSH connectivity test PASSED"
             echo "   - Key Vault exists"
             echo "   - No deployment needed"
           fi
@@ -782,30 +845,9 @@ jobs:
           echo ""
           echo "No changes needed. Proceeding to application deployment..."
 
-      - name: Ensure SSH Service Extension (for existing VMs)
-        if: steps.check_deployment.outputs.needs_deployment == 'false'
-        timeout-minutes: 5
-        continue-on-error: true
-        run: |
-          VM_NAME="${{ env.VM_NAME }}"
-          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
-          
-          echo "Ensuring SSH service is running on existing VM..."
-          echo "Deploying SSH service extension to ensure SSH starts..."
-          
-          # Deploy just the SSH extension using Azure CLI (lightweight, fast)
-          az vm extension set \
-            --resource-group $RESOURCE_GROUP \
-            --vm-name $VM_NAME \
-            --name CustomScript \
-            --publisher Microsoft.Azure.Extensions \
-            --version 2.1 \
-            --settings '{"commandToExecute":"systemctl enable sshd || systemctl enable ssh || true; systemctl start sshd || systemctl start ssh || true"}' \
-            --output none 2>/dev/null || echo "⚠️  Could not deploy SSH extension (may already exist or VM agent not ready)"
-          
-          echo "✅ SSH extension deployment attempted"
-          echo "Waiting 30 seconds for extension to execute..."
-          sleep 30
+      # Note: We no longer try to fix SSH on existing VMs via extensions
+      # If SSH doesn't work, we recreate the VM (handled by vmrecreate step above)
+      # This ensures we always have a working VM instead of trying to patch broken ones
 
       - name: Wait for VM Agent and Verify SSH Service
         timeout-minutes: 5
