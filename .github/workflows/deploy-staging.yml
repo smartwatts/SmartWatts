@@ -568,7 +568,79 @@ jobs:
             echo "✅ No active deployments found"
           fi
 
+      - name: Check if Infrastructure Deployment is Needed
+        id: check_deployment
+        run: |
+          set -e
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          VM_NAME="${{ env.VM_NAME }}"
+          
+          echo "Checking if infrastructure deployment is needed..."
+          
+          # Check if VM exists with SSH keys
+          VM_EXISTS=false
+          VM_HAS_SSH_KEYS=false
+          
+          if [ "${{ steps.vmcheck.outputs.exists }}" = "true" ]; then
+            VM_EXISTS=true
+            if [ "${{ steps.vmsshcheck.outputs.has_ssh_keys }}" = "true" ]; then
+              VM_HAS_SSH_KEYS=true
+              echo "✅ VM exists with SSH keys configured"
+            else
+              echo "⚠️  VM exists but without SSH keys - deployment needed"
+            fi
+          else
+            echo "📦 VM does not exist - deployment needed"
+          fi
+          
+          # Check if Key Vault exists
+          KEY_VAULT_EXISTS=false
+          if [ "${{ steps.kvcheck.outputs.exists }}" = "true" ]; then
+            KEY_VAULT_EXISTS=true
+            echo "✅ Key Vault exists"
+          else
+            echo "📦 Key Vault does not exist - deployment needed"
+          fi
+          
+          # Determine if deployment is needed
+          NEEDS_DEPLOYMENT=false
+          
+          # Deployment is needed if:
+          # 1. VM doesn't exist
+          if [ "${{ steps.vmcheck.outputs.exists }}" = "false" ]; then
+            NEEDS_DEPLOYMENT=true
+            echo "Reason: VM does not exist"
+          # 2. VM is being recreated
+          elif [ "${{ steps.vmrecreate.outputs.recreate_vm }}" = "true" ]; then
+            NEEDS_DEPLOYMENT=true
+            echo "Reason: VM is being recreated"
+          # 3. VM exists but has no SSH keys (will be recreated)
+          elif [ "${{ steps.vmcheck.outputs.exists }}" = "true" ] && [ "${{ steps.vmsshcheck.outputs.has_ssh_keys }}" = "false" ]; then
+            NEEDS_DEPLOYMENT=true
+            echo "Reason: VM exists but has no SSH keys"
+          # 4. Key Vault doesn't exist and needs to be created
+          elif [ "${{ steps.kvcheck.outputs.exists }}" = "false" ]; then
+            NEEDS_DEPLOYMENT=true
+            echo "Reason: Key Vault does not exist"
+          else
+            # All infrastructure exists and is properly configured
+            NEEDS_DEPLOYMENT=false
+            echo "✅ All infrastructure already exists and is properly configured"
+            echo "   - VM exists with SSH keys"
+            echo "   - Key Vault exists"
+            echo "   - No deployment needed"
+          fi
+          
+          if [ "$NEEDS_DEPLOYMENT" = "true" ]; then
+            echo "needs_deployment=true" >> $GITHUB_OUTPUT
+            echo "🚀 Infrastructure deployment is needed"
+          else
+            echo "needs_deployment=false" >> $GITHUB_OUTPUT
+            echo "⏭️  Skipping infrastructure deployment - all resources already exist"
+          fi
+
       - name: Deploy Infrastructure via Bicep
+        if: steps.check_deployment.outputs.needs_deployment == 'true'
         id: deploy
         timeout-minutes: 20
         run: |
@@ -687,6 +759,19 @@ jobs:
             fi
             exit 1
           fi
+
+      - name: Skip Infrastructure Deployment
+        if: steps.check_deployment.outputs.needs_deployment == 'false'
+        run: |
+          echo "⏭️  Infrastructure deployment skipped"
+          echo ""
+          echo "All required infrastructure already exists:"
+          echo "  ✅ VM: ${{ env.VM_NAME }} exists with SSH keys"
+          if [ "${{ steps.kvcheck.outputs.exists }}" = "true" ]; then
+            echo "  ✅ Key Vault: sw-staging-kv exists"
+          fi
+          echo ""
+          echo "No changes needed. Proceeding to application deployment..."
 
       - name: Wait for VM Agent and Verify SSH Service
         timeout-minutes: 5
