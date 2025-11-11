@@ -87,7 +87,7 @@ resource vmSshExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03-01
   name: 'ensure-ssh-service'
   location: location
   parent: vm
-  dependsOn: [vm]
+  // dependsOn is not needed here - parent: vm already establishes the dependency
   properties: {
     publisher: 'Microsoft.Azure.Extensions'
     type: 'CustomScript'
