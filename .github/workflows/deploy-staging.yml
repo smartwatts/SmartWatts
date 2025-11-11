@@ -463,7 +463,6 @@ jobs:
       - name: Copy Repository to VM
         timeout-minutes: 5
         if: env.REPO_STATUS != 'EXISTS'
-        continue-on-error: true
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=5
@@ -492,7 +491,6 @@ jobs:
       - name: Extract repository on VM
         timeout-minutes: 5
         if: env.REPO_STATUS != 'EXISTS'
-        continue-on-error: true
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=3
@@ -521,7 +519,6 @@ jobs:
 
       - name: Deploy Application to VM
         timeout-minutes: 30
-        continue-on-error: true
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=3
@@ -666,7 +663,6 @@ jobs:
 
       - name: Health Check
         timeout-minutes: 5
-        continue-on-error: true
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=10
@@ -746,7 +742,7 @@ jobs:
               if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
                 sleep $WAIT_INTERVAL
               else
-                echo "⚠️  Warning: Health checks failed after $MAX_RETRIES attempts"
+                echo "❌ Error: Health checks failed after $MAX_RETRIES attempts"
                 echo "   Backend API: HTTP $BACKEND_STATUS"
                 echo "   Frontend: HTTP $FRONTEND_STATUS"
                 echo ""
@@ -756,12 +752,21 @@ jobs:
                 echo "  3. Port 8080 is not accessible (check NSG rules and firewall)"
                 echo "  4. Application crashed or failed to start"
                 echo ""
-                echo "⚠️  Continuing workflow despite health check failure..."
-                echo "You may need to manually check the VM and deploy the application."
-                exit 0
+                echo "❌ Health check failed - workflow will fail"
+                echo "Please check the VM and application deployment status."
+                exit 1
               fi
             fi
           done
+          
+          # If we reach here, health checks failed
+          echo ""
+          echo "❌ Error: Health checks failed - maximum retries reached"
+          echo "   Backend API: $([ "$BACKEND_HEALTHY" = "true" ] && echo "✅ Healthy" || echo "❌ Not responding")"
+          echo "   Frontend: $([ "$FRONTEND_HEALTHY" = "true" ] && echo "✅ Healthy" || echo "❌ Not responding")"
+          echo ""
+          echo "Please check the VM and application deployment status."
+          exit 1
 
       - name: Post-Deployment Summary
         run: |
