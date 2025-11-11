@@ -103,50 +103,67 @@ jobs:
           mkdir -p ~/.ssh
           SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
           
+          if [ -z "$SSH_KEY" ]; then
+            echo "⚠️ Warning: VM_SSH_PRIVATE_KEY_STAGING secret is empty"
+            echo "public_key=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
           # Write private key temporarily to extract public key
           if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
+            # Key is already in PEM format
             echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
           else
-            echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key
+            # Key is base64 encoded
+            echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key 2>/dev/null || {
+              echo "⚠️ Warning: Failed to decode base64 SSH key, trying as plain text..."
+              echo "$SSH_KEY" > ~/.ssh/temp_key
+            }
           fi
           chmod 600 ~/.ssh/temp_key
           
-          # Convert key format if needed
-          KEY_START=$(head -c 20 ~/.ssh/temp_key | xxd -p | tr -d '\n')
-          if echo "$KEY_START" | grep -q "^3082"; then
-            # DER format - convert to PEM
-            openssl rsa -inform DER -in ~/.ssh/temp_key -outform PEM -out ~/.ssh/temp_key.pem 2>/dev/null && mv ~/.ssh/temp_key.pem ~/.ssh/temp_key || {
-              ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || true
-            }
-          elif head -c 15 ~/.ssh/temp_key | grep -q "openssh-key-v1"; then
-            # OpenSSH format - convert to PEM
-            ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || true
+          # Validate and convert key format if needed
+          if ! ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
+            echo "Key validation failed, attempting format conversion..."
+            # Try to convert OpenSSH format to PEM
+            if head -c 15 ~/.ssh/temp_key | grep -q "openssh-key-v1"; then
+              echo "Detected OpenSSH format, converting to PEM..."
+              ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || {
+                echo "⚠️ Warning: Failed to convert OpenSSH key format"
+              }
+            fi
           fi
           
-          # Extract public key
+          # Extract public key and validate
           SSH_PUBLIC_KEY=$(ssh-keygen -y -f ~/.ssh/temp_key 2>/dev/null || echo "")
-          rm -f ~/.ssh/temp_key
           
           if [ -z "$SSH_PUBLIC_KEY" ]; then
             echo "⚠️ Warning: Could not extract SSH public key from private key"
+            echo "Checking key file format..."
+            file ~/.ssh/temp_key || echo "Could not determine file type"
+            head -5 ~/.ssh/temp_key || echo "Could not read key file"
             echo "VM will be created without SSH keys (password authentication only)"
             echo "public_key=" >> $GITHUB_OUTPUT
+            rm -f ~/.ssh/temp_key
           else
             echo "✅ SSH public key extracted successfully"
             echo "public_key=$SSH_PUBLIC_KEY" >> $GITHUB_OUTPUT
-            # Also save to file for later use
+            # Save public key to file
             echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
-            cp ~/.ssh/temp_key ~/.ssh/id_rsa 2>/dev/null || true
-          fi
-          
-          # Save private key for SSH connection
-          if [ -n "$SSH_KEY" ]; then
-            if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
-              echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/id_rsa
-            else
-              echo "$SSH_KEY" | base64 -d > ~/.ssh/id_rsa
-            fi
+            chmod 644 ~/.ssh/id_rsa.pub
+            
+            # Save converted private key for SSH connection (use the validated/converted key)
+            cp ~/.ssh/temp_key ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
+            
+            # Validate the saved key one more time
+            if ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1; then
+              echo "✅ SSH private key saved and validated successfully"
+            else
+              echo "⚠️ Warning: Saved SSH key validation failed, but continuing..."
+            fi
+            
+            rm -f ~/.ssh/temp_key
           fi
 
       - name: Check if Key Vault exists
@@ -476,8 +493,30 @@ jobs:
             fi
           done
 
+      - name: Check if Static Web App exists
+        id: swacheck
+        continue-on-error: true
+        run: |
+          STATIC_APP_NAME="sw-staging-dashboard"
+          if az staticwebapp show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name $STATIC_APP_NAME >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Static Web App found"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  Static Web App '$STATIC_APP_NAME' not found"
+          fi
+          
+          if [ -z "${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}" ]; then
+            echo "token_set=false" >> $GITHUB_OUTPUT
+            echo "⚠️  Warning: AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING secret is not set"
+          else
+            echo "token_set=true" >> $GITHUB_OUTPUT
+            echo "✅ API token is set"
+          fi
+
       - name: Deploy Frontend to Static Web Apps
         timeout-minutes: 10
+        if: steps.swacheck.outputs.exists == 'true' && steps.swacheck.outputs.token_set == 'true'
         continue-on-error: true
         uses: Azure/static-web-apps-deploy@v1
         with:

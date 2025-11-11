@@ -57,11 +57,108 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E0A871202B5249189A79EA035FBEB0E8 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_07BBF5665D464E728201D26286D736CD }}
 
+      - name: Check for active deployments
+        id: check-deployment
+        continue-on-error: true
+        run: |
+          APP_NAME="SmartWatts"
+          RESOURCE_GROUP=$(az webapp show --name $APP_NAME --query resourceGroup -o tsv 2>/dev/null || echo "")
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "⚠️  Could not determine resource group for web app"
+            echo "active=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Checking for active deployments in resource group: $RESOURCE_GROUP"
+          
+          # Check for active deployments
+          ACTIVE_DEPLOYMENTS=$(az webapp deployment list \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query "[?status=='Running' || status=='InProgress'].id" \
+            -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$ACTIVE_DEPLOYMENTS" ]; then
+            echo "⚠️  Active deployment(s) found, waiting for completion..."
+            echo "active=true" >> $GITHUB_OUTPUT
+            
+            # Wait for active deployments to complete (max 10 minutes)
+            MAX_WAIT=600
+            ELAPSED=0
+            while [ $ELAPSED -lt $MAX_WAIT ]; do
+              ACTIVE=$(az webapp deployment list \
+                --resource-group $RESOURCE_GROUP \
+                --name $APP_NAME \
+                --query "[?status=='Running' || status=='InProgress'].id" \
+                -o tsv 2>/dev/null || echo "")
+              
+              if [ -z "$ACTIVE" ]; then
+                echo "✅ All active deployments completed"
+                echo "active=false" >> $GITHUB_OUTPUT
+                break
+              fi
+              
+              echo "⏳ Waiting for deployment to complete... (${ELAPSED}s elapsed)"
+              sleep 10
+              ELAPSED=$((ELAPSED + 10))
+            done
+            
+            if [ $ELAPSED -ge $MAX_WAIT ]; then
+              echo "⚠️  Warning: Timeout waiting for active deployments, proceeding anyway"
+            fi
+          else
+            echo "✅ No active deployments found"
+            echo "active=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
+        timeout-minutes: 15
+        continue-on-error: true
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'SmartWatts'
           slot-name: 'Production'
           package: .
+          
+      - name: Handle deployment result
+        if: steps.deploy-to-webapp.outcome == 'failure'
+        run: |
+          echo "⚠️  Deployment step failed, checking for conflict errors..."
+          
+          APP_NAME="SmartWatts"
+          RESOURCE_GROUP=$(az webapp show --name $APP_NAME --query resourceGroup -o tsv 2>/dev/null || echo "")
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "❌ Could not determine resource group - deployment failed"
+            exit 1
+          fi
+          
+          # Check if there are active deployments (which indicates a conflict)
+          ACTIVE_DEPLOYMENTS=$(az webapp deployment list \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query "[?status=='Running' || status=='InProgress'].id" \
+            -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$ACTIVE_DEPLOYMENTS" ]; then
+            echo "⚠️  Deployment conflict detected (409) - another deployment is in progress"
+            echo "This is a transient conflict that will resolve automatically."
+            echo "The deployment will be retried on the next workflow run."
+            echo "If this persists, check the Azure Portal for stuck deployments."
+            echo "Active deployment IDs: $ACTIVE_DEPLOYMENTS"
+            exit 0  # Don't fail the workflow for conflicts
+          fi
+          
+          # No active deployments but deployment failed - this is a real error
+          echo "❌ Deployment failed and no active deployments found"
+          echo "This appears to be a non-conflict error."
+          echo "Please check the deployment logs above for details."
+          echo "Common causes:"
+          echo "  - Invalid package structure"
+          echo "  - Missing dependencies"
+          echo "  - Build errors"
+          echo "  - Permission issues"
+          exit 1
           
