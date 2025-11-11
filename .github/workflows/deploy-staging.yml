@@ -461,6 +461,14 @@ jobs:
         timeout-minutes: 20
         run: |
           set -e
+          # Determine if we should deploy SSH extension (only for new VMs)
+          DEPLOY_SSH_EXTENSION=false
+          if [ "${{ steps.vmcheck.outputs.exists }}" = "false" ]; then
+            DEPLOY_SSH_EXTENSION=true
+          elif [ "${{ steps.vmrecreate.outputs.recreate_vm }}" = "true" ]; then
+            DEPLOY_SSH_EXTENSION=true
+          fi
+          
           DEPLOY_CMD="az deployment group create \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name main \
@@ -468,6 +476,7 @@ jobs:
             --parameters @${{ env.PARAM_FILE }} \
             --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\" \
             --parameters createKeyVault=$([ "${{ steps.kvcheck.outputs.exists }}" = "true" ] && echo "false" || echo "true") \
+            --parameters deploySshExtension=$([ "$DEPLOY_SSH_EXTENSION" = "true" ] && echo "true" || echo "false") \
             --mode Incremental"
 
           # Pass SSH key if:

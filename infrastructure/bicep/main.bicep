@@ -11,6 +11,8 @@ param vmAdminUsername string = 'azureuser'
 param vmAdminPassword string
 @description('SSH public key for VM access (optional - if not provided, password authentication will be used)')
 param vmSshPublicKey string = ''
+@description('Whether to deploy SSH service extension (set to false if VM already exists)')
+param deploySshExtension bool = true
 
 // Variables
 var vmName = 'sw-${environment}-vm'
@@ -79,7 +81,8 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
 }
 
 // Custom Script Extension to ensure SSH service starts on boot
-resource vmSshExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03-01' = {
+// Only deploy this extension when creating a new VM, not when VM already exists
+resource vmSshExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03-01' = if (deploySshExtension) {
   name: 'ensure-ssh-service'
   location: location
   parent: vm
