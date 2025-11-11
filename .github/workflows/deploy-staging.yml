@@ -473,7 +473,8 @@ jobs:
           
           if [ -n "$ACTIVE_DEPLOYMENTS" ]; then
             echo "⚠️  Found active deployment(s):"
-            echo "$ACTIVE_DEPLOYMENTS" | while read -r DEPLOYMENT_NAME; do
+            # Process each deployment name
+            for DEPLOYMENT_NAME in $ACTIVE_DEPLOYMENTS; do
               if [ -n "$DEPLOYMENT_NAME" ]; then
                 echo "  - $DEPLOYMENT_NAME"
                 
@@ -493,19 +494,54 @@ jobs:
                 echo "    State: $DEPLOYMENT_STATE"
                 echo "    Started: $DEPLOYMENT_START"
                 
-                # If deployment is stuck (older than 30 minutes), cancel it
+                # If deployment is active, poll for completion instead of using wait command
                 if [ "$DEPLOYMENT_STATE" = "Running" ] || [ "$DEPLOYMENT_STATE" = "InProgress" ]; then
-                  # Try to wait for deployment to complete (max 10 minutes)
-                  # If it's been running for a while, it's likely stuck
-                  echo "    ⏳ Waiting for deployment to complete (max 10 minutes)..."
-                  if az deployment group wait \
+                  echo "    ⏳ Polling for deployment completion (max 10 minutes)..."
+                  MAX_WAIT=600
+                  ELAPSED=0
+                  POLL_INTERVAL=15
+                  
+                  while [ $ELAPSED -lt $MAX_WAIT ]; do
+                    CURRENT_STATE=$(az deployment group show \
+                      --resource-group $RESOURCE_GROUP \
+                      --name "$DEPLOYMENT_NAME" \
+                      --query "properties.provisioningState" \
+                      -o tsv 2>/dev/null || echo "Unknown")
+                    
+                    if [ "$CURRENT_STATE" = "Succeeded" ]; then
+                      echo "    ✅ Deployment '$DEPLOYMENT_NAME' completed successfully"
+                      break
+                    elif [ "$CURRENT_STATE" = "Failed" ] || [ "$CURRENT_STATE" = "Canceled" ]; then
+                      echo "    ⚠️  Deployment '$DEPLOYMENT_NAME' ended with state: $CURRENT_STATE"
+                      # Show error details if available
+                      ERROR_DETAILS=$(az deployment group show \
+                        --resource-group $RESOURCE_GROUP \
+                        --name "$DEPLOYMENT_NAME" \
+                        --query "properties.error.message" \
+                        -o tsv 2>/dev/null || echo "")
+                      if [ -n "$ERROR_DETAILS" ]; then
+                        echo "    Error: $ERROR_DETAILS"
+                      fi
+                      break
+                    elif [ "$CURRENT_STATE" != "Running" ] && [ "$CURRENT_STATE" != "InProgress" ]; then
+                      echo "    ℹ️  Deployment '$DEPLOYMENT_NAME' state: $CURRENT_STATE"
+                      break
+                    fi
+                    
+                    echo "    ⏳ Still running... (${ELAPSED}s elapsed, state: $CURRENT_STATE)"
+                    sleep $POLL_INTERVAL
+                    ELAPSED=$((ELAPSED + POLL_INTERVAL))
+                  done
+                  
+                  # If still running after max wait, cancel it
+                  FINAL_STATE=$(az deployment group show \
                     --resource-group $RESOURCE_GROUP \
                     --name "$DEPLOYMENT_NAME" \
-                    --created \
-                    --timeout 600 2>/dev/null; then
-                    echo "    ✅ Deployment '$DEPLOYMENT_NAME' completed"
-                  else
-                    echo "    ⚠️  Deployment '$DEPLOYMENT_NAME' timed out or is stuck, cancelling..."
+                    --query "properties.provisioningState" \
+                    -o tsv 2>/dev/null || echo "Unknown")
+                  
+                  if [ "$FINAL_STATE" = "Running" ] || [ "$FINAL_STATE" = "InProgress" ]; then
+                    echo "    ⚠️  Deployment '$DEPLOYMENT_NAME' is stuck, cancelling..."
                     az deployment group cancel \
                       --resource-group $RESOURCE_GROUP \
                       --name "$DEPLOYMENT_NAME" \
