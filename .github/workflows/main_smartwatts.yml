@@ -50,6 +50,85 @@ jobs:
         with:
           name: node-app
       
+      - name: Prepare deployment package for standalone mode
+        run: |
+          echo "📦 Preparing Next.js standalone deployment package..."
+          
+          # Check if standalone build exists
+          if [ ! -d ".next/standalone" ]; then
+            echo "❌ Error: .next/standalone directory not found"
+            echo "The build may have failed or standalone mode is not enabled"
+            exit 1
+          fi
+          
+          # Create deployment directory
+          mkdir -p deploy-package
+          
+          # Copy standalone output
+          echo "Copying standalone files..."
+          cp -r .next/standalone/* deploy-package/
+          
+          # Copy static files
+          if [ -d ".next/static" ]; then
+            echo "Copying static files..."
+            mkdir -p deploy-package/.next/static
+            cp -r .next/static/* deploy-package/.next/static/
+          fi
+          
+          # Copy public directory
+          if [ -d "public" ]; then
+            echo "Copying public files..."
+            cp -r public deploy-package/
+          fi
+          
+          # Verify server.js exists
+          if [ ! -f "deploy-package/server.js" ]; then
+            echo "❌ Error: server.js not found in standalone output"
+            exit 1
+          fi
+          
+          echo "✅ Deployment package prepared"
+          echo "Contents:"
+          ls -la deploy-package/ | head -20
+          echo ""
+          echo "Verifying server.js:"
+          head -5 deploy-package/server.js || echo "Could not read server.js"
+      
+      - name: Configure Azure Web App for standalone mode
+        run: |
+          APP_NAME="SmartWatts"
+          RESOURCE_GROUP=$(az webapp show --name $APP_NAME --query resourceGroup -o tsv 2>/dev/null || echo "")
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            RESOURCE_GROUP=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv 2>/dev/null | head -1 || echo "")
+          fi
+          
+          if [ -n "$RESOURCE_GROUP" ]; then
+            echo "⚙️  Configuring Azure Web App for Next.js standalone mode..."
+            
+            # Set startup command to use node server.js
+            az webapp config set \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --startup-file "node server.js" \
+              --output none
+            
+            # Disable build during deployment
+            az webapp config appsettings set \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --settings \
+                SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+                ENABLE_ORYX_BUILD=false \
+                POST_BUILD_COMMAND="" \
+                PRE_BUILD_COMMAND="" \
+              --output none
+            
+            echo "✅ Azure Web App configured for standalone mode"
+          else
+            echo "⚠️  Could not determine resource group, skipping configuration"
+          fi
+      
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -131,7 +210,7 @@ jobs:
         with:
           app-name: 'SmartWatts'
           slot-name: 'Production'
-          package: .
+          package: ./deploy-package
           
       - name: Handle deployment result
         if: steps.deploy-to-webapp.outcome == 'failure'

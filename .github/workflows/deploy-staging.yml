@@ -101,70 +101,135 @@ jobs:
         run: |
           set -e
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           SSH_KEY="${{ secrets.VM_SSH_PRIVATE_KEY_STAGING }}"
           
           if [ -z "$SSH_KEY" ]; then
-            echo "⚠️ Warning: VM_SSH_PRIVATE_KEY_STAGING secret is empty"
-            echo "public_key=" >> $GITHUB_OUTPUT
-            exit 0
+            echo "❌ Error: VM_SSH_PRIVATE_KEY_STAGING secret is empty or not set"
+            echo "Please set the VM_SSH_PRIVATE_KEY_STAGING secret in GitHub repository settings"
+            exit 1
           fi
           
+          echo "Processing SSH key..."
+          
           # Write private key temporarily to extract public key
-          if echo "$SSH_KEY" | head -c 20 | grep -q "BEGIN"; then
-            # Key is already in PEM format
+          # First, try to detect if it's base64 encoded (OpenSSH keys are often base64 encoded)
+          # Check if it starts with base64 characters and doesn't contain "BEGIN"
+          if echo "$SSH_KEY" | grep -q "BEGIN.*PRIVATE KEY"; then
+            # Key is already in PEM format (plain text)
             echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
+            echo "Detected PEM format (plain text)"
           else
-            # Key is base64 encoded
-            echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key 2>/dev/null || {
-              echo "⚠️ Warning: Failed to decode base64 SSH key, trying as plain text..."
-              echo "$SSH_KEY" > ~/.ssh/temp_key
-            }
+            # Try base64 decode first (OpenSSH keys are often base64 encoded)
+            echo "Attempting base64 decode..."
+            if echo "$SSH_KEY" | base64 -d > ~/.ssh/temp_key 2>/dev/null; then
+              # Check what we got after decoding
+              FIRST_BYTES=$(head -c 20 ~/.ssh/temp_key 2>/dev/null || echo "")
+              if echo "$FIRST_BYTES" | grep -q "openssh-key-v1"; then
+                echo "✅ Decoded base64 OpenSSH format key"
+              elif echo "$FIRST_BYTES" | grep -q "BEGIN.*PRIVATE KEY"; then
+                echo "✅ Decoded base64 PEM format key"
+              else
+                echo "⚠️  Base64 decode succeeded but format unclear, trying as plain text..."
+                echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
+              fi
+            else
+              # Base64 decode failed, try as plain text
+              echo "Base64 decode failed, trying as plain text..."
+              echo "$SSH_KEY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > ~/.ssh/temp_key
+            fi
           fi
           chmod 600 ~/.ssh/temp_key
           
-          # Validate and convert key format if needed
+          # Check key format and convert if needed
+          FIRST_BYTES=$(head -c 20 ~/.ssh/temp_key 2>/dev/null || echo "")
+          echo "Key file first 20 bytes: $(echo "$FIRST_BYTES" | xxd -p | head -c 40)"
+          
+          # Validate key
           if ! ssh-keygen -y -f ~/.ssh/temp_key > /dev/null 2>&1; then
             echo "Key validation failed, attempting format conversion..."
             # Try to convert OpenSSH format to PEM
-            if head -c 15 ~/.ssh/temp_key | grep -q "openssh-key-v1"; then
+            if echo "$FIRST_BYTES" | grep -q "openssh-key-v1"; then
               echo "Detected OpenSSH format, converting to PEM..."
               ssh-keygen -p -N "" -m PEM -f ~/.ssh/temp_key > /dev/null 2>&1 || {
-                echo "⚠️ Warning: Failed to convert OpenSSH key format"
+                echo "❌ Error: Failed to convert OpenSSH key format"
+                echo "Trying alternative conversion method..."
+                # Alternative: use ssh-keygen to convert
+                ssh-keygen -p -f ~/.ssh/temp_key -m PEM -N "" 2>&1 || {
+                  echo "❌ Error: All conversion attempts failed"
+                  exit 1
+                }
               }
+              echo "✅ Key converted to PEM format"
+            else
+              echo "❌ Error: Invalid SSH key format"
+              echo "Key file type: $(file ~/.ssh/temp_key 2>/dev/null || echo 'unknown')"
+              echo "Key file first 5 lines:"
+              head -5 ~/.ssh/temp_key || echo "Could not read key file"
+              exit 1
             fi
+          else
+            echo "✅ Key validation passed"
           fi
           
           # Extract public key and validate
           SSH_PUBLIC_KEY=$(ssh-keygen -y -f ~/.ssh/temp_key 2>/dev/null || echo "")
           
           if [ -z "$SSH_PUBLIC_KEY" ]; then
-            echo "⚠️ Warning: Could not extract SSH public key from private key"
-            echo "Checking key file format..."
+            echo "❌ Error: Could not extract SSH public key from private key"
+            echo "Key file format:"
             file ~/.ssh/temp_key || echo "Could not determine file type"
-            head -5 ~/.ssh/temp_key || echo "Could not read key file"
-            echo "VM will be created without SSH keys (password authentication only)"
-            echo "public_key=" >> $GITHUB_OUTPUT
-            rm -f ~/.ssh/temp_key
-          else
-            echo "✅ SSH public key extracted successfully"
-            echo "public_key=$SSH_PUBLIC_KEY" >> $GITHUB_OUTPUT
-            # Save public key to file
-            echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
-            chmod 644 ~/.ssh/id_rsa.pub
-            
-            # Save converted private key for SSH connection (use the validated/converted key)
-            cp ~/.ssh/temp_key ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
-            
-            # Validate the saved key one more time
-            if ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1; then
-              echo "✅ SSH private key saved and validated successfully"
-            else
-              echo "⚠️ Warning: Saved SSH key validation failed, but continuing..."
-            fi
-            
-            rm -f ~/.ssh/temp_key
+            echo "First 10 lines of key:"
+            head -10 ~/.ssh/temp_key || echo "Could not read key file"
+            exit 1
           fi
+          
+          echo "✅ SSH public key extracted successfully"
+          echo "public_key=$SSH_PUBLIC_KEY" >> $GITHUB_OUTPUT
+          
+          # Save public key to file
+          echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
+          chmod 644 ~/.ssh/id_rsa.pub
+          
+          # Save converted private key for SSH connection (use the validated/converted key)
+          cp ~/.ssh/temp_key ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Validate the saved key one more time
+          if ! ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1; then
+            echo "❌ Error: Saved SSH key validation failed"
+            exit 1
+          fi
+          
+          echo "✅ SSH private key saved and validated successfully"
+          echo "Key file location: ~/.ssh/id_rsa"
+          echo "Key file permissions: $(ls -l ~/.ssh/id_rsa | awk '{print $1}')"
+          
+          rm -f ~/.ssh/temp_key
+          
+      - name: Verify SSH key setup
+        run: |
+          if [ ! -f ~/.ssh/id_rsa ]; then
+            echo "❌ Error: SSH private key file not found at ~/.ssh/id_rsa"
+            echo "The SSH key extraction step must have failed"
+            exit 1
+          fi
+          
+          if [ ! -f ~/.ssh/id_rsa.pub ]; then
+            echo "❌ Error: SSH public key file not found at ~/.ssh/id_rsa.pub"
+            exit 1
+          fi
+          
+          # Verify key is valid
+          if ! ssh-keygen -y -f ~/.ssh/id_rsa > /dev/null 2>&1; then
+            echo "❌ Error: SSH key validation failed"
+            exit 1
+          fi
+          
+          echo "✅ SSH key setup verified"
+          echo "Private key: ~/.ssh/id_rsa ($(stat -c%s ~/.ssh/id_rsa 2>/dev/null || stat -f%z ~/.ssh/id_rsa 2>/dev/null) bytes)"
+          echo "Public key: ~/.ssh/id_rsa.pub"
+          echo "Public key fingerprint: $(ssh-keygen -lf ~/.ssh/id_rsa.pub | awk '{print $2}')"
 
       - name: Check if Key Vault exists
         id: kvcheck
@@ -545,24 +610,66 @@ jobs:
           RETRY_COUNT=0
           WAIT_INTERVAL=10
           
-          echo "Performing health check on http://$VM_IP:8080/api/v1/health"
+          echo "Performing health checks..."
+          echo "  - Backend API: http://$VM_IP:8080/api/v1/health"
+          echo "  - Frontend: http://$VM_IP:3000"
+          echo "  - Frontend (via Nginx): http://$VM_IP"
           echo "Note: If SSH deployment failed, the application may not be running yet."
           
+          BACKEND_HEALTHY=false
+          FRONTEND_HEALTHY=false
+          
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "Performing health check (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+            echo ""
+            echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
             
-            # Try to connect and get more detailed error info
-            CURL_OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}\nTIME_TOTAL:%{time_total}\n" http://$VM_IP:8080/api/v1/health 2>&1 || echo "CURL_ERROR")
-            HEALTH_STATUS=$(echo "$CURL_OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2 || echo "000")
+            # Check Backend API
+            if [ "$BACKEND_HEALTHY" = "false" ]; then
+              CURL_OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}\n" http://$VM_IP:8080/api/v1/health 2>&1 || echo "CURL_ERROR")
+              BACKEND_STATUS=$(echo "$CURL_OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2 || echo "000")
+              
+              if [ "$BACKEND_STATUS" = "200" ]; then
+                echo "✅ Backend API is healthy (HTTP 200)"
+                BACKEND_HEALTHY=true
+              else
+                echo "⚠️  Backend API not responding (HTTP $BACKEND_STATUS)"
+              fi
+            fi
             
-            if [ "$HEALTH_STATUS" = "200" ]; then
-              echo "✅ Backend API is healthy (HTTP 200)"
-              echo "All health checks passed."
-              exit 0
+            # Check Frontend (port 3000)
+            if [ "$FRONTEND_HEALTHY" = "false" ]; then
+              FRONTEND_OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}\n" http://$VM_IP:3000 2>&1 || echo "CURL_ERROR")
+              FRONTEND_STATUS=$(echo "$FRONTEND_OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2 || echo "000")
+              
+              if [ "$FRONTEND_STATUS" = "200" ] || [ "$FRONTEND_STATUS" = "301" ] || [ "$FRONTEND_STATUS" = "302" ]; then
+                echo "✅ Frontend is accessible on port 3000 (HTTP $FRONTEND_STATUS)"
+                FRONTEND_HEALTHY=true
+              else
+                echo "⚠️  Frontend not responding on port 3000 (HTTP $FRONTEND_STATUS)"
+              fi
+            fi
+            
+            # Check Frontend via Nginx (port 80)
+            NGINX_OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}\n" http://$VM_IP 2>&1 || echo "CURL_ERROR")
+            NGINX_STATUS=$(echo "$NGINX_OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2 || echo "000")
+            if [ "$NGINX_STATUS" = "200" ] || [ "$NGINX_STATUS" = "301" ] || [ "$NGINX_STATUS" = "302" ]; then
+              echo "✅ Frontend accessible via Nginx on port 80 (HTTP $NGINX_STATUS)"
             else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ "$HEALTH_STATUS" = "000" ]; then
-                echo "⚠️  Health check failed (HTTP $HEALTH_STATUS) - Connection refused or service not running"
+              echo "⚠️  Nginx not responding on port 80 (HTTP $NGINX_STATUS)"
+            fi
+            
+            if [ "$BACKEND_HEALTHY" = "true" ] && [ "$FRONTEND_HEALTHY" = "true" ]; then
+              echo ""
+              echo "✅ All health checks passed!"
+              echo "   Frontend: http://$VM_IP:3000 or http://$VM_IP"
+              echo "   Backend API: http://$VM_IP:8080"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              if [ "$BACKEND_STATUS" = "000" ]; then
+                echo "⚠️  Health check failed (HTTP $BACKEND_STATUS) - Connection refused or service not running"
                 if [ $RETRY_COUNT -eq 1 ]; then
                   echo "Diagnostics:"
                   echo "  - Checking if port 8080 is accessible..."
@@ -570,13 +677,15 @@ jobs:
                   echo "  - This may be normal if the application hasn't been deployed yet (SSH may have failed)"
                 fi
               else
-                echo "Health check failed (HTTP $HEALTH_STATUS), retrying in $WAIT_INTERVAL seconds..."
+                echo "Health check failed, retrying in $WAIT_INTERVAL seconds..."
               fi
               
               if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
                 sleep $WAIT_INTERVAL
               else
-                echo "⚠️  Warning: Backend API health check failed after $MAX_RETRIES attempts (HTTP $HEALTH_STATUS)"
+                echo "⚠️  Warning: Health checks failed after $MAX_RETRIES attempts"
+                echo "   Backend API: HTTP $BACKEND_STATUS"
+                echo "   Frontend: HTTP $FRONTEND_STATUS"
                 echo ""
                 echo "Possible reasons:"
                 echo "  1. Application deployment failed (check SSH connection and deployment logs above)"
