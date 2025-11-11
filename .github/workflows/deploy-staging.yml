@@ -647,12 +647,21 @@ jobs:
           set -e
           RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
           
-          # Determine if we should deploy SSH extension (only for new VMs)
+          # Determine if we should deploy SSH extension
+          # Always deploy for new VMs, but also deploy for existing VMs to ensure SSH service is running
+          # The extension is idempotent and will just ensure SSH is enabled/started
           DEPLOY_SSH_EXTENSION=false
           if [ "${{ steps.vmcheck.outputs.exists }}" = "false" ]; then
             DEPLOY_SSH_EXTENSION=true
+            echo "VM doesn't exist - will deploy SSH extension"
           elif [ "${{ steps.vmrecreate.outputs.recreate_vm }}" = "true" ]; then
             DEPLOY_SSH_EXTENSION=true
+            echo "VM is being recreated - will deploy SSH extension"
+          else
+            # For existing VMs, also deploy extension to ensure SSH service is running
+            # This is safe because the extension just ensures SSH is enabled/started
+            DEPLOY_SSH_EXTENSION=true
+            echo "VM already exists - will deploy SSH extension to ensure SSH service is running"
           fi
           
           # Use unique deployment name to avoid conflicts
@@ -772,6 +781,31 @@ jobs:
           fi
           echo ""
           echo "No changes needed. Proceeding to application deployment..."
+
+      - name: Ensure SSH Service Extension (for existing VMs)
+        if: steps.check_deployment.outputs.needs_deployment == 'false'
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          VM_NAME="${{ env.VM_NAME }}"
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          
+          echo "Ensuring SSH service is running on existing VM..."
+          echo "Deploying SSH service extension to ensure SSH starts..."
+          
+          # Deploy just the SSH extension using Azure CLI (lightweight, fast)
+          az vm extension set \
+            --resource-group $RESOURCE_GROUP \
+            --vm-name $VM_NAME \
+            --name CustomScript \
+            --publisher Microsoft.Azure.Extensions \
+            --version 2.1 \
+            --settings '{"commandToExecute":"systemctl enable sshd || systemctl enable ssh || true; systemctl start sshd || systemctl start ssh || true"}' \
+            --output none 2>/dev/null || echo "⚠️  Could not deploy SSH extension (may already exist or VM agent not ready)"
+          
+          echo "✅ SSH extension deployment attempted"
+          echo "Waiting 30 seconds for extension to execute..."
+          sleep 30
 
       - name: Wait for VM Agent and Verify SSH Service
         timeout-minutes: 5
@@ -939,63 +973,79 @@ jobs:
           fi
 
       - name: Check and Fix SSH Service
-        timeout-minutes: 5
+        timeout-minutes: 3
         continue-on-error: true
         run: |
           VM_NAME="${{ env.VM_NAME }}"
           RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
           
           echo "Checking SSH service status on VM using Azure VM run-command..."
+          echo "Note: This step will timeout if VM agent is not responding, but deployment will continue"
           
-          # Check if SSH service is running
-          SSH_CHECK_SCRIPT='systemctl is-active sshd || systemctl is-active ssh || echo "inactive"'
-          SSH_STATUS=$(az vm run-command invoke \
+          # Try to check SSH service with a short timeout
+          SSH_STATUS="unknown"
+          set +e  # Don't fail on errors in this step
+          
+          # Use timeout to prevent hanging
+          SSH_CHECK_OUTPUT=$(timeout 30 az vm run-command invoke \
             --resource-group $RESOURCE_GROUP \
             --name $VM_NAME \
             --command-id RunShellScript \
-            --scripts "$SSH_CHECK_SCRIPT" \
-            --query "value[0].message" -o tsv 2>/dev/null | grep -v "Enable" || echo "unknown")
+            --scripts "systemctl is-active sshd 2>/dev/null || systemctl is-active ssh 2>/dev/null || echo 'inactive'" \
+            --query "value[0].message" -o tsv 2>/dev/null | grep -v "Enable" | head -1 || echo "timeout")
           
-          echo "SSH service status: $SSH_STATUS"
+          if [ "$SSH_CHECK_OUTPUT" != "timeout" ] && [ -n "$SSH_CHECK_OUTPUT" ]; then
+            SSH_STATUS="$SSH_CHECK_OUTPUT"
+            echo "SSH service status: $SSH_STATUS"
+          else
+            echo "⚠️  Could not check SSH service status (VM agent may not be responding)"
+            echo "This is non-fatal - SSH may still be working"
+            exit 0  # Exit successfully to continue deployment
+          fi
           
-          if echo "$SSH_STATUS" | grep -qi "inactive\|failed\|unknown"; then
+          if echo "$SSH_STATUS" | grep -qi "inactive\|failed"; then
             echo "⚠️  SSH service is not running. Attempting to start it..."
             
-            # Start SSH service
-            az vm run-command invoke \
+            # Start SSH service with timeout
+            timeout 30 az vm run-command invoke \
               --resource-group $RESOURCE_GROUP \
               --name $VM_NAME \
               --command-id RunShellScript \
-              --scripts "sudo systemctl start sshd || sudo systemctl start ssh || sudo service ssh start || sudo service sshd start" \
-              --output none 2>/dev/null || echo "Failed to start SSH service via run-command"
+              --scripts "sudo systemctl start sshd 2>/dev/null || sudo systemctl start ssh 2>/dev/null || sudo service ssh start 2>/dev/null || sudo service sshd start 2>/dev/null || true" \
+              --output none 2>/dev/null || echo "⚠️  Could not start SSH service (may need manual intervention)"
             
-            echo "Waiting 10 seconds for SSH service to start..."
-            sleep 10
+            echo "Waiting 15 seconds for SSH service to start..."
+            sleep 15
             
-            # Enable SSH service to start on boot
-            az vm run-command invoke \
+            # Enable SSH service to start on boot (non-blocking)
+            timeout 20 az vm run-command invoke \
               --resource-group $RESOURCE_GROUP \
               --name $VM_NAME \
               --command-id RunShellScript \
-              --scripts "sudo systemctl enable sshd || sudo systemctl enable ssh" \
+              --scripts "sudo systemctl enable sshd 2>/dev/null || sudo systemctl enable ssh 2>/dev/null || true" \
               --output none 2>/dev/null || true
             
-            echo "✅ SSH service start command issued"
+            echo "✅ SSH service start command issued (if VM agent is responding)"
           else
             echo "✅ SSH service appears to be running"
           fi
           
-          # Verify SSH is listening on port 22
+          set -e  # Re-enable error checking
+          
+          # Verify SSH is listening on port 22 (with timeout to prevent hanging)
           echo "Verifying SSH is listening on port 22..."
-          PORT_CHECK=$(az vm run-command invoke \
+          PORT_CHECK=$(timeout 20 az vm run-command invoke \
             --resource-group $RESOURCE_GROUP \
             --name $VM_NAME \
             --command-id RunShellScript \
-            --scripts "sudo netstat -tlnp | grep ':22 ' || sudo ss -tlnp | grep ':22 ' || echo 'SSH not listening'" \
-            --query "value[0].message" -o tsv 2>/dev/null | grep -v "Enable" || echo "")
+            --scripts "sudo netstat -tlnp 2>/dev/null | grep ':22 ' || sudo ss -tlnp 2>/dev/null | grep ':22 ' || echo 'SSH not listening'" \
+            --query "value[0].message" -o tsv 2>/dev/null | grep -v "Enable" | head -1 || echo "timeout")
           
           if echo "$PORT_CHECK" | grep -q "22"; then
             echo "✅ SSH is listening on port 22"
+          elif [ "$PORT_CHECK" = "timeout" ]; then
+            echo "⚠️  Could not verify SSH port (VM agent may not be responding)"
+            echo "SSH service may still be running - will attempt connection anyway"
           else
             echo "⚠️  Warning: SSH may not be listening on port 22"
             echo "Port check output: $PORT_CHECK"
