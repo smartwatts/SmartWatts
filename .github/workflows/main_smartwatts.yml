@@ -62,13 +62,24 @@ jobs:
         continue-on-error: true
         run: |
           APP_NAME="SmartWatts"
+          
+          # Try multiple methods to find the resource group
           RESOURCE_GROUP=$(az webapp show --name $APP_NAME --query resourceGroup -o tsv 2>/dev/null || echo "")
           
+          # If that fails, try searching for the web app
           if [ -z "$RESOURCE_GROUP" ]; then
-            echo "⚠️  Could not determine resource group for web app"
+            echo "⚠️  Could not get resource group from webapp show, trying alternative method..."
+            RESOURCE_GROUP=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv 2>/dev/null | head -1 || echo "")
+          fi
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "⚠️  Could not determine resource group for web app '$APP_NAME'"
+            echo "Skipping active deployment check (web app may not exist yet)"
             echo "active=false" >> $GITHUB_OUTPUT
             exit 0
           fi
+          
+          echo "✅ Found resource group: $RESOURCE_GROUP"
           
           echo "Checking for active deployments in resource group: $RESOURCE_GROUP"
           
