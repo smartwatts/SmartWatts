@@ -487,6 +487,69 @@ jobs:
             echo "⚠️  Warning: VM state is '$VM_STATE' (unexpected)"
           fi
 
+      - name: Check and Fix SSH Service
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          VM_NAME="${{ env.VM_NAME }}"
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          
+          echo "Checking SSH service status on VM using Azure VM run-command..."
+          
+          # Check if SSH service is running
+          SSH_CHECK_SCRIPT='systemctl is-active sshd || systemctl is-active ssh || echo "inactive"'
+          SSH_STATUS=$(az vm run-command invoke \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --command-id RunShellScript \
+            --scripts "$SSH_CHECK_SCRIPT" \
+            --query "value[0].message" -o tsv 2>/dev/null | grep -v "Enable" || echo "unknown")
+          
+          echo "SSH service status: $SSH_STATUS"
+          
+          if echo "$SSH_STATUS" | grep -qi "inactive\|failed\|unknown"; then
+            echo "⚠️  SSH service is not running. Attempting to start it..."
+            
+            # Start SSH service
+            az vm run-command invoke \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --command-id RunShellScript \
+              --scripts "sudo systemctl start sshd || sudo systemctl start ssh || sudo service ssh start || sudo service sshd start" \
+              --output none 2>/dev/null || echo "Failed to start SSH service via run-command"
+            
+            echo "Waiting 10 seconds for SSH service to start..."
+            sleep 10
+            
+            # Enable SSH service to start on boot
+            az vm run-command invoke \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --command-id RunShellScript \
+              --scripts "sudo systemctl enable sshd || sudo systemctl enable ssh" \
+              --output none 2>/dev/null || true
+            
+            echo "✅ SSH service start command issued"
+          else
+            echo "✅ SSH service appears to be running"
+          fi
+          
+          # Verify SSH is listening on port 22
+          echo "Verifying SSH is listening on port 22..."
+          PORT_CHECK=$(az vm run-command invoke \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --command-id RunShellScript \
+            --scripts "sudo netstat -tlnp | grep ':22 ' || sudo ss -tlnp | grep ':22 ' || echo 'SSH not listening'" \
+            --query "value[0].message" -o tsv 2>/dev/null | grep -v "Enable" || echo "")
+          
+          if echo "$PORT_CHECK" | grep -q "22"; then
+            echo "✅ SSH is listening on port 22"
+          else
+            echo "⚠️  Warning: SSH may not be listening on port 22"
+            echo "Port check output: $PORT_CHECK"
+          fi
+
       - name: Verify SSH Connection
         timeout-minutes: 5
         continue-on-error: true
