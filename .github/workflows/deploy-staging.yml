@@ -1367,26 +1367,26 @@ jobs:
           
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Extracting repository on VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-            EXTRACT_SCRIPT='set -e
+            EXTRACT_SCRIPT="set -e
 cd /home/azureuser
-if [ -d "smartwatts" ]; then
-  echo "Removing existing smartwatts directory..."
+if [ -d \"smartwatts\" ]; then
+  echo \"Removing existing smartwatts directory...\"
   rm -rf smartwatts
 fi
-echo "Creating smartwatts directory..."
+echo \"Creating smartwatts directory...\"
 mkdir -p smartwatts
-echo "Extracting repository archive..."
-if [ -f "/tmp/smartwatts.tar.gz" ]; then
+echo \"Extracting repository archive...\"
+if [ -f \"/tmp/smartwatts.tar.gz\" ]; then
   cd smartwatts
   tar xzf /tmp/smartwatts.tar.gz
   rm /tmp/smartwatts.tar.gz
-  echo "✅ Repository extracted successfully"
-  echo "Repository contents:"
+  echo \"✅ Repository extracted successfully\"
+  echo \"Repository contents:\"
   ls -la | head -20
 else
-  echo "❌ Error: Archive file /tmp/smartwatts.tar.gz not found"
+  echo \"❌ Error: Archive file /tmp/smartwatts.tar.gz not found\"
   exit 1
-fi'
+fi"
             
             if ssh -o StrictHostKeyChecking=no \
                  -o UserKnownHostsFile=/dev/null \
