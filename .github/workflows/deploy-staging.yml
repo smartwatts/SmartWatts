@@ -1305,12 +1305,33 @@ jobs:
           fi
 
       - name: Copy Repository to VM
-        timeout-minutes: 5
+        timeout-minutes: 10
         if: env.REPO_STATUS != 'EXISTS'
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=5
           RETRY_COUNT=0
+          
+          echo "Creating repository archive..."
+          # Create tar.gz archive excluding unnecessary files
+          tar czf /tmp/smartwatts.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='__tests__' \
+            --exclude='e2e' \
+            --exclude='*.log' \
+            --exclude='.env*' \
+            --exclude='dist' \
+            --exclude='build' \
+            --exclude='bin' \
+            . 2>/dev/null || {
+            echo "❌ Error: Failed to create repository archive"
+            exit 1
+          }
+          
+          echo "Repository archive created: $(du -h /tmp/smartwatts.tar.gz | cut -f1)"
+          
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Copying repository to VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
             if scp -o StrictHostKeyChecking=no \
@@ -1319,8 +1340,9 @@ jobs:
                    -o ServerAliveInterval=10 \
                    -o ServerAliveCountMax=3 \
                    -i ~/.ssh/id_rsa \
-                   -r ./* azureuser@$VM_IP:/tmp/smartwatts.tar.gz; then
-              echo "Repository copied successfully"
+                   /tmp/smartwatts.tar.gz azureuser@$VM_IP:/tmp/smartwatts.tar.gz; then
+              echo "✅ Repository copied successfully"
+              rm -f /tmp/smartwatts.tar.gz
               break
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -1328,7 +1350,8 @@ jobs:
                 echo "Copy failed, retrying in $((RETRY_COUNT * 5)) seconds..."
                 sleep $((RETRY_COUNT * 5))
               else
-                echo "Error: Failed to copy repository after $MAX_RETRIES attempts"
+                echo "❌ Error: Failed to copy repository after $MAX_RETRIES attempts"
+                rm -f /tmp/smartwatts.tar.gz
                 exit 1
               fi
             fi
@@ -1341,9 +1364,30 @@ jobs:
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=3
           RETRY_COUNT=0
+          
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Extracting repository on VM (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
-            EXTRACT_SCRIPT=$(printf 'cd /home/azureuser\nif [ -d "smartwatts" ]; then\n  rm -rf smartwatts\nfi\nmkdir -p smartwatts\ncd smartwatts\ntar xzf /tmp/smartwatts.tar.gz\nrm /tmp/smartwatts.tar.gz\necho "Repository extracted successfully"')
+            EXTRACT_SCRIPT='set -e
+cd /home/azureuser
+if [ -d "smartwatts" ]; then
+  echo "Removing existing smartwatts directory..."
+  rm -rf smartwatts
+fi
+echo "Creating smartwatts directory..."
+mkdir -p smartwatts
+echo "Extracting repository archive..."
+if [ -f "/tmp/smartwatts.tar.gz" ]; then
+  cd smartwatts
+  tar xzf /tmp/smartwatts.tar.gz
+  rm /tmp/smartwatts.tar.gz
+  echo "✅ Repository extracted successfully"
+  echo "Repository contents:"
+  ls -la | head -20
+else
+  echo "❌ Error: Archive file /tmp/smartwatts.tar.gz not found"
+  exit 1
+fi'
+            
             if ssh -o StrictHostKeyChecking=no \
                  -o UserKnownHostsFile=/dev/null \
                  -o ConnectTimeout=30 \
@@ -1351,7 +1395,7 @@ jobs:
                  -o ServerAliveCountMax=3 \
                  -i ~/.ssh/id_rsa \
                  azureuser@$VM_IP "$EXTRACT_SCRIPT"; then
-              echo "Repository extracted successfully"
+              echo "✅ Repository extracted successfully"
               break
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -1359,7 +1403,7 @@ jobs:
                 echo "Extraction failed, retrying in $((RETRY_COUNT * 5)) seconds..."
                 sleep $((RETRY_COUNT * 5))
               else
-                echo "Error: Failed to extract repository after $MAX_RETRIES attempts"
+                echo "❌ Error: Failed to extract repository after $MAX_RETRIES attempts"
                 exit 1
               fi
             fi
@@ -1460,7 +1504,7 @@ jobs:
               '  exit 1;' \
               'fi;' \
               'echo "All Gradle wrapper files verified successfully";' \
-              'cd azure-deployment;' \
+              'cd "$REPO_DIR/azure-deployment" || { echo "❌ Error: azure-deployment directory not found in $REPO_DIR"; echo "Repository contents:"; ls -la "$REPO_DIR" | head -30; exit 1; };' \
               'export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-SmartWatts2024!}";' \
               'echo "Starting Docker Compose services using: $DOCKER_COMPOSE_CMD";' \
               'if echo "$DOCKER_COMPOSE_CMD" | grep -q "docker compose"; then' \
