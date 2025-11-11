@@ -596,7 +596,8 @@ jobs:
             --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\" \
             --parameters createKeyVault=$([ "${{ steps.kvcheck.outputs.exists }}" = "true" ] && echo "false" || echo "true") \
             --parameters deploySshExtension=$([ "$DEPLOY_SSH_EXTENSION" = "true" ] && echo "true" || echo "false") \
-            --mode Incremental"
+            --mode Incremental \
+            --no-wait"
 
           # Pass SSH key if:
           # 1. VM doesn't exist, OR
@@ -630,8 +631,62 @@ jobs:
             echo "VM already exists with SSH keys. Skipping vmSshPublicKey parameter (Azure doesn't allow updating SSH keys via Bicep)."
           fi
 
-          echo "Running deployment command..."
+          echo "Starting deployment (async mode to prevent hanging)..."
           eval "$DEPLOY_CMD"
+          
+          echo "Deployment started, monitoring progress..."
+          MAX_WAIT=840  # 14 minutes (leaving 1 minute buffer before timeout)
+          ELAPSED=0
+          POLL_INTERVAL=30
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            DEPLOYMENT_STATE=$(az deployment group show \
+              --resource-group $RESOURCE_GROUP \
+              --name $DEPLOYMENT_NAME \
+              --query "properties.provisioningState" \
+              -o tsv 2>/dev/null || echo "Unknown")
+            
+            if [ "$DEPLOYMENT_STATE" = "Succeeded" ]; then
+              echo "✅ Deployment completed successfully"
+              break
+            elif [ "$DEPLOYMENT_STATE" = "Failed" ]; then
+              echo "❌ Deployment failed"
+              # Get error details
+              ERROR=$(az deployment group show \
+                --resource-group $RESOURCE_GROUP \
+                --name $DEPLOYMENT_NAME \
+                --query "properties.error" \
+                -o json 2>/dev/null || echo "{}")
+              echo "Error details: $ERROR"
+              exit 1
+            elif [ "$DEPLOYMENT_STATE" = "Canceled" ]; then
+              echo "⚠️  Deployment was canceled"
+              exit 1
+            elif [ "$DEPLOYMENT_STATE" = "Unknown" ]; then
+              echo "⚠️  Could not get deployment state, waiting..."
+            else
+              echo "⏳ Deployment in progress... State: $DEPLOYMENT_STATE (${ELAPSED}s elapsed)"
+            fi
+            
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+          
+          # Final check
+          FINAL_STATE=$(az deployment group show \
+            --resource-group $RESOURCE_GROUP \
+            --name $DEPLOYMENT_NAME \
+            --query "properties.provisioningState" \
+            -o tsv 2>/dev/null || echo "Unknown")
+          
+          if [ "$FINAL_STATE" != "Succeeded" ]; then
+            echo "❌ Deployment did not complete successfully. Final state: $FINAL_STATE"
+            if [ "$FINAL_STATE" = "Running" ] || [ "$FINAL_STATE" = "InProgress" ]; then
+              echo "⚠️  Deployment is still running but timed out. It will continue in the background."
+              echo "You can check status with: az deployment group show --resource-group $RESOURCE_GROUP --name $DEPLOYMENT_NAME"
+            fi
+            exit 1
+          fi
 
       - name: Wait for VM Agent and Verify SSH Service
         timeout-minutes: 5

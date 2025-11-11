@@ -3,11 +3,15 @@
 
 name: Build and deploy Node.js app to Azure Web App - SmartWatts
 
+# DISABLED: Temporarily disabled to conserve GitHub minutes while fixing deploy-staging.yml
+# To re-enable: Uncomment the 'on:' section below
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  workflow_dispatch:  # Only allow manual runs for now
 
 jobs:
   build:
