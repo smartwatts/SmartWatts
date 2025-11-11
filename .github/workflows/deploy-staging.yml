@@ -96,6 +96,28 @@ jobs:
             echo "VM does not exist - will be created"
           fi
 
+      - name: Check if VM has SSH keys configured
+        id: vmsshcheck
+        if: steps.vmcheck.outputs.exists == 'true'
+        run: |
+          echo "Checking if existing VM has SSH keys configured..."
+          SSH_KEYS=$(az vm show \
+            --name ${{ env.VM_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "osProfile.linuxConfiguration.ssh.publicKeys" \
+            -o json 2>/dev/null || echo "[]")
+          
+          # Check if SSH keys array is empty or null
+          if [ "$SSH_KEYS" = "[]" ] || [ "$SSH_KEYS" = "null" ] || [ -z "$SSH_KEYS" ]; then
+            echo "has_ssh_keys=false" >> $GITHUB_OUTPUT
+            echo "⚠️  VM exists but has no SSH keys configured"
+            echo "This VM was likely created incorrectly and needs to be recreated"
+          else
+            echo "has_ssh_keys=true" >> $GITHUB_OUTPUT
+            echo "✅ VM has SSH keys configured"
+            echo "SSH keys: $SSH_KEYS"
+          fi
+
       - name: Extract SSH public key from secret
         id: sshkey
         run: |
@@ -374,6 +396,66 @@ jobs:
             echo "📦 Key Vault does not exist - will be created"
           fi
 
+      - name: Recreate VM if SSH keys are missing
+        id: vmrecreate
+        if: steps.vmcheck.outputs.exists == 'true' && steps.vmsshcheck.outputs.has_ssh_keys == 'false'
+        timeout-minutes: 10
+        run: |
+          VM_NAME="${{ env.VM_NAME }}"
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          
+          echo "⚠️  VM exists but has no SSH keys configured"
+          echo "This VM was created incorrectly and cannot be accessed via SSH"
+          echo "Recreating VM with proper SSH key configuration..."
+          echo ""
+          echo "Note: The OS disk will be preserved (Azure keeps disks when VM is deleted)"
+          echo "However, any data on the VM will be lost as we're creating a fresh VM"
+          echo ""
+          
+          # Verify SSH public key is available before deleting VM
+          if [ -z "${{ steps.sshkey.outputs.public_key }}" ]; then
+            echo "❌ Error: Cannot recreate VM - SSH public key is not available"
+            echo "The SSH key extraction step must have failed"
+            echo "Please check the 'Extract SSH public key from secret' step for errors"
+            exit 1
+          fi
+          
+          echo "✅ SSH public key is available - safe to recreate VM"
+          echo "Public key fingerprint: $(echo '${{ steps.sshkey.outputs.public_key }}' | ssh-keygen -lf - 2>/dev/null | awk '{print $2}' || echo 'N/A')"
+          echo ""
+          
+          # Stop VM if it's running
+          VM_STATE=$(az vm show \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --show-details \
+            --query "powerState" \
+            -o tsv 2>/dev/null || echo "Unknown")
+          
+          if [ "$VM_STATE" = "VM running" ]; then
+            echo "Stopping VM before deletion..."
+            az vm stop \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --output none
+            echo "Waiting for VM to stop..."
+            sleep 10
+          fi
+          
+          # Delete VM (OS disk will be preserved by default)
+          echo "Deleting VM (OS disk will be preserved)..."
+          az vm delete \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --yes \
+            --output none
+          
+          echo "✅ VM deleted successfully"
+          echo "OS disk is preserved and can be reattached if needed"
+          echo ""
+          echo "Setting flag to recreate VM..."
+          echo "recreate_vm=true" >> $GITHUB_OUTPUT
+
       - name: Deploy Infrastructure via Bicep
         id: deploy
         timeout-minutes: 20
@@ -388,22 +470,123 @@ jobs:
             --parameters createKeyVault=$([ "${{ steps.kvcheck.outputs.exists }}" = "true" ] && echo "false" || echo "true") \
             --mode Incremental"
 
-          # Only pass SSH key if VM doesn't already exist and we have a public key
+          # Pass SSH key if:
+          # 1. VM doesn't exist, OR
+          # 2. VM is being recreated (was deleted because it had no SSH keys), OR
+          # 3. VM exists but has no SSH keys (will be recreated in next step)
+          NEEDS_SSH_KEY=false
           if [ "${{ steps.vmcheck.outputs.exists }}" = "false" ]; then
+            NEEDS_SSH_KEY=true
+            echo "VM not found. Will create with SSH key."
+          elif [ "${{ steps.vmrecreate.outputs.recreate_vm }}" = "true" ]; then
+            NEEDS_SSH_KEY=true
+            echo "VM was recreated. Will create with SSH key."
+          elif [ "${{ steps.vmsshcheck.outputs.has_ssh_keys }}" = "false" ]; then
+            NEEDS_SSH_KEY=true
+            echo "VM exists but has no SSH keys. Will recreate with SSH key."
+          fi
+          
+          if [ "$NEEDS_SSH_KEY" = "true" ]; then
             if [ -n "${{ steps.sshkey.outputs.public_key }}" ]; then
-              echo "VM not found. Injecting SSH key for initial creation."
+              echo "Injecting SSH key for VM creation."
               DEPLOY_CMD="$DEPLOY_CMD --parameters vmSshPublicKey=\"${{ steps.sshkey.outputs.public_key }}\""
               echo "✅ Adding SSH public key to Bicep deployment"
+              echo "Public key fingerprint: $(echo '${{ steps.sshkey.outputs.public_key }}' | ssh-keygen -lf - 2>/dev/null | awk '{print $2}' || echo 'N/A')"
             else
-              echo "⚠️  No SSH public key available - VM will be created without SSH key in Bicep"
-              echo "SSH connections will use the private key directly (OpenSSH format supported)"
+              echo "❌ Error: SSH public key is required for VM creation but is not available"
+              echo "The SSH key extraction step must have failed"
+              echo "Please check the 'Extract SSH public key from secret' step for errors"
+              exit 1
             fi
           else
-            echo "VM already exists. Skipping vmSshPublicKey parameter (Azure doesn't allow updating SSH keys via Bicep)."
+            echo "VM already exists with SSH keys. Skipping vmSshPublicKey parameter (Azure doesn't allow updating SSH keys via Bicep)."
           fi
 
           echo "Running deployment command..."
           eval "$DEPLOY_CMD"
+
+      - name: Wait for VM Agent and Verify SSH Service
+        timeout-minutes: 5
+        if: steps.vmcheck.outputs.exists == 'false' || steps.vmrecreate.outputs.recreate_vm == 'true' || (steps.vmcheck.outputs.exists == 'true' && steps.vmsshcheck.outputs.has_ssh_keys == 'false')
+        run: |
+          VM_NAME="${{ env.VM_NAME }}"
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          
+          echo "Waiting for VM agent to be ready after creation..."
+          MAX_WAIT=300
+          ELAPSED=0
+          VM_AGENT_READY=false
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            # Check VM agent status
+            AGENT_STATUS=$(az vm show \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --instance-view \
+              --query "instanceView.vmAgent.statuses[?code=='ProvisioningState/succeeded']" \
+              -o json 2>/dev/null || echo "[]")
+            
+            if echo "$AGENT_STATUS" | grep -q "succeeded"; then
+              echo "✅ VM agent is ready"
+              VM_AGENT_READY=true
+              break
+            fi
+            
+            echo "Waiting for VM agent... ($ELAPSED/$MAX_WAIT seconds)"
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+          
+          if [ "$VM_AGENT_READY" = "false" ]; then
+            echo "⚠️  Warning: VM agent may not be fully ready, but continuing..."
+          fi
+          
+          # Wait for custom script extension to complete
+          echo "Waiting for SSH service configuration extension to complete..."
+          sleep 30
+          
+          # Verify SSH service is running using VM run-command
+          echo "Verifying SSH service is running..."
+          SSH_CHECK=$(az vm run-command invoke \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --command-id RunShellScript \
+            --scripts "systemctl is-active sshd || systemctl is-active ssh || echo 'inactive'" \
+            --query "value[0].message" -o tsv 2>/dev/null | grep -v "Enable" || echo "unknown")
+          
+          if echo "$SSH_CHECK" | grep -qi "active\|running"; then
+            echo "✅ SSH service is running"
+          else
+            echo "⚠️  Warning: SSH service status unclear: $SSH_CHECK"
+            echo "Attempting to start SSH service..."
+            az vm run-command invoke \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --command-id RunShellScript \
+              --scripts "sudo systemctl start sshd || sudo systemctl start ssh || sudo service ssh start || sudo service sshd start" \
+              --output none 2>/dev/null || echo "Failed to start SSH service"
+            sleep 10
+          fi
+          
+          # Verify SSH keys are actually configured on the VM
+          echo ""
+          echo "Verifying SSH keys are configured on the VM..."
+          VM_SSH_KEYS=$(az vm show \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --query "osProfile.linuxConfiguration.ssh.publicKeys" \
+            -o json 2>/dev/null || echo "[]")
+          
+          if [ "$VM_SSH_KEYS" = "[]" ] || [ "$VM_SSH_KEYS" = "null" ] || [ -z "$VM_SSH_KEYS" ]; then
+            echo "❌ Error: VM was created but SSH keys are not configured!"
+            echo "This should not happen - the Bicep template should have configured SSH keys"
+            echo "VM SSH keys status: $VM_SSH_KEYS"
+            exit 1
+          else
+            echo "✅ SSH keys are properly configured on the VM"
+            KEY_COUNT=$(echo "$VM_SSH_KEYS" | jq 'length' 2>/dev/null || echo "1")
+            echo "Number of SSH keys configured: $KEY_COUNT"
+          fi
 
       - name: Retrieve VM Public IP
         id: get_ip

@@ -36,6 +36,8 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
       adminPassword: vmAdminPassword
       linuxConfiguration: vmSshPublicKey != '' ? {
         disablePasswordAuthentication: false
+        provisionVMAgent: true
+        enableVMAgentPlatformUpdates: false
         ssh: {
           publicKeys: [
             {
@@ -46,6 +48,8 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
         }
       } : {
         disablePasswordAuthentication: false
+        provisionVMAgent: true
+        enableVMAgentPlatformUpdates: false
       }
     }
     storageProfile: {
@@ -70,6 +74,22 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
           id: nic.id
         }
       ]
+    }
+  }
+}
+
+// Custom Script Extension to ensure SSH service starts on boot
+resource vmSshExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03-01' = {
+  name: '${vmName}/ensure-ssh-service'
+  location: location
+  parent: vm
+  properties: {
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    settings: {
+      commandToExecute: 'bash -c "systemctl enable sshd || systemctl enable ssh || true; systemctl start sshd || systemctl start ssh || true; if ! netstat -tlnp 2>/dev/null | grep -q \':22 \' && ! ss -tlnp 2>/dev/null | grep -q \':22 \'; then echo \"Warning: SSH may not be listening on port 22\"; else echo \"SSH service is running and listening on port 22\"; fi"'
     }
   }
 }
