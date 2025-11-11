@@ -621,9 +621,26 @@ jobs:
               '  exit 1;' \
               'fi;' \
               'echo "Docker is installed and running";' \
-              'if ! command -v docker-compose &> /dev/null && ! (command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1); then' \
+              'DOCKER_COMPOSE_CMD="";' \
+              'if command -v docker &> /dev/null && docker compose version &> /dev/null 2>&1; then' \
+              '  DOCKER_COMPOSE_CMD="docker compose";' \
+              '  echo "Using Docker Compose plugin (docker compose)";' \
+              'elif command -v docker-compose &> /dev/null; then' \
+              '  DOCKER_COMPOSE_CMD="docker-compose";' \
+              '  echo "Using docker-compose command";' \
+              'elif [ -f /usr/local/bin/docker-compose ]; then' \
+              '  DOCKER_COMPOSE_CMD="/usr/local/bin/docker-compose";' \
+              '  echo "Using docker-compose from /usr/local/bin";' \
+              'else' \
+              '  echo "Installing docker-compose...";' \
               '  sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose;' \
               '  sudo chmod +x /usr/local/bin/docker-compose;' \
+              '  DOCKER_COMPOSE_CMD="/usr/local/bin/docker-compose";' \
+              '  echo "docker-compose installed to /usr/local/bin";' \
+              'fi;' \
+              'if [ -z "$DOCKER_COMPOSE_CMD" ]; then' \
+              '  echo "ERROR: Could not find or install docker-compose";' \
+              '  exit 1;' \
               'fi;' \
               'REPO_DIR="";' \
               'if [ -d "/home/azureuser/SmartWatts" ]; then' \
@@ -657,19 +674,34 @@ jobs:
               'echo "All Gradle wrapper files verified successfully";' \
               'cd azure-deployment;' \
               'export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-SmartWatts2024!}";' \
-              'echo "Starting Docker Compose services...";' \
-              'if ! sudo docker-compose -f docker-compose.azure.yml up -d --build; then' \
-              '  echo "ERROR: Docker Compose failed to start services";' \
-              '  echo "Container logs:";' \
-              '  sudo docker-compose -f docker-compose.azure.yml logs --tail=50 || true;' \
-              '  exit 1;' \
+              'echo "Starting Docker Compose services using: $DOCKER_COMPOSE_CMD";' \
+              'if echo "$DOCKER_COMPOSE_CMD" | grep -q "docker compose"; then' \
+              '  if ! sudo docker compose -f docker-compose.azure.yml up -d --build; then' \
+              '    echo "ERROR: Docker Compose failed to start services";' \
+              '    echo "Container logs:";' \
+              '    sudo docker compose -f docker-compose.azure.yml logs --tail=50 || true;' \
+              '    exit 1;' \
+              '  fi;' \
+              '  COMPOSE_CMD="docker compose";' \
+              'else' \
+              '  if ! sudo $DOCKER_COMPOSE_CMD -f docker-compose.azure.yml up -d --build; then' \
+              '    echo "ERROR: Docker Compose failed to start services";' \
+              '    echo "Container logs:";' \
+              '    sudo $DOCKER_COMPOSE_CMD -f docker-compose.azure.yml logs --tail=50 || true;' \
+              '    exit 1;' \
+              '  fi;' \
+              '  COMPOSE_CMD="$DOCKER_COMPOSE_CMD";' \
               'fi;' \
               'echo "Docker Compose started, waiting for containers to be ready...";' \
               'MAX_WAIT=600;' \
               'ELAPSED=0;' \
               'ALL_READY=false;' \
               'while [ $ELAPSED -lt $MAX_WAIT ]; do' \
-              '  CONTAINER_STATUS=$(sudo docker-compose -f docker-compose.azure.yml ps --format json 2>/dev/null || echo "[]");' \
+              '  if echo "$COMPOSE_CMD" | grep -q "docker compose"; then' \
+              '    CONTAINER_STATUS=$(sudo docker compose -f docker-compose.azure.yml ps --format json 2>/dev/null || echo "[]");' \
+              '  else' \
+              '    CONTAINER_STATUS=$(sudo $COMPOSE_CMD -f docker-compose.azure.yml ps --format json 2>/dev/null || echo "[]");' \
+              '  fi;' \
               '  TOTAL_CONTAINERS=$(echo "$CONTAINER_STATUS" | grep -c "Name" || echo "0");' \
               '  RUNNING_CONTAINERS=$(echo "$CONTAINER_STATUS" | grep -c '"'"'"State":"running"'"'"' || echo "0");' \
               '  if [ "$TOTAL_CONTAINERS" -gt 0 ] && [ "$RUNNING_CONTAINERS" -eq "$TOTAL_CONTAINERS" ]; then' \
@@ -706,14 +738,24 @@ jobs:
               'done;' \
               'if [ "$ALL_READY" = "true" ]; then' \
               '  echo "✅ All services are ready";' \
-              '  sudo docker-compose -f docker-compose.azure.yml ps;' \
+              '  if echo "$COMPOSE_CMD" | grep -q "docker compose"; then' \
+              '    sudo docker compose -f docker-compose.azure.yml ps;' \
+              '  else' \
+              '    sudo $COMPOSE_CMD -f docker-compose.azure.yml ps;' \
+              '  fi;' \
               '  echo "Application deployed successfully";' \
               'else' \
               '  echo "⚠️  Warning: Services started but may not be fully ready";' \
               '  echo "Container status:";' \
-              '  sudo docker-compose -f docker-compose.azure.yml ps;' \
-              '  echo "Recent logs:";' \
-              '  sudo docker-compose -f docker-compose.azure.yml logs --tail=30;' \
+              '  if echo "$COMPOSE_CMD" | grep -q "docker compose"; then' \
+              '    sudo docker compose -f docker-compose.azure.yml ps;' \
+              '    echo "Recent logs:";' \
+              '    sudo docker compose -f docker-compose.azure.yml logs --tail=30;' \
+              '  else' \
+              '    sudo $COMPOSE_CMD -f docker-compose.azure.yml ps;' \
+              '    echo "Recent logs:";' \
+              '    sudo $COMPOSE_CMD -f docker-compose.azure.yml logs --tail=30;' \
+              '  fi;' \
               '  echo "Application deployment completed (services may still be initializing)";' \
               'fi')
             if ssh -o StrictHostKeyChecking=no \
