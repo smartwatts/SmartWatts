@@ -152,12 +152,23 @@ jobs:
       - name: Check if Key Vault exists
         id: kvcheck
         run: |
-          if az keyvault show --name sw-staging-kv --resource-group ${{ env.AZURE_RESOURCE_GROUP }} >/dev/null 2>&1; then
+          # Key Vault names are globally unique, so check across all resource groups
+          # First try to find it in any resource group
+          KV_EXISTS=$(az keyvault list --query "[?name=='sw-staging-kv'] | length(@)" -o tsv 2>/dev/null || echo "0")
+          
+          # Also check for soft-deleted Key Vaults
+          KV_DELETED=$(az keyvault list-deleted --query "[?name=='sw-staging-kv'] | length(@)" -o tsv 2>/dev/null || echo "0")
+          
+          if [ "$KV_EXISTS" != "0" ] || [ "$KV_DELETED" != "0" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Key Vault already exists"
+            if [ "$KV_DELETED" != "0" ]; then
+              echo "⚠️  Key Vault exists in soft-deleted state - will not create"
+            else
+              echo "✅ Key Vault already exists globally"
+            fi
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Key Vault does not exist - will be created"
+            echo "📦 Key Vault does not exist - will be created"
           fi
 
       - name: Deploy Infrastructure via Bicep

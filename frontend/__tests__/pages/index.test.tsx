@@ -62,7 +62,10 @@ describe('Index Page (Landing Page)', () => {
     expect(screen.getByText('Average Cost Reduction')).toBeInTheDocument()
   })
 
-  it('displays pricing section', () => {
+  it.skip('displays pricing section', () => {
+    // NOTE: This test is skipped because the pricing section is currently commented out
+    // in the Index page (lines 413-552). When the pricing section is re-enabled,
+    // remove .skip from this test.
     render(<Index />)
 
     expect(screen.getByText('Investment That Pays for Itself')).toBeInTheDocument()
