@@ -578,7 +578,7 @@ jobs:
           done
 
       - name: Deploy Application to VM
-        timeout-minutes: 30
+        timeout-minutes: 60
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=3
@@ -692,7 +692,25 @@ jobs:
               '  fi;' \
               '  COMPOSE_CMD="$DOCKER_COMPOSE_CMD";' \
               'fi;' \
-              'echo "Docker Compose started, waiting for containers to be ready...";' \
+              'echo "Starting Docker Compose build (this may take 20-40 minutes for first build)...";' \
+              'echo "Note: Gradle builds for all services can take significant time";' \
+              'if echo "$COMPOSE_CMD" | grep -q "docker compose"; then' \
+              '  if ! sudo docker compose -f docker-compose.azure.yml up -d --build; then' \
+              '    echo "ERROR: Docker Compose build failed";' \
+              '    echo "Container logs:";' \
+              '    sudo docker compose -f docker-compose.azure.yml logs --tail=50 || true;' \
+              '    exit 1;' \
+              '  fi;' \
+              'else' \
+              '  if ! sudo $COMPOSE_CMD -f docker-compose.azure.yml up -d --build; then' \
+              '    echo "ERROR: Docker Compose build failed";' \
+              '    echo "Container logs:";' \
+              '    sudo $COMPOSE_CMD -f docker-compose.azure.yml logs --tail=50 || true;' \
+              '    exit 1;' \
+              '  fi;' \
+              'fi;' \
+              'echo "Docker Compose build completed successfully";' \
+              'echo "Waiting for containers to be ready...";' \
               'MAX_WAIT=600;' \
               'ELAPSED=0;' \
               'ALL_READY=false;' \
