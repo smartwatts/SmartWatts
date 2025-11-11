@@ -449,8 +449,7 @@ jobs:
       - name: Fix SSH on Existing VM (Non-Destructive)
         id: fixssh
         if: steps.vmcheck.outputs.exists == 'true' && steps.sshhealthcheck.outputs.ssh_working == 'false'
-        timeout-minutes: 15
-        continue-on-error: true
+        timeout-minutes: 10
         run: |
           VM_NAME="${{ env.VM_NAME }}"
           RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
@@ -963,6 +962,7 @@ jobs:
           RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
           
           echo "Waiting for VM agent to be ready after creation..."
+          echo "Note: VM agent may take several minutes to initialize on new VMs"
           MAX_WAIT=300
           ELAPSED=0
           VM_AGENT_READY=false
@@ -982,13 +982,24 @@ jobs:
               break
             fi
             
-            echo "Waiting for VM agent... ($ELAPSED/$MAX_WAIT seconds)"
+            # Also check if VM is at least running
+            VM_STATE=$(az vm show \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --show-details \
+              --query "powerState" \
+              -o tsv 2>/dev/null || echo "Unknown")
+            
+            echo "Waiting for VM agent... ($ELAPSED/$MAX_WAIT seconds) - VM state: $VM_STATE"
             sleep 10
             ELAPSED=$((ELAPSED + 10))
           done
           
           if [ "$VM_AGENT_READY" = "false" ]; then
-            echo "⚠️  Warning: VM agent may not be fully ready, but continuing..."
+            echo "❌ Error: VM agent is not ready after $MAX_WAIT seconds"
+            echo "VM agent must be ready for SSH extension to execute"
+            echo "This may indicate a problem with the VM or VM agent installation"
+            exit 1
           fi
           
           # Wait for custom script extension to complete
@@ -997,7 +1008,7 @@ jobs:
           
           # Verify SSH service is running using VM run-command
           echo "Verifying SSH service is running..."
-          SSH_CHECK=$(az vm run-command invoke \
+          SSH_CHECK=$(timeout 30 az vm run-command invoke \
             --resource-group $RESOURCE_GROUP \
             --name $VM_NAME \
             --command-id RunShellScript \
@@ -1007,15 +1018,10 @@ jobs:
           if echo "$SSH_CHECK" | grep -qi "active\|running"; then
             echo "✅ SSH service is running"
           else
-            echo "⚠️  Warning: SSH service status unclear: $SSH_CHECK"
-            echo "Attempting to start SSH service..."
-            az vm run-command invoke \
-              --resource-group $RESOURCE_GROUP \
-              --name $VM_NAME \
-              --command-id RunShellScript \
-              --scripts "sudo systemctl start sshd || sudo systemctl start ssh || sudo service ssh start || sudo service sshd start" \
-              --output none 2>/dev/null || echo "Failed to start SSH service"
-            sleep 10
+            echo "❌ Error: SSH service is not running after extension execution"
+            echo "SSH service status: $SSH_CHECK"
+            echo "This indicates the SSH extension may have failed"
+            exit 1
           fi
           
           # Verify SSH keys are actually configured on the VM
@@ -1037,6 +1043,10 @@ jobs:
             KEY_COUNT=$(echo "$VM_SSH_KEYS" | jq 'length' 2>/dev/null || echo "1")
             echo "Number of SSH keys configured: $KEY_COUNT"
           fi
+          
+          echo ""
+          echo "✅ VM creation verification complete"
+          echo "Note: If VM agent wasn't ready, SSH extension will run automatically when agent initializes"
 
       - name: Retrieve VM Public IP
         id: get_ip
@@ -1121,8 +1131,7 @@ jobs:
           fi
 
       - name: Check and Fix SSH Service
-        timeout-minutes: 3
-        continue-on-error: true
+        timeout-minutes: 2
         run: |
           VM_NAME="${{ env.VM_NAME }}"
           RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
@@ -1200,8 +1209,7 @@ jobs:
           fi
 
       - name: Verify SSH Connection
-        timeout-minutes: 5
-        continue-on-error: true
+        timeout-minutes: 3
         run: |
           MAX_RETRIES=5
           RETRY_DELAY=15
@@ -1256,17 +1264,17 @@ jobs:
           fi
 
           if [ "$SSH_SUCCESS" != "true" ]; then
-            echo "⚠️  SSH connection verification failed after $MAX_RETRIES attempts."
+            echo "❌ Error: SSH connection verification failed after $MAX_RETRIES attempts."
             echo "VM IP: ${{ env.VM_IP }}"
             echo "VM State: $(az vm show -d --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.VM_NAME }} --query powerState -o tsv 2>/dev/null || echo 'unknown')"
             echo ""
-            echo "⚠️  Warning: SSH connection failed. Deployment will continue, but manual intervention may be required."
-            echo "To fix SSH access:"
-            echo "1. Check if SSH key was added: az vm show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.VM_NAME }} --query 'osProfile.linuxConfiguration.ssh.publicKeys'"
-            echo "2. Try adding SSH key manually: az vm user update --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.VM_NAME }} --username ${{ env.VM_ADMIN_USERNAME }} --ssh-key-value \"<public-key>\""
-            echo "3. Or use Azure Portal to reset SSH key"
+            echo "SSH connection is required for deployment. Deployment cannot continue."
             echo ""
-            echo "⚠️  Continuing deployment despite SSH failure..."
+            echo "To troubleshoot:"
+            echo "1. Check if SSH key was added: az vm show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.VM_NAME }} --query 'osProfile.linuxConfiguration.ssh.publicKeys'"
+            echo "2. Check NSG rules allow SSH: az network nsg rule list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --nsg-name <nsg-name>"
+            echo "3. Check VM boot diagnostics for errors"
+            exit 1
           else
             echo "✅ SSH connection verified successfully!"
           fi
