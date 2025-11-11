@@ -257,14 +257,41 @@ jobs:
           echo "Key size: $(wc -c < ~/.ssh/id_rsa) bytes"
           echo "Key type: $(file ~/.ssh/id_rsa 2>/dev/null || echo 'unknown')"
           
+          # Critical: Test if SSH can actually read the key
+          echo ""
+          echo "🔍 Testing if SSH can read the key file..."
+          SSH_TEST_OUTPUT=$(ssh-keygen -l -f ~/.ssh/id_rsa 2>&1 || echo "SSH_TEST_FAILED")
+          
+          if echo "$SSH_TEST_OUTPUT" | grep -qi "error\|libcrypto\|invalid\|corrupt"; then
+            echo "❌ CRITICAL ERROR: SSH cannot read the key file"
+            echo "SSH test output: $SSH_TEST_OUTPUT"
+            echo ""
+            echo "The key file appears to be corrupted, encrypted, or in an unsupported format."
+            echo ""
+            echo "Key file diagnostics:"
+            echo "  - First 100 characters: $(head -c 100 ~/.ssh/id_rsa | tr -d '\n' | head -c 100)"
+            echo "  - Last 100 characters: $(tail -c 100 ~/.ssh/id_rsa | tr -d '\n' | tail -c 100)"
+            echo "  - Contains 'BEGIN': $(grep -q 'BEGIN' ~/.ssh/id_rsa && echo 'Yes' || echo 'No')"
+            echo "  - Contains 'PRIVATE': $(grep -q 'PRIVATE' ~/.ssh/id_rsa && echo 'Yes' || echo 'No')"
+            echo "  - Contains 'openssh-key-v1': $(head -c 50 ~/.ssh/id_rsa | grep -q 'openssh-key-v1' && echo 'Yes' || echo 'No')"
+            echo ""
+            echo "❌ ERROR: The SSH key in VM_SSH_PRIVATE_KEY_STAGING secret is invalid."
+            echo "Please check:"
+            echo "  1. The key is unencrypted (no passphrase)"
+            echo "  2. The key is in PEM or OpenSSH format"
+            echo "  3. The key was copied correctly (no extra spaces or line breaks)"
+            echo "  4. The key is the complete private key (not just a portion)"
+            exit 1
+          else
+            echo "✅ SSH can read the key file"
+            echo "Key fingerprint: $(echo "$SSH_TEST_OUTPUT" | grep -o '[a-f0-9:]*' | head -1 || echo 'N/A')"
+          fi
+          
           echo "✅ SSH private key saved successfully"
           echo "Key file location: ~/.ssh/id_rsa"
           echo "Key file permissions: $(ls -l ~/.ssh/id_rsa | awk '{print $1}')"
           echo "Key file size: $(wc -c < ~/.ssh/id_rsa) bytes"
           echo "Key format: $(file ~/.ssh/id_rsa 2>/dev/null || echo 'unknown')"
-          
-          # Note: We don't validate with ssh-keygen -y because OpenSSH format keys
-          # may not support this, but they work fine with SSH clients
           
           rm -f ~/.ssh/temp_key
           

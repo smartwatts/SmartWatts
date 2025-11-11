@@ -419,60 +419,122 @@ jobs:
       - name: Verify web app is ready before deployment
         run: |
           APP_NAME="SmartWatts"
-          RESOURCE_GROUP=$(az webapp show --name $APP_NAME --query resourceGroup -o tsv 2>/dev/null || echo "")
+          
+          echo "🔍 Verifying web app exists and is ready for deployment..."
+          
+          # First, verify we can find the web app
+          WEB_APP_JSON=$(az webapp show --name $APP_NAME --output json 2>&1 || echo "")
+          
+          if echo "$WEB_APP_JSON" | grep -qi "not found\|does not exist"; then
+            echo "❌ Error: Web app '$APP_NAME' does not exist"
+            echo ""
+            echo "Please create the web app first:"
+            echo "  az webapp create --resource-group <resource-group> --name $APP_NAME --plan <app-service-plan> --runtime \"NODE|20\""
+            exit 1
+          fi
+          
+          # Extract resource group from the JSON output
+          RESOURCE_GROUP=$(echo "$WEB_APP_JSON" | grep -o '"resourceGroup"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 || echo "")
           
           if [ -z "$RESOURCE_GROUP" ]; then
+            # Fallback: try direct query
+            RESOURCE_GROUP=$(az webapp show --name $APP_NAME --query resourceGroup -o tsv 2>/dev/null || echo "")
+          fi
+          
+          if [ -z "$RESOURCE_GROUP" ]; then
+            # Last resort: search all web apps
             RESOURCE_GROUP=$(az webapp list --query "[?name=='$APP_NAME'].resourceGroup" -o tsv 2>/dev/null | head -1 || echo "")
           fi
           
-          if [ -n "$RESOURCE_GROUP" ]; then
-            echo "🔍 Final verification: Web app must be Running and Enabled before deployment..."
-            STATE=$(az webapp show \
-              --resource-group $RESOURCE_GROUP \
-              --name $APP_NAME \
-              --query properties.state \
-              -o tsv 2>/dev/null || echo "Unknown")
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "❌ Error: Cannot determine resource group for web app '$APP_NAME'"
+            echo "This indicates the web app may not exist or there's an authentication issue."
+            echo ""
+            echo "Available web apps:"
+            az webapp list --query "[].{name:name, resourceGroup:resourceGroup}" -o table 2>/dev/null || echo "Could not list web apps"
+            exit 1
+          fi
+          
+          echo "✅ Found resource group: $RESOURCE_GROUP"
+          echo "🔍 Final verification: Web app must be Running and Enabled before deployment..."
+          
+          # Get web app state with better error handling
+          STATE_RESULT=$(az webapp show \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query properties.state \
+            -o tsv 2>&1)
+          
+          if echo "$STATE_RESULT" | grep -qi "error\|not found"; then
+            echo "❌ Error: Failed to query web app state"
+            echo "Azure CLI output: $STATE_RESULT"
+            exit 1
+          fi
+          
+          STATE="$STATE_RESULT"
+          
+          # Get enabled status
+          ENABLED_RESULT=$(az webapp show \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query properties.enabled \
+            -o tsv 2>&1)
+          
+          if echo "$ENABLED_RESULT" | grep -qi "error\|not found"; then
+            echo "⚠️  Warning: Failed to query web app enabled status"
+            ENABLED="false"
+          else
+            ENABLED="$ENABLED_RESULT"
+          fi
+          
+          echo "State: ${STATE:-'(empty - this is an error)'}"
+          echo "Enabled: ${ENABLED:-'(empty - this is an error)'}"
+          
+          # Handle empty values
+          if [ -z "$STATE" ] || [ -z "$ENABLED" ]; then
+            echo "❌ Error: Web app state queries returned empty values"
+            echo "This indicates the web app may not exist or there's a configuration issue."
+            echo ""
+            echo "Full web app details:"
+            az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --output json 2>/dev/null | head -20 || echo "Could not retrieve web app details"
+            exit 1
+          fi
+          
+          if [ "$STATE" != "Running" ] || [ "$ENABLED" != "true" ]; then
+            echo "⚠️  Web app is not ready for deployment"
+            echo "   State: $STATE (expected: Running)"
+            echo "   Enabled: $ENABLED (expected: true)"
+            echo ""
+            echo "Attempting to start and enable the web app..."
+            az webapp start --resource-group $RESOURCE_GROUP --name $APP_NAME --output none 2>/dev/null || true
+            az webapp config set --resource-group $RESOURCE_GROUP --name $APP_NAME --always-on true --output none 2>/dev/null || true
+            az webapp config set --resource-group $RESOURCE_GROUP --name $APP_NAME --set enabled=true --output none 2>/dev/null || true
             
-            ENABLED=$(az webapp show \
-              --resource-group $RESOURCE_GROUP \
-              --name $APP_NAME \
-              --query properties.enabled \
-              -o tsv 2>/dev/null || echo "false")
+            echo "⏳ Waiting 30 seconds for web app to be ready..."
+            sleep 30
             
-            echo "State: $STATE"
-            echo "Enabled: $ENABLED"
+            # Re-check with error handling
+            STATE=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query properties.state -o tsv 2>/dev/null || echo "")
+            ENABLED=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query properties.enabled -o tsv 2>/dev/null || echo "")
+            
+            if [ -z "$STATE" ] || [ -z "$ENABLED" ]; then
+              echo "❌ Error: Cannot query web app state after retry"
+              echo "This indicates a serious issue with the web app or authentication."
+              exit 1
+            fi
             
             if [ "$STATE" != "Running" ] || [ "$ENABLED" != "true" ]; then
-              echo "❌ Error: Web app is not ready for deployment"
+              echo "❌ Error: Web app is still not ready after retry"
               echo "   State: $STATE (expected: Running)"
               echo "   Enabled: $ENABLED (expected: true)"
               echo ""
-              echo "Attempting to start and enable the web app..."
-              az webapp start --resource-group $RESOURCE_GROUP --name $APP_NAME --output none 2>/dev/null || true
-              az webapp config set --resource-group $RESOURCE_GROUP --name $APP_NAME --always-on true --output none 2>/dev/null || true
-              
-              echo "⏳ Waiting 30 seconds for web app to be ready..."
-              sleep 30
-              
-              # Re-check
-              STATE=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query properties.state -o tsv 2>/dev/null || echo "Unknown")
-              ENABLED=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query properties.enabled -o tsv 2>/dev/null || echo "false")
-              
-              if [ "$STATE" != "Running" ] || [ "$ENABLED" != "true" ]; then
-                echo "❌ Error: Web app is still not ready after retry"
-                echo "   State: $STATE (expected: Running)"
-                echo "   Enabled: $ENABLED (expected: true)"
-                echo ""
-                echo "Please check the Azure Portal and ensure the web app is running and enabled."
-                exit 1
-              fi
+              echo "Please check the Azure Portal and ensure the web app exists and is running."
+              echo "Web app URL: https://portal.azure.com/#@/resource/subscriptions/*/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$APP_NAME"
+              exit 1
             fi
-            
-            echo "✅ Web app is ready for deployment (Running and Enabled)"
-          else
-            echo "⚠️  Could not determine resource group for final verification"
-            echo "Proceeding with deployment anyway..."
           fi
+          
+          echo "✅ Web app is ready for deployment (Running and Enabled)"
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
