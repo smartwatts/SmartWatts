@@ -456,11 +456,89 @@ jobs:
           echo "Setting flag to recreate VM..."
           echo "recreate_vm=true" >> $GITHUB_OUTPUT
 
+      - name: Check and Handle Active Deployments
+        id: check_deployments
+        timeout-minutes: 10
+        run: |
+          set -e
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          
+          echo "Checking for active deployments in resource group: $RESOURCE_GROUP"
+          
+          # Check for active deployments
+          ACTIVE_DEPLOYMENTS=$(az deployment group list \
+            --resource-group $RESOURCE_GROUP \
+            --query "[?properties.provisioningState=='Running' || properties.provisioningState=='InProgress'].name" \
+            -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$ACTIVE_DEPLOYMENTS" ]; then
+            echo "⚠️  Found active deployment(s):"
+            echo "$ACTIVE_DEPLOYMENTS" | while read -r DEPLOYMENT_NAME; do
+              if [ -n "$DEPLOYMENT_NAME" ]; then
+                echo "  - $DEPLOYMENT_NAME"
+                
+                # Get deployment details
+                DEPLOYMENT_STATE=$(az deployment group show \
+                  --resource-group $RESOURCE_GROUP \
+                  --name "$DEPLOYMENT_NAME" \
+                  --query "properties.provisioningState" \
+                  -o tsv 2>/dev/null || echo "Unknown")
+                
+                DEPLOYMENT_START=$(az deployment group show \
+                  --resource-group $RESOURCE_GROUP \
+                  --name "$DEPLOYMENT_NAME" \
+                  --query "properties.timestamp" \
+                  -o tsv 2>/dev/null || echo "Unknown")
+                
+                echo "    State: $DEPLOYMENT_STATE"
+                echo "    Started: $DEPLOYMENT_START"
+                
+                # If deployment is stuck (older than 30 minutes), cancel it
+                if [ "$DEPLOYMENT_STATE" = "Running" ] || [ "$DEPLOYMENT_STATE" = "InProgress" ]; then
+                  # Try to wait for deployment to complete (max 10 minutes)
+                  # If it's been running for a while, it's likely stuck
+                  echo "    ⏳ Waiting for deployment to complete (max 10 minutes)..."
+                  if az deployment group wait \
+                    --resource-group $RESOURCE_GROUP \
+                    --name "$DEPLOYMENT_NAME" \
+                    --created \
+                    --timeout 600 2>/dev/null; then
+                    echo "    ✅ Deployment '$DEPLOYMENT_NAME' completed"
+                  else
+                    echo "    ⚠️  Deployment '$DEPLOYMENT_NAME' timed out or is stuck, cancelling..."
+                    az deployment group cancel \
+                      --resource-group $RESOURCE_GROUP \
+                      --name "$DEPLOYMENT_NAME" \
+                      --output none 2>/dev/null || echo "    ⚠️  Could not cancel (may have already completed/failed)"
+                    sleep 5
+                  fi
+                fi
+              fi
+            done
+            
+            # Verify no active deployments remain
+            sleep 5
+            REMAINING_ACTIVE=$(az deployment group list \
+              --resource-group $RESOURCE_GROUP \
+              --query "[?properties.provisioningState=='Running' || properties.provisioningState=='InProgress'].name" \
+              -o tsv 2>/dev/null || echo "")
+            
+            if [ -n "$REMAINING_ACTIVE" ]; then
+              echo "⚠️  Warning: Some deployments may still be active, but proceeding with new deployment"
+            else
+              echo "✅ No active deployments remaining"
+            fi
+          else
+            echo "✅ No active deployments found"
+          fi
+
       - name: Deploy Infrastructure via Bicep
         id: deploy
         timeout-minutes: 20
         run: |
           set -e
+          RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
+          
           # Determine if we should deploy SSH extension (only for new VMs)
           DEPLOY_SSH_EXTENSION=false
           if [ "${{ steps.vmcheck.outputs.exists }}" = "false" ]; then
@@ -469,9 +547,14 @@ jobs:
             DEPLOY_SSH_EXTENSION=true
           fi
           
+          # Use unique deployment name to avoid conflicts
+          # Format: main-YYYYMMDD-HHMMSS-{short-commit-sha}
+          DEPLOYMENT_NAME="main-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA:0:7}"
+          echo "Using deployment name: $DEPLOYMENT_NAME"
+          
           DEPLOY_CMD="az deployment group create \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name main \
+            --resource-group $RESOURCE_GROUP \
+            --name $DEPLOYMENT_NAME \
             --template-file ${{ env.TEMPLATE_FILE }} \
             --parameters @${{ env.PARAM_FILE }} \
             --parameters vmAdminPassword=\"${{ secrets.VM_ADMIN_PASSWORD_STAGING }}\" \
