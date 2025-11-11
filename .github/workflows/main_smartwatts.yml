@@ -240,7 +240,7 @@ jobs:
             STATE=$(az webapp show \
               --resource-group $RESOURCE_GROUP \
               --name $APP_NAME \
-              --query properties.state \
+              --query state \
               -o tsv 2>/dev/null || echo "Unknown")
             
             USAGE_STATE=$(az webapp show \
@@ -268,7 +268,7 @@ jobs:
                 CURRENT_STATE=$(az webapp show \
                   --resource-group $RESOURCE_GROUP \
                   --name $APP_NAME \
-                  --query properties.state \
+                  --query state \
                   -o tsv 2>/dev/null || echo "Unknown")
                 
                 if [ "$CURRENT_STATE" = "Running" ]; then
@@ -276,7 +276,7 @@ jobs:
                   ENABLED=$(az webapp show \
                     --resource-group $RESOURCE_GROUP \
                     --name $APP_NAME \
-                    --query properties.enabled \
+                    --query enabled \
                     -o tsv 2>/dev/null || echo "false")
                   
                   if [ "$ENABLED" = "true" ]; then
@@ -459,10 +459,11 @@ jobs:
           echo "🔍 Final verification: Web app must be Running and Enabled before deployment..."
           
           # Get web app state with better error handling
+          # Note: Use 'state' directly, not 'properties.state' (as shown by user testing)
           STATE_RESULT=$(az webapp show \
             --resource-group $RESOURCE_GROUP \
             --name $APP_NAME \
-            --query properties.state \
+            --query state \
             -o tsv 2>&1)
           
           if echo "$STATE_RESULT" | grep -qi "error\|not found"; then
@@ -474,10 +475,11 @@ jobs:
           STATE="$STATE_RESULT"
           
           # Get enabled status
+          # Note: Use 'enabled' directly, not 'properties.enabled' (as shown by user testing)
           ENABLED_RESULT=$(az webapp show \
             --resource-group $RESOURCE_GROUP \
             --name $APP_NAME \
-            --query properties.enabled \
+            --query enabled \
             -o tsv 2>&1)
           
           if echo "$ENABLED_RESULT" | grep -qi "error\|not found"; then
@@ -514,8 +516,9 @@ jobs:
             sleep 30
             
             # Re-check with error handling
-            STATE=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query properties.state -o tsv 2>/dev/null || echo "")
-            ENABLED=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query properties.enabled -o tsv 2>/dev/null || echo "")
+            # Note: Use 'state' and 'enabled' directly, not 'properties.state' and 'properties.enabled'
+            STATE=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query state -o tsv 2>/dev/null || echo "")
+            ENABLED=$(az webapp show --resource-group $RESOURCE_GROUP --name $APP_NAME --query enabled -o tsv 2>/dev/null || echo "")
             
             if [ -z "$STATE" ] || [ -z "$ENABLED" ]; then
               echo "❌ Error: Cannot query web app state after retry"
@@ -618,7 +621,7 @@ jobs:
           STATE=$(az webapp show \
             --resource-group $RESOURCE_GROUP \
             --name $APP_NAME \
-            --query properties.state \
+            --query state \
             -o tsv 2>/dev/null || echo "Unknown")
           
           USAGE_STATE=$(az webapp show \
