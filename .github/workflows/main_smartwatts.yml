@@ -216,6 +216,13 @@ jobs:
           echo "Package size: $(du -sh deploy-package | awk '{print $1}')"
           echo "File count: $(find deploy-package -type f | wc -l)"
       
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_577CA716950C4C849FCD8534DB68F666 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E0A871202B5249189A79EA035FBEB0E8 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_07BBF5665D464E728201D26286D736CD }}
+
       - name: Configure Azure Web App for standalone mode
         run: |
           APP_NAME="SmartWatts"
@@ -228,16 +235,19 @@ jobs:
           if [ -n "$RESOURCE_GROUP" ]; then
             echo "⚙️  Configuring Azure Web App for Next.js standalone mode..."
             
-            # Check web app state and start if stopped
+            # Check web app state and start if stopped (using -o tsv instead of jq)
             echo "Checking web app state..."
-            WEB_APP_STATE=$(az webapp show \
+            STATE=$(az webapp show \
               --resource-group $RESOURCE_GROUP \
               --name $APP_NAME \
-              --query "{state:properties.state,usageState:properties.usageState}" \
-              -o json 2>/dev/null || echo "{}")
+              --query properties.state \
+              -o tsv 2>/dev/null || echo "Unknown")
             
-            STATE=$(echo "$WEB_APP_STATE" | jq -r '.state // "Unknown"' 2>/dev/null || echo "Unknown")
-            USAGE_STATE=$(echo "$WEB_APP_STATE" | jq -r '.usageState // "Unknown"' 2>/dev/null || echo "Unknown")
+            USAGE_STATE=$(az webapp show \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --query properties.usageState \
+              -o tsv 2>/dev/null || echo "Unknown")
             
             echo "Web app state: $STATE"
             echo "Usage state: $USAGE_STATE"
@@ -270,11 +280,25 @@ jobs:
             fi
             
             # Set startup command to use node server.js
+            echo "Setting startup file to 'node server.js'..."
             az webapp config set \
               --resource-group $RESOURCE_GROUP \
               --name $APP_NAME \
               --startup-file "node server.js" \
               --output none
+            
+            # Verify startup file was set
+            STARTUP_FILE=$(az webapp config show \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --query appCommandLine \
+              -o tsv 2>/dev/null || echo "")
+            
+            if [ "$STARTUP_FILE" = "node server.js" ]; then
+              echo "✅ Startup file verified: $STARTUP_FILE"
+            else
+              echo "⚠️  Warning: Startup file may not be set correctly. Got: '$STARTUP_FILE'"
+            fi
             
             # Disable build during deployment
             az webapp config appsettings set \
@@ -291,13 +315,6 @@ jobs:
           else
             echo "⚠️  Could not determine resource group, skipping configuration"
           fi
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_577CA716950C4C849FCD8534DB68F666 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E0A871202B5249189A79EA035FBEB0E8 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_07BBF5665D464E728201D26286D736CD }}
 
       - name: Check for active deployments
         id: check-deployment
@@ -441,16 +458,19 @@ jobs:
           echo "This appears to be a non-conflict error."
           echo ""
           
-          # Check if this is a 403 "Site Disabled" error
+          # Check if this is a 403 "Site Disabled" error (using -o tsv instead of jq)
           echo "Checking web app state..."
-          WEB_APP_STATE=$(az webapp show \
+          STATE=$(az webapp show \
             --resource-group $RESOURCE_GROUP \
             --name $APP_NAME \
-            --query "{state:properties.state,usageState:properties.usageState}" \
-            -o json 2>/dev/null || echo "{}")
+            --query properties.state \
+            -o tsv 2>/dev/null || echo "Unknown")
           
-          STATE=$(echo "$WEB_APP_STATE" | jq -r '.state // "Unknown"' 2>/dev/null || echo "Unknown")
-          USAGE_STATE=$(echo "$WEB_APP_STATE" | jq -r '.usageState // "Unknown"' 2>/dev/null || echo "Unknown")
+          USAGE_STATE=$(az webapp show \
+            --resource-group $RESOURCE_GROUP \
+            --name $APP_NAME \
+            --query properties.usageState \
+            -o tsv 2>/dev/null || echo "Unknown")
           
           echo "Web app state: $STATE"
           echo "Usage state: $USAGE_STATE"

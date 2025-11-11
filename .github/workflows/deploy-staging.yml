@@ -141,6 +141,24 @@ jobs:
           fi
           chmod 600 ~/.ssh/temp_key
           
+          # Validate key file before proceeding
+          echo "Validating key file..."
+          if [ ! -f ~/.ssh/temp_key ]; then
+            echo "❌ Error: Key file was not created"
+            exit 1
+          fi
+          
+          KEY_SIZE=$(wc -c < ~/.ssh/temp_key 2>/dev/null || echo "0")
+          if [ "$KEY_SIZE" -lt 100 ]; then
+            echo "❌ Error: Key file is too small ($KEY_SIZE bytes) - likely corrupted"
+            exit 1
+          fi
+          
+          KEY_TYPE=$(file ~/.ssh/temp_key 2>/dev/null || echo "unknown")
+          echo "Key file type: $KEY_TYPE"
+          echo "Key file size: $KEY_SIZE bytes"
+          echo "Key file permissions: $(stat -c '%a' ~/.ssh/temp_key 2>/dev/null || stat -f '%A' ~/.ssh/temp_key 2>/dev/null || echo 'unknown')"
+          
           # Check key format and convert if needed
           FIRST_BYTES=$(head -c 20 ~/.ssh/temp_key 2>/dev/null || echo "")
           echo "Key file first 20 bytes: $(echo "$FIRST_BYTES" | xxd -p | head -c 40)"
@@ -208,14 +226,36 @@ jobs:
           fi
           
           # Save private key for SSH connection (OpenSSH format is supported by modern SSH)
+          echo "Copying key to id_rsa..."
           cp ~/.ssh/temp_key ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # Verify the key file exists and has correct permissions
+          # Verify id_rsa was created correctly
           if [ ! -f ~/.ssh/id_rsa ]; then
-            echo "❌ Error: Failed to save SSH private key"
+            echo "❌ Error: Failed to create ~/.ssh/id_rsa"
             exit 1
           fi
+          
+          ID_RSA_PERMS=$(stat -c '%a' ~/.ssh/id_rsa 2>/dev/null || stat -f '%A' ~/.ssh/id_rsa 2>/dev/null || echo "unknown")
+          if [ "$ID_RSA_PERMS" != "600" ] && [ "$ID_RSA_PERMS" != "0600" ]; then
+            echo "⚠️  Warning: id_rsa permissions are $ID_RSA_PERMS, expected 600. Fixing..."
+            chmod 600 ~/.ssh/id_rsa
+            ID_RSA_PERMS=$(stat -c '%a' ~/.ssh/id_rsa 2>/dev/null || stat -f '%A' ~/.ssh/id_rsa 2>/dev/null || echo "unknown")
+            echo "✅ id_rsa permissions now: $ID_RSA_PERMS"
+          else
+            echo "✅ id_rsa permissions correct: $ID_RSA_PERMS"
+          fi
+          
+          # Verify key file is readable
+          if [ ! -r ~/.ssh/id_rsa ]; then
+            echo "❌ Error: id_rsa is not readable"
+            exit 1
+          fi
+          
+          echo "✅ SSH key setup complete"
+          echo "Key file: ~/.ssh/id_rsa"
+          echo "Key size: $(wc -c < ~/.ssh/id_rsa) bytes"
+          echo "Key type: $(file ~/.ssh/id_rsa 2>/dev/null || echo 'unknown')"
           
           echo "✅ SSH private key saved successfully"
           echo "Key file location: ~/.ssh/id_rsa"
