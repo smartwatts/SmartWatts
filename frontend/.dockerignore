@@ -23,9 +23,10 @@ e2e/
 **/e2e/
 
 # Playwright configuration files
+**/playwright.config.ts
+**/playwright.config.staging.ts
 playwright.config.ts
 playwright.config.staging.ts
-playwright.config.*.ts
 
 # Test scripts
 scripts/run-tests.js

@@ -15,8 +15,11 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Remove Playwright config files that require dev dependencies
-RUN rm -f playwright.config.ts playwright.config.staging.ts || true
+# Remove Playwright config files that require dev dependencies (must be before build)
+# Use find to catch any variations and ensure complete removal
+RUN find . -name "playwright.config*.ts" -type f -delete && \
+    echo "Checking for remaining playwright config files:" && \
+    (find . -name "playwright.config*.ts" -type f && echo "ERROR: Playwright files still exist!" && exit 1 || echo "✓ All playwright config files removed successfully")
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED 1
