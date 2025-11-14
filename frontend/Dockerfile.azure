@@ -7,10 +7,13 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-# Note: We need devDependencies (tailwindcss, postcss, autoprefixer) for the build
+# Note: tailwindcss, postcss, and autoprefixer are now in dependencies (not devDependencies)
+# to ensure they're always available for the build
 COPY package.json package-lock.json* ./
 RUN npm ci && \
-    npm list tailwindcss postcss autoprefixer || echo "Warning: Some dependencies may be missing"
+    echo "Verifying build dependencies..." && \
+    npm list tailwindcss postcss autoprefixer && \
+    echo "✅ All build dependencies installed"
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -25,12 +28,17 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy all source files
 COPY . .
 
-# Verify build dependencies are available
-RUN test -f node_modules/tailwindcss/package.json && \
+# Verify build dependencies are available before building
+RUN echo "Verifying build dependencies in builder stage..." && \
+    test -f node_modules/tailwindcss/package.json && \
     test -f node_modules/postcss/package.json && \
     test -f node_modules/autoprefixer/package.json && \
-    echo "✅ Build dependencies verified" || \
-    (echo "❌ Missing build dependencies" && npm list tailwindcss postcss autoprefixer && exit 1)
+    echo "✅ Build dependencies verified: tailwindcss, postcss, autoprefixer" || \
+    (echo "❌ Missing build dependencies!" && \
+     echo "Checking node_modules..." && \
+     ls -la node_modules/ | head -20 && \
+     npm list tailwindcss postcss autoprefixer && \
+     exit 1)
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED 1
