@@ -9,11 +9,28 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 # Note: tailwindcss, postcss, and autoprefixer are now in dependencies (not devDependencies)
 # to ensure they're always available for the build
+# Cache bust: v3 - explicit install to bypass Docker cache issues
 COPY package.json package-lock.json* ./
-RUN npm ci && \
-    echo "Verifying build dependencies..." && \
+# Install ALL dependencies (including devDependencies for build tools)
+RUN npm ci
+# Explicitly install build dependencies to ensure they're present (bypasses cache)
+# This is a safety measure in case npm ci doesn't install them correctly
+RUN npm install tailwindcss@^3.3.5 postcss@^8.4.31 autoprefixer@^10.4.21 --no-save && \
+    echo "✅ Explicitly installed build dependencies"
+# Verify build dependencies are available
+RUN echo "=== Verifying build dependencies ===" && \
     npm list tailwindcss postcss autoprefixer && \
-    echo "✅ All build dependencies installed"
+    test -f node_modules/tailwindcss/package.json && \
+    test -f node_modules/postcss/package.json && \
+    test -f node_modules/autoprefixer/package.json && \
+    echo "✅ All build dependencies verified: tailwindcss, postcss, autoprefixer" || \
+    (echo "❌ CRITICAL: Missing build dependencies!" && \
+     echo "node_modules contents:" && \
+     ls -la node_modules/ | head -30 && \
+     echo "Searching for packages:" && \
+     find node_modules -maxdepth 2 -name "*tailwind*" -o -name "*postcss*" -o -name "*autoprefixer*" && \
+     npm list tailwindcss postcss autoprefixer && \
+     exit 1)
 
 # Rebuild the source code only when needed
 FROM base AS builder
