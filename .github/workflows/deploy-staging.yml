@@ -1284,7 +1284,7 @@ jobs:
         continue-on-error: true
         run: |
           VM_IP="${{ env.VM_IP }}"
-          CHECK_SCRIPT='if [ -d "/home/azureuser/SmartWatts" ] || [ -d "/home/azureuser/smartwatts" ]; then echo "EXISTS"; else echo "NOT_FOUND"; fi'
+          CHECK_SCRIPT='REPO_DIR=""; if [ -d "/home/azureuser/SmartWatts" ]; then REPO_DIR="/home/azureuser/SmartWatts"; elif [ -d "/home/azureuser/smartwatts" ]; then REPO_DIR="/home/azureuser/smartwatts"; fi; if [ -n "$REPO_DIR" ]; then FILE_COUNT=$(find "$REPO_DIR" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l); if [ "$FILE_COUNT" -gt 0 ] && [ -d "$REPO_DIR/azure-deployment" ]; then echo "EXISTS"; else echo "EMPTY_OR_INCOMPLETE"; fi; else echo "NOT_FOUND"; fi'
           REPO_STATUS=$(ssh -o StrictHostKeyChecking=no \
                          -o UserKnownHostsFile=/dev/null \
                          -o ConnectTimeout=30 \
@@ -1294,7 +1294,11 @@ jobs:
                          azureuser@$VM_IP "$CHECK_SCRIPT" 2>/dev/null || echo "NOT_FOUND")
           echo "REPO_STATUS=$REPO_STATUS" >> $GITHUB_ENV
           if [ "$REPO_STATUS" = "EXISTS" ]; then
-            echo "✅ Repository already exists on VM, skipping copy/extract steps"
+            echo "✅ Repository already exists on VM with azure-deployment directory, skipping copy/extract steps"
+          elif [ "$REPO_STATUS" = "EMPTY_OR_INCOMPLETE" ]; then
+            echo "⚠️  Repository directory exists but is empty or missing azure-deployment directory"
+            echo "Will re-extract repository to ensure it's complete"
+            echo "REPO_STATUS=NOT_FOUND" >> $GITHUB_ENV
           else
             if [ "$REPO_STATUS" = "NOT_FOUND" ]; then
               echo "⚠️  Could not verify repository status (SSH may have failed). Assuming repository needs to be copied."
