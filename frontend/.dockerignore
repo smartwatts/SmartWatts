@@ -22,12 +22,6 @@ components/EdgeGatewayTester.tsx
 e2e/
 **/e2e/
 
-# Playwright configuration files
-**/playwright.config.ts
-**/playwright.config.staging.ts
-playwright.config.ts
-playwright.config.staging.ts
-
 # Test scripts
 scripts/run-tests.js
 scripts/*test*.js
