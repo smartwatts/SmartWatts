@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for Next.js frontend on Azure
-# PERMANENT FIX: Use npm install with fresh lock file to bypass all cache issues
+# PERMANENT FIX: Ensure public directory always exists to avoid cache key errors
 FROM node:18-alpine AS base
 
 # Builder stage - install dependencies and build
@@ -12,8 +12,7 @@ RUN apk add --no-cache libc6-compat
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies using npm install for more flexibility
-# This uses the regenerated package-lock.json with correct dependency tree
+# Install dependencies using npm install for fresh resolution
 RUN npm install --verbose 2>&1 | grep -E "(tailwindcss|postcss|autoprefixer|added|audited)" && \
     echo "✅ Dependencies installed"
 
@@ -26,6 +25,18 @@ RUN echo "=== Verifying tailwindcss installation ===" && \
 
 # Copy all source files
 COPY . .
+
+# Ensure public directory exists (create if missing from build context)
+RUN echo "=== Verifying build context ===" && \
+    ls -la /app | head -20 && \
+    echo "=== Ensuring public directory exists ===" && \
+    mkdir -p public && \
+    if [ -d "public" ] && [ "$(ls -A public 2>/dev/null)" ]; then \
+        echo "✅ public directory found with content" && \
+        ls -la public/; \
+    else \
+        echo "⚠️  public directory is empty or was missing, created empty directory"; \
+    fi
 
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED 1
@@ -43,15 +54,15 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+# Copy public directory from builder (now guaranteed to exist)
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Set the correct permission for prerender cache
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# Automatically leverage output traces to reduce image size
+# Copy built application from builder
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Set the correct permissions
+RUN mkdir -p .next && chown -R nextjs:nodejs .next
 
 USER nextjs
 
