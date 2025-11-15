@@ -1310,7 +1310,6 @@ jobs:
 
       - name: Copy Repository to VM
         timeout-minutes: 10
-        if: env.REPO_STATUS != 'EXISTS'
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=5
@@ -1363,7 +1362,6 @@ jobs:
 
       - name: Extract repository on VM
         timeout-minutes: 5
-        if: env.REPO_STATUS != 'EXISTS'
         run: |
           VM_IP="${{ env.VM_IP }}"
           MAX_RETRIES=3
