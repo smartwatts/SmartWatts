@@ -1590,7 +1590,8 @@ jobs:
               'fi;' \
               'echo "Docker Compose build completed successfully";' \
               'echo "Waiting for containers to be ready...";' \
-              'MAX_WAIT=600;' \
+              'echo "Note: Spring Boot services may take 2-3 minutes to fully start";' \
+              'MAX_WAIT=900;' \
               'ELAPSED=0;' \
               'ALL_READY=false;' \
               'while [ $ELAPSED -lt $MAX_WAIT ]; do' \
@@ -1602,58 +1603,80 @@ jobs:
               '  TOTAL_CONTAINERS=$(echo "$CONTAINER_STATUS" | grep -c "Name" || echo "0");' \
               '  RUNNING_CONTAINERS=$(echo "$CONTAINER_STATUS" | grep -c '"'"'"State":"running"'"'"' || echo "0");' \
               '  if [ "$TOTAL_CONTAINERS" -gt 0 ] && [ "$RUNNING_CONTAINERS" -eq "$TOTAL_CONTAINERS" ]; then' \
-              '    echo "All $RUNNING_CONTAINERS containers are running";' \
-              '    sleep 10;' \
-              '    if command -v nc > /dev/null 2>&1 || command -v netcat > /dev/null 2>&1; then' \
+              '    echo "All $RUNNING_CONTAINERS containers are running - checking service readiness...";' \
+              '    sleep 5;' \
+              '    BACKEND_READY=false;' \
+              '    FRONTEND_READY=false;' \
+              '    if command -v curl > /dev/null 2>&1; then' \
+              '      if curl -f -s http://localhost:8080/actuator/health > /dev/null 2>&1; then' \
+              '        BACKEND_READY=true;' \
+              '        echo "✅ Backend API Gateway is responding on port 8080";' \
+              '      else' \
+              '        echo "⏳ Backend API Gateway not yet ready (port 8080)";' \
+              '      fi;' \
+              '      if curl -f -s http://localhost:3000 > /dev/null 2>&1; then' \
+              '        FRONTEND_READY=true;' \
+              '        echo "✅ Frontend is responding on port 3000";' \
+              '      else' \
+              '        echo "⏳ Frontend not yet ready (port 3000)";' \
+              '      fi;' \
+              '    elif command -v nc > /dev/null 2>&1 || command -v netcat > /dev/null 2>&1; then' \
               '      NC_CMD=$(command -v nc || command -v netcat);' \
-              '      BACKEND_READY=false;' \
-              '      FRONTEND_READY=false;' \
               '      if timeout 2 $NC_CMD -z localhost 8080 2>/dev/null; then' \
               '        BACKEND_READY=true;' \
-              '        echo "Backend port 8080 is listening";' \
+              '        echo "✅ Backend port 8080 is listening";' \
+              '      else' \
+              '        echo "⏳ Backend port 8080 not yet ready";' \
               '      fi;' \
               '      if timeout 2 $NC_CMD -z localhost 3000 2>/dev/null; then' \
               '        FRONTEND_READY=true;' \
-              '        echo "Frontend port 3000 is listening";' \
-              '      fi;' \
-              '      if [ "$BACKEND_READY" = "true" ] && [ "$FRONTEND_READY" = "true" ]; then' \
-              '        ALL_READY=true;' \
-              '        break;' \
-              '      fi;' \
-              '    else' \
-              '      echo "netcat not available, checking container health instead...";' \
-              '      HEALTHY_COUNT=$(sudo docker ps --filter "health=healthy" --format "{{.Names}}" | wc -l);' \
-              '      if [ "$HEALTHY_COUNT" -ge 2 ]; then' \
-              '        ALL_READY=true;' \
-              '        break;' \
+              '        echo "✅ Frontend port 3000 is listening";' \
+              '      else' \
+              '        echo "⏳ Frontend port 3000 not yet ready";' \
               '      fi;' \
               '    fi;' \
+              '    if [ "$BACKEND_READY" = "true" ] && [ "$FRONTEND_READY" = "true" ]; then' \
+              '      echo "✅ Both frontend and backend are ready!";' \
+              '      ALL_READY=true;' \
+              '      break;' \
+              '    elif [ "$BACKEND_READY" = "false" ] && [ "$FRONTEND_READY" = "false" ]; then' \
+              '      echo "⏳ Services still starting up...";' \
+              '    fi;' \
+              '  else' \
+              '    echo "⏳ Containers still starting ($RUNNING_CONTAINERS/$TOTAL_CONTAINERS running)...";' \
               '  fi;' \
               '  echo "Waiting for services... ($ELAPSED/$MAX_WAIT seconds)";' \
-              '  sleep 10;' \
-              '  ELAPSED=$((ELAPSED + 10));' \
+              '  sleep 15;' \
+              '  ELAPSED=$((ELAPSED + 15));' \
               'done;' \
               'if [ "$ALL_READY" = "true" ]; then' \
+              '  echo "";' \
               '  echo "✅ All services are ready";' \
+              '  echo "";' \
+              '  echo "Deployment completed successfully!";' \
+              '  echo "Services status:";' \
               '  if echo "$COMPOSE_CMD" | grep -q "docker compose"; then' \
               '    sudo docker compose -f docker-compose.azure.yml ps;' \
               '  else' \
               '    sudo $COMPOSE_CMD -f docker-compose.azure.yml ps;' \
               '  fi;' \
-              '  echo "Application deployed successfully";' \
               'else' \
-              '  echo "⚠️  Warning: Services started but may not be fully ready";' \
+              '  echo "";' \
+              '  echo "⚠️  Warning: Services may not be fully ready after $MAX_WAIT seconds";' \
               '  echo "Container status:";' \
               '  if echo "$COMPOSE_CMD" | grep -q "docker compose"; then' \
               '    sudo docker compose -f docker-compose.azure.yml ps;' \
+              '    echo "";' \
               '    echo "Recent logs:";' \
               '    sudo docker compose -f docker-compose.azure.yml logs --tail=30;' \
               '  else' \
               '    sudo $COMPOSE_CMD -f docker-compose.azure.yml ps;' \
+              '    echo "";' \
               '    echo "Recent logs:";' \
               '    sudo $COMPOSE_CMD -f docker-compose.azure.yml logs --tail=30;' \
               '  fi;' \
-              '  echo "Application deployment completed (services may still be initializing)";' \
+              '  echo "";' \
+              '  echo "Deployment may need more time to complete. Services will continue starting.";' \
               'fi')
             if ssh -o StrictHostKeyChecking=no \
                  -o UserKnownHostsFile=/dev/null \

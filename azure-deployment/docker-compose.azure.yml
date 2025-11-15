@@ -10,12 +10,17 @@ services:
       POSTGRES_DB: smartwatts
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_MULTIPLE_DATABASES: smartwatts_users,smartwatts_energy,smartwatts_devices,smartwatts_analytics,smartwatts_billing,smartwatts_facility360,smartwatts_feature_flags,smartwatts_device_verification,smartwatts_appliance_monitoring
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - smartwatts-network
 
@@ -367,10 +372,18 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5
+      - SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=2
+      - SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=30000
+      - SPRING_DATASOURCE_HIKARI_VALIDATION_TIMEOUT=5000
     depends_on:
-      - service-discovery
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      service-discovery:
+        condition: service_started
+      redis:
+        condition: service_started
     restart: unless-stopped
     networks:
       - smartwatts-network

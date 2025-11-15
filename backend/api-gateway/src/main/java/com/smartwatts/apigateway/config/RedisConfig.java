@@ -3,11 +3,11 @@ package com.smartwatts.apigateway.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
-import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.ReactiveRedisTemplate;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -24,7 +24,8 @@ public class RedisConfig {
     private String redisPassword;
 
     @Bean
-    public RedisConnectionFactory redisConnectionFactory() {
+    @Primary
+    public LettuceConnectionFactory redisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
         config.setHostName(redisHost);
         config.setPort(redisPort);
@@ -35,9 +36,15 @@ public class RedisConfig {
     }
 
     @Bean
-    public ReactiveRedisTemplate<String, String> reactiveRedisTemplate(RedisConnectionFactory connectionFactory) {
-        // LettuceConnectionFactory implements both RedisConnectionFactory and ReactiveRedisConnectionFactory
-        ReactiveRedisConnectionFactory reactiveConnectionFactory = (ReactiveRedisConnectionFactory) connectionFactory;
+    @Primary
+    public ReactiveStringRedisTemplate reactiveStringRedisTemplate(LettuceConnectionFactory connectionFactory) {
+        // ReactiveStringRedisTemplate is required by Spring Cloud Gateway for rate limiting
+        return new ReactiveStringRedisTemplate(connectionFactory);
+    }
+
+    @Bean
+    public ReactiveRedisTemplate<String, String> reactiveRedisTemplate(LettuceConnectionFactory connectionFactory) {
+        // Additional reactive template for custom operations
         StringRedisSerializer serializer = new StringRedisSerializer();
         RedisSerializationContext<String, String> serializationContext = 
             RedisSerializationContext.<String, String>newSerializationContext()
@@ -46,7 +53,7 @@ public class RedisConfig {
                 .hashKey(serializer)
                 .hashValue(serializer)
                 .build();
-        return new ReactiveRedisTemplate<String, String>(reactiveConnectionFactory, serializationContext);
+        return new ReactiveRedisTemplate<>(connectionFactory, serializationContext);
     }
 }
 
