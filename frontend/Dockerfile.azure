@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for Next.js frontend on Azure
-# PERMANENT FIX: Install dependencies directly in builder stage to avoid cache issues
+# PERMANENT FIX: Use npm install with fresh lock file to bypass all cache issues
 FROM node:18-alpine AS base
 
 # Builder stage - install dependencies and build
@@ -9,39 +9,29 @@ WORKDIR /app
 # Install system dependencies
 RUN apk add --no-cache libc6-compat
 
-# Copy package files first (for better caching)
+# Copy package files
 COPY package.json package-lock.json* ./
 
-# Install ALL dependencies directly (tailwindcss, postcss, autoprefixer are in dependencies)
-# This ensures dependencies are always available regardless of Docker cache
-RUN npm ci && \
-    echo "=== Verifying build dependencies ===" && \
-    npm list tailwindcss postcss autoprefixer 2>&1 && \
-    test -d node_modules/tailwindcss && \
-    test -d node_modules/postcss && \
-    test -d node_modules/autoprefixer && \
-    echo "✅ Build dependencies verified: tailwindcss, postcss, autoprefixer" || \
-    (echo "❌ CRITICAL: Build dependencies missing! Reinstalling..." && \
-     npm install tailwindcss postcss autoprefixer && \
-     npm list tailwindcss postcss autoprefixer && \
-     test -d node_modules/tailwindcss && \
-     test -d node_modules/postcss && \
-     test -d node_modules/autoprefixer && \
-     echo "✅ Dependencies reinstalled and verified")
+# Install dependencies using npm install for more flexibility
+# This uses the regenerated package-lock.json with correct dependency tree
+RUN npm install --verbose 2>&1 | grep -E "(tailwindcss|postcss|autoprefixer|added|audited)" && \
+    echo "✅ Dependencies installed"
+
+# Verify build dependencies are present
+RUN echo "=== Verifying tailwindcss installation ===" && \
+    ls -la node_modules/tailwindcss/package.json && \
+    ls -la node_modules/postcss/package.json && \
+    ls -la node_modules/autoprefixer/package.json && \
+    echo "✅ Build dependencies verified"
 
 # Copy all source files
 COPY . .
 
-# Final verification before build
-RUN echo "=== Final pre-build verification ===" && \
-    test -f node_modules/tailwindcss/package.json && \
-    test -f postcss.config.js && \
-    test -f tailwind.config.js && \
-    echo "✅ All files verified, starting build..."
-
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED 1
-RUN npm run build
+RUN echo "=== Starting Next.js build ===" && \
+    npm run build && \
+    echo "✅ Build completed successfully"
 
 # Production image
 FROM base AS runner

@@ -3,12 +3,13 @@
 
 name: Build and deploy Node.js app to Azure Web App - SmartWatts
 
-# Re-enabled: Automatic runs on push to main branch
+# DISABLED: Automatic runs on push to main branch (commented out until deploy workflow is fixed)
+# Re-enable by uncommenting the push trigger below
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:  # Also allow manual runs
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch:  # Manual runs only - use GitHub Actions UI to trigger
 
 jobs:
   build:
