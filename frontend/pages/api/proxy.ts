@@ -22,29 +22,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const validatedPath: string = pathString
 
   // Route all requests through API Gateway for proper load balancing and security
-  const apiGatewayUrl = 'http://localhost:8080'
+  // Use environment variable for backend URL, fallback to localhost for local development
+  const apiGatewayUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+  const backendBaseUrl = apiGatewayUrl.replace(/\/$/, '') // Remove trailing slash
   
+  // For services that go through API Gateway, use the gateway URL
+  // For direct service access, construct URLs based on the backend base URL
+  // In production (App Service), all services should go through the API Gateway on the VM
   const serviceUrls: { [key: string]: string } = {
-    user: 'http://localhost:8081', // Direct to user service
-    'user-service': 'http://localhost:8081', // Direct to user service
-    energy: 'http://localhost:8082', // Direct to energy service
-    'energy-service': 'http://localhost:8082', // Direct to energy service
-    device: 'http://localhost:8083', // Direct to device service
-    'device-service': 'http://localhost:8083', // Direct to device service
-    analytics: 'http://localhost:8084', // Direct to analytics service
-    'analytics-service': 'http://localhost:8084', // Direct to analytics service
-    billing: apiGatewayUrl,
-    'billing-service': apiGatewayUrl,
-    facility: apiGatewayUrl,
-    'facility-service': apiGatewayUrl,
-    'feature-flags': 'http://localhost:8090', // Direct to feature flag service
-    'feature-flag-service': 'http://localhost:8090', // Direct to feature flag service
-    'appliance-monitoring': 'http://localhost:8087', // Direct to appliance monitoring service
-    'appliance-monitoring-service': 'http://localhost:8087', // Direct to appliance monitoring service
-    'device-verification': apiGatewayUrl,
-    'device-verification-service': apiGatewayUrl,
-    inventory: 'http://localhost:8081', // Direct to user service for inventory
-    'inventory-service': 'http://localhost:8081', // Direct to user service for inventory
+    // All services route through API Gateway for production (VM deployment)
+    user: backendBaseUrl,
+    'user-service': backendBaseUrl,
+    energy: backendBaseUrl,
+    'energy-service': backendBaseUrl,
+    device: backendBaseUrl,
+    'device-service': backendBaseUrl,
+    analytics: backendBaseUrl,
+    'analytics-service': backendBaseUrl,
+    billing: backendBaseUrl,
+    'billing-service': backendBaseUrl,
+    facility: backendBaseUrl,
+    'facility-service': backendBaseUrl,
+    'feature-flags': backendBaseUrl,
+    'feature-flag-service': backendBaseUrl,
+    'appliance-monitoring': backendBaseUrl,
+    'appliance-monitoring-service': backendBaseUrl,
+    'device-verification': backendBaseUrl,
+    'device-verification-service': backendBaseUrl,
+    inventory: backendBaseUrl,
+    'inventory-service': backendBaseUrl,
   }
 
   const baseUrl = serviceUrls[validatedService]

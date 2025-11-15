@@ -337,6 +337,12 @@ jobs:
             fi
             
             # Disable build during deployment
+            # Set environment variables for frontend to connect to VM backend
+            # Use GitHub environment variable or default to staging VM IP
+            VM_IP="${{ env.VM_IP }}"
+            if [ -z "$VM_IP" ]; then
+              VM_IP="52.182.155.148"  # Default to staging VM IP
+            fi
             az webapp config appsettings set \
               --resource-group $RESOURCE_GROUP \
               --name $APP_NAME \
@@ -345,7 +351,14 @@ jobs:
                 ENABLE_ORYX_BUILD=false \
                 POST_BUILD_COMMAND="" \
                 PRE_BUILD_COMMAND="" \
+                NEXT_PUBLIC_API_URL="http://${VM_IP}:8080" \
+                NEXT_PUBLIC_WS_URL="ws://${VM_IP}:8080" \
+                NODE_ENV="production" \
               --output none
+            
+            echo "✅ Environment variables configured:"
+            echo "   NEXT_PUBLIC_API_URL=http://${VM_IP}:8080"
+            echo "   NEXT_PUBLIC_WS_URL=ws://${VM_IP}:8080"
             
             echo "✅ Azure Web App configured for standalone mode"
           else
