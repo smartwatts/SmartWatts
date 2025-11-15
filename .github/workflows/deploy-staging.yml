@@ -1720,6 +1720,18 @@ jobs:
             echo "✅ API token is set"
           fi
 
+      - name: Static Web App prerequisites summary
+        run: |
+          if [ "${{ steps.swacheck.outputs.exists }}" != "true" ]; then
+            echo "⚠️  Azure Static Web App 'sw-staging-dashboard' was not found in resource group ${{ env.AZURE_RESOURCE_GROUP }}."
+            echo "    The deployment step will be skipped until the app is created."
+          elif [ "${{ steps.swacheck.outputs.token_set }}" != "true" ]; then
+            echo "⚠️  Secret AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING is missing."
+            echo "    Add the deployment token from the Azure portal to proceed."
+          else
+            echo "✅ Static Web App exists and API token is set. Deployment will proceed."
+          fi
+
       - name: Deploy Frontend to Static Web Apps
         timeout-minutes: 10
         if: steps.swacheck.outputs.exists == 'true' && steps.swacheck.outputs.token_set == 'true'
@@ -1750,8 +1762,9 @@ jobs:
           RETRY_COUNT=0
           WAIT_INTERVAL=15
           
+          BACKEND_HEALTH_URL="http://$VM_IP:8080/api/v1/health"
           echo "Performing health checks..."
-          echo "  - Backend API: http://$VM_IP:8080/api/v1/health"
+          echo "  - Backend API: $BACKEND_HEALTH_URL"
           echo "  - Frontend: http://$VM_IP:3000"
           echo "  - Frontend (via Nginx): http://$VM_IP"
           echo ""
@@ -1767,7 +1780,7 @@ jobs:
             
             # Check Backend API
             if [ "$BACKEND_HEALTHY" = "false" ]; then
-              CURL_OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}\n" http://$VM_IP:8080/api/v1/health 2>&1 || echo "CURL_ERROR")
+              CURL_OUTPUT=$(curl -s -w "\nHTTP_CODE:%{http_code}\n" "$BACKEND_HEALTH_URL" 2>&1 || echo "CURL_ERROR")
               BACKEND_STATUS=$(echo "$CURL_OUTPUT" | grep "HTTP_CODE:" | cut -d: -f2 || echo "000")
               
               if [ "$BACKEND_STATUS" = "200" ]; then

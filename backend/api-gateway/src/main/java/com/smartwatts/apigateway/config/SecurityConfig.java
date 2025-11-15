@@ -18,6 +18,7 @@ public class SecurityConfig {
             .authorizeExchange(exchanges -> exchanges
                 // Public endpoints - no authentication required (minimal set)
                 .pathMatchers("/actuator/**").permitAll()
+                .pathMatchers("/api/v1/health").permitAll()
                 .pathMatchers("/api/v1/users/login").permitAll()
                 .pathMatchers("/api/v1/users/register").permitAll()
                 .pathMatchers("/api/v1/users/forgot-password").permitAll()
