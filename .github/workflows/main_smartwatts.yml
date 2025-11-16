@@ -42,7 +42,14 @@ jobs:
         working-directory: ./frontend
         env:
           NEXT_TELEMETRY_DISABLED: 1
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
+          echo "=== Clearing all caches first ==="
+          rm -rf .next
+          rm -rf ~/.cache/next-swc
+          rm -rf node_modules/.cache
+          npm cache clean --force
+          
           echo "=== Installing dependencies ==="
           npm ci --prefer-offline --no-audit
           
@@ -61,8 +68,19 @@ jobs:
             if [ $RETRY_COUNT -gt 1 ]; then
               echo "Clearing corrupted caches before retry..."
               rm -rf .next
-              rm -rf ~/.cache/next-swc/*.tgz
-              rm -rf ~/.cache/next-swc/swc-*
+              rm -rf ~/.cache/next-swc
+              rm -rf node_modules/.cache
+              npm cache clean --force
+              
+              # Reinstall Next.js and related packages if bus error occurred
+              if grep -qi "Bus error\|core dumped" /tmp/build.log 2>/dev/null; then
+                echo "Bus error detected - reinstalling Next.js dependencies..."
+                npm uninstall next @next/swc-linux-x64-gnu 2>/dev/null || true
+                npm install next --force
+              fi
+              
+              echo "Waiting 5 seconds for cache cleanup..."
+              sleep 5
             fi
             
             # Run build and capture all output
@@ -75,7 +93,7 @@ jobs:
             echo "Build process completed with exit code: $BUILD_EXIT_CODE"
             
             # Check for errors in the logs (even if exit code was 0)
-            if grep -qi "unhandledRejection\|ZlibError\|TAR_ABORT\|FATAL ERROR" /tmp/build.log; then
+            if grep -qi "unhandledRejection\|ZlibError\|TAR_ABORT\|FATAL ERROR\|Bus error\|core dumped" /tmp/build.log; then
               echo "⚠️  Build log contains fatal errors (attempt $RETRY_COUNT)"
               
               # Check if standalone was created despite errors
