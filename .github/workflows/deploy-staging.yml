@@ -11,6 +11,7 @@ on:
       - 'infrastructure/**'
       - 'azure-deployment/**'
       - '.github/workflows/deploy-staging.yml'
+      - '.github/workflows/main_smartwatts.yml'  # Trigger on main workflow changes too
       - '!docs/**'
       - '!*.md'
       - '!.github/workflows/*.md'
