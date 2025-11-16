@@ -34,6 +34,28 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Validate Azure Credentials JSON
+        continue-on-error: true
+        run: |
+          echo "🔍 Validating Azure credentials JSON format..."
+          CREDS='${{ secrets.AZURE_CREDENTIALS_STAGING }}'
+          if [ -z "$CREDS" ]; then
+            echo "❌ Error: AZURE_CREDENTIALS_STAGING secret is empty"
+            exit 1
+          fi
+          # Test if it's valid JSON
+          echo "$CREDS" | python3 -m json.tool > /dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            echo "✅ JSON format is valid"
+          else
+            echo "❌ Error: JSON format is invalid"
+            echo "First 100 characters: ${CREDS:0:100}"
+            echo ""
+            echo "Please check: https://github.com/smartwatts/SmartWatts/settings/secrets/actions"
+            echo "JSON must be on a single line with all values in double quotes"
+            exit 1
+          fi
+
       - name: Azure Login
         uses: azure/login@v1
         with:
