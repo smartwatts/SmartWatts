@@ -1,0 +1,68 @@
+name: Deploy to GCP Cloud Run (Production)
+
+# PRODUCTION WORKFLOW - DISABLED
+# This workflow is created but disabled (workflow_dispatch only)
+# Enable automatic triggers only when ready for production deployment
+
+on:
+  # NO automatic triggers - manual only
+  workflow_dispatch:
+    inputs:
+      confirm_deployment:
+        description: 'Type "DEPLOY" to confirm production deployment'
+        required: true
+        type: string
+
+env:
+  PROJECT_ID: smartwatts-production
+  REGION: europe-west1
+  ARTIFACT_REGISTRY: europe-west1-docker.pkg.dev
+
+jobs:
+  confirm-deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify deployment confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_deployment }}" != "DEPLOY" ]; then
+            echo "Deployment not confirmed. Exiting."
+            exit 1
+          fi
+
+  build-and-deploy:
+    needs: confirm-deployment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY_PRODUCTION }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker images
+        run: |
+          ./gcp-migration/ci-cd/build-and-push-images.sh production
+
+      - name: Deploy to Cloud Run
+        run: |
+          ./gcp-migration/ci-cd/deploy-services.sh production
+
+      - name: Run smoke tests
+        run: |
+          ./gcp-migration/ci-cd/run-tests.sh production smoke
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          ./gcp-migration/ci-cd/rollback-deployment.sh production
+

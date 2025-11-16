@@ -1,0 +1,63 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: notification-service
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: cloud-run-sa@smartwatts-staging.iam.gserviceaccount.com
+      containers:
+      - image: europe-west1-docker.pkg.dev/smartwatts-staging/notification-service/notification-service:latest
+        ports:
+        - name: http1
+          containerPort: 8093
+        env:
+        - name: PORT
+          value: "8093"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "cloudrun"
+
+        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+          value: "http://service-discovery:8761/eureka/"
+        - name: SPRING_DATA_REDIS_HOST
+          value: "redis-service"
+        - name: SPRING_DATA_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-password
+              key: password
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: "0"
+            memory: "256Gi"
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8093
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8093
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+

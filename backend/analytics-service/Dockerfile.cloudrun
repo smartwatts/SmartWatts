@@ -1,0 +1,68 @@
+# Multi-stage build for Spring Boot application optimized for Cloud Run
+# This Dockerfile is optimized for GCP Cloud Run with:
+# - Non-root user execution
+# - Minimal base image (Alpine)
+# - Health check support
+# - Graceful shutdown handling
+# - Cloud Run environment variable support
+
+# Builder stage
+FROM eclipse-temurin:17-jdk-alpine AS builder
+
+WORKDIR /app
+
+# Copy gradle files
+COPY gradlew .
+RUN mkdir -p gradle/wrapper
+COPY gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.jar
+COPY gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.properties
+COPY build.gradle .
+COPY settings.gradle .
+
+# Make gradlew executable
+RUN chmod +x gradlew
+
+# Download dependencies (cached layer)
+RUN ./gradlew dependencies --no-daemon
+
+# Copy source code
+COPY src src
+
+# Build the application
+RUN ./gradlew build -x test --no-daemon
+
+# Extract application layers for better caching
+RUN java -Djarmode=layertools -jar build/libs/*.jar extract
+
+# Runtime stage - using Alpine for minimal size with shell support
+FROM eclipse-temurin:17-jre-alpine
+
+# Create non-root user
+RUN addgroup -S spring && adduser -S spring -G spring
+
+WORKDIR /app
+
+# Copy extracted layers
+COPY --from=builder --chown=spring:spring /app/dependencies/ ./
+COPY --from=builder --chown=spring:spring /app/spring-boot-loader/ ./
+COPY --from=builder --chown=spring:spring /app/snapshot-dependencies/ ./
+COPY --from=builder --chown=spring:spring /app/application/ ./
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Switch to non-root user
+USER spring:spring
+
+# Expose port (Cloud Run uses PORT environment variable)
+EXPOSE 8084
+
+# Set JVM options optimized for Cloud Run
+ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -XX:+ExitOnOutOfMemoryError -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8084}/actuator/health || exit 1
+
+# Cloud Run requires the application to listen on the PORT environment variable
+ENTRYPOINT ["java", "org.springframework.boot.loader.JarLauncher"]

@@ -1,0 +1,77 @@
+# Multi-stage build for Next.js application optimized for Cloud Run
+# This Dockerfile is optimized for GCP Cloud Run with:
+# - Non-root user execution
+# - Minimal base image (Alpine)
+# - Health check support
+# - Standalone output for optimal size
+
+# Dependencies stage
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Builder stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Set build-time environment variables
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Build the application with standalone output
+RUN npm run build
+
+# Runtime stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
+
+# Set environment to production
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Copy standalone output from builder
+COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nextjs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nextjs /app/public ./public
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Switch to non-root user
+USER nextjs:nextjs
+
+# Expose port (Cloud Run uses PORT environment variable)
+EXPOSE 3000
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
+
+# Cloud Run requires the application to listen on the PORT environment variable
+# Next.js standalone mode will use PORT env var automatically
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Start the application
+CMD ["node", "server.js"]
+

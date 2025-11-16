@@ -1,0 +1,19 @@
+# Production Cloud Build configuration
+# NOTE: This trigger should be DISABLED in GCP Console until ready for production
+steps:
+  # Build and push production images
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/api-gateway:${SHORT_SHA}', '-f', 'backend/api-gateway/Dockerfile.cloudrun', 'backend/api-gateway']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/api-gateway:${SHORT_SHA}']
+
+substitutions:
+  _REGION: 'europe-west1'
+  _REPOSITORY: 'smartwatts-repo'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '3600s'
+
