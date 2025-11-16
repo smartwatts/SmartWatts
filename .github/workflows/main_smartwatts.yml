@@ -10,6 +10,10 @@ on:
       - main
   workflow_dispatch:  # Can also trigger manually via GitHub Actions UI
 
+env:
+  # VM_IP can be set as a repository variable, defaults to staging VM IP in script if not set
+  VM_IP: ${{ vars.VM_IP }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
