@@ -4,7 +4,9 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - 'frontend/**'
+      # Frontend now deploys to Azure App Service (main_smartwatts.yml)
+      # This workflow only handles VM backend deployment
+      # - 'frontend/**'  # Removed: Frontend → App Service (Option 3: Hybrid)
       - 'backend/**'
       - 'infrastructure/**'
       - 'azure-deployment/**'
