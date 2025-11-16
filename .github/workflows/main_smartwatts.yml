@@ -517,6 +517,31 @@ jobs:
             echo "   NEXT_PUBLIC_API_URL=http://${VM_IP}:8080"
             echo "   NEXT_PUBLIC_WS_URL=ws://${VM_IP}:8080"
             
+            # Disable authentication/authorization to prevent 403 errors
+            echo ""
+            echo "🔒 Configuring authentication settings..."
+            az webapp auth update \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --enabled false \
+              --output none 2>/dev/null || echo "⚠️  Could not update auth settings (may not be available in this tier)"
+            
+            # Remove IP restrictions to allow public access
+            echo "🌐 Configuring IP restrictions..."
+            az webapp config access-restriction remove \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --rule-name "Deny all" \
+              --output none 2>/dev/null || echo "⚠️  No IP restrictions to remove"
+            
+            # Ensure Always On is enabled
+            echo "⚙️  Ensuring Always On is enabled..."
+            az webapp config set \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --always-on true \
+              --output none
+            
             echo "✅ Azure Web App configured for standalone mode"
           else
             echo "⚠️  Could not determine resource group, skipping configuration"
