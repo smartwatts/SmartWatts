@@ -493,7 +493,7 @@ jobs:
       - name: Fix SSH on Existing VM (Non-Destructive)
         id: fixssh
         if: steps.vmcheck.outputs.exists == 'true' && steps.sshhealthcheck.outputs.ssh_working == 'false'
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           VM_NAME="${{ env.VM_NAME }}"
           RESOURCE_GROUP="${{ env.AZURE_RESOURCE_GROUP }}"
@@ -502,14 +502,63 @@ jobs:
           echo "This preserves all data on the VM"
           echo ""
           
-          # Step 1: Try VM redeploy (moves VM to new host, may fix agent issues)
-          echo "Step 1: Attempting VM redeploy (moves VM to new host, preserves data)..."
+          # Step 1: Try faster methods first (Run Command) before expensive redeploy
+          echo "Step 1: Attempting to fix SSH using Azure Run Command (fastest method)..."
           VM_STATE=$(az vm show \
             --resource-group $RESOURCE_GROUP \
             --name $VM_NAME \
             --show-details \
             --query "powerState" \
             -o tsv 2>/dev/null || echo "Unknown")
+          
+          if [ "$VM_STATE" != "VM running" ]; then
+            echo "VM is not running. Starting VM first..."
+            az vm start \
+              --resource-group $RESOURCE_GROUP \
+              --name $VM_NAME \
+              --output none
+            echo "Waiting 30 seconds for VM to start..."
+            sleep 30
+          fi
+          
+          # Try Run Command to restart SSH service (much faster than redeploy)
+          echo "Attempting to restart SSH service via Run Command..."
+          RUN_CMD_RESULT=$(timeout 60 az vm run-command invoke \
+            --resource-group $RESOURCE_GROUP \
+            --name $VM_NAME \
+            --command-id RunShellScript \
+            --scripts "sudo systemctl restart sshd 2>/dev/null || sudo systemctl restart ssh 2>/dev/null || sudo service sshd restart 2>/dev/null || sudo service ssh restart 2>/dev/null || true && sudo systemctl enable sshd 2>/dev/null || sudo systemctl enable ssh 2>/dev/null || true && sleep 5 && systemctl is-active sshd || systemctl is-active ssh || echo 'inactive'" \
+            --query "value[0].message" -o tsv 2>/dev/null || echo "failed")
+          
+          if echo "$RUN_CMD_RESULT" | grep -qi "active\|running"; then
+            echo "✅ SSH service restarted via Run Command"
+            echo "Waiting 20 seconds for SSH to be ready..."
+            sleep 20
+            
+            # Test SSH connectivity
+            VM_IP=$(az network public-ip show \
+              --resource-group $RESOURCE_GROUP \
+              --name ${{ env.PUBLIC_IP_NAME }} \
+              --query "ipAddress" -o tsv 2>/dev/null || echo "")
+            
+            if [ -n "$VM_IP" ]; then
+              if ssh -i ~/.ssh/id_rsa \
+                -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null \
+                -o ConnectTimeout=10 \
+                -o BatchMode=yes \
+                ${{ env.VM_ADMIN_USERNAME }}@$VM_IP 'echo "SSH_TEST_SUCCESS"' 2>/dev/null | grep -q "SSH_TEST_SUCCESS"; then
+                echo "✅ SSH connectivity restored via Run Command!"
+                echo "ssh_fixed=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+          fi
+          
+          echo "⚠️  Run Command method didn't fully restore SSH, trying VM redeploy..."
+          echo ""
+          echo "Step 2: Attempting VM redeploy (moves VM to new host, preserves data)..."
+          echo "Note: This may take 5-10 minutes, but we have 20 minutes timeout"
           
           if [ "$VM_STATE" = "VM running" ]; then
             echo "VM is running. Redeploying VM (this may take 5-10 minutes)..."
@@ -521,8 +570,8 @@ jobs:
             echo "Waiting for VM to be ready after redeploy..."
             sleep 60
             
-            # Wait for VM to be running again
-            MAX_WAIT=300
+            # Wait for VM to be running again (with shorter timeout to fit in 20 min total)
+            MAX_WAIT=240  # 4 minutes instead of 5
             ELAPSED=0
             while [ $ELAPSED -lt $MAX_WAIT ]; do
               CURRENT_STATE=$(az vm show \
@@ -542,17 +591,8 @@ jobs:
               ELAPSED=$((ELAPSED + 15))
             done
             
-            echo "Waiting additional 60 seconds for VM agent and SSH service to be ready..."
-            sleep 60
-          else
-            echo "VM is not running. Starting VM..."
-            az vm start \
-              --resource-group $RESOURCE_GROUP \
-              --name $VM_NAME \
-              --output none
-            
-            echo "Waiting for VM to start..."
-            sleep 60
+            echo "Waiting additional 45 seconds for VM agent and SSH service to be ready..."
+            sleep 45
           fi
           
           # Step 2: Deploy SSH extension to ensure SSH service is running
