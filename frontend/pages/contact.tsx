@@ -62,11 +62,11 @@ export default function Contact() {
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center space-x-4">
                 <Link 
-                  href="/login"
+                  href="/"
                   className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
                   <ArrowLeftIcon className="h-5 w-5" />
-                  <span>Back to Login</span>
+                  <span>Back to Home</span>
                 </Link>
               </div>
               <div className="flex items-center space-x-4">
