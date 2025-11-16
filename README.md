@@ -65,7 +65,7 @@ SmartWatts is a comprehensive AI-powered energy monitoring and optimization plat
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/bintinray/SmartWatts.git
+git clone https://github.com/smartwatts/SmartWatts.git
 cd SmartWatts
 ```
 
@@ -103,7 +103,7 @@ npm run dev
 2. **Quick Installation**:
 ```bash
 # Download and run installation script
-curl -fsSL https://raw.githubusercontent.com/bintinray/SmartWatts/main/edge-gateway/deploy/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/smartwatts/SmartWatts/main/edge-gateway/deploy/install.sh | sudo bash
 ```
 
 3. **Verify Installation**:

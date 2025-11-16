@@ -2,7 +2,7 @@
 
 **Date:** January 2025  
 **Status:** 100% Complete and Production Ready  
-**Repository:** https://github.com/bintinray/SmartWatts.git
+**Repository:** https://github.com/smartwatts/SmartWatts.git
 
 ## 🎉 Project Overview
 
@@ -272,7 +272,7 @@ This project represents a complete, production-ready energy intelligence platfor
 
 ---
 
-**Repository:** https://github.com/bintinray/SmartWatts.git  
+**Repository:** https://github.com/smartwatts/SmartWatts.git  
 **Status:** 100% Complete and Production Ready  
 **Date:** January 2025
 

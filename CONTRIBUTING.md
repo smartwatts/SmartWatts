@@ -5,7 +5,7 @@ Thank you for your interest in contributing to SmartWatts! This document provide
 ## 🤝 How to Contribute
 
 ### 1. Fork the Repository
-1. Go to [SmartWatts Repository](https://github.com/bintinray/SmartWatts)
+1. Go to [SmartWatts Repository](https://github.com/smartwatts/SmartWatts)
 2. Click the "Fork" button in the top-right corner
 3. Clone your fork locally:
    ```bash
@@ -309,7 +309,7 @@ We use [Semantic Versioning](https://semver.org/):
 
 If you have questions about contributing:
 
-1. Check the [GitHub Discussions](https://github.com/bintinray/SmartWatts/discussions)
+1. Check the [GitHub Discussions](https://github.com/smartwatts/SmartWatts/discussions)
 2. Look at existing issues and pull requests
 3. Contact the maintainers
 4. Join our community chat
