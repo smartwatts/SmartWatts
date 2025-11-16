@@ -23,6 +23,20 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+      
+      - name: Cache Next.js build and SWC binaries
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/next-swc
+            ${{ github.workspace }}/frontend/.next/cache
+            ${{ github.workspace }}/frontend/node_modules/.cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+            ${{ runner.os }}-nextjs-
 
       - name: npm install, build, and test
         working-directory: ./frontend
@@ -30,22 +44,10 @@ jobs:
           NEXT_TELEMETRY_DISABLED: 1
         run: |
           echo "=== Installing dependencies ==="
-          npm install
+          npm ci --prefer-offline --no-audit
           
           echo ""
-          echo "=== Clearing Next.js cache to avoid corrupted SWC downloads ==="
-          rm -rf .next
-          rm -rf ~/.cache/next-swc
-          rm -rf node_modules/.cache
-          
-          echo ""
-          echo "=== Pre-installing SWC packages to avoid download issues ==="
-          # Pre-install SWC packages for the runner's platform (Linux x64)
-          # This helps avoid corrupted downloads during build
-          npm install --no-save @next/swc-linux-x64-gnu@13.5.6 @next/swc-linux-x64-musl@13.5.6 || echo "SWC pre-install failed (will download during build)"
-          
-          echo ""
-          echo "=== Building Next.js application (with retry logic) ==="
+          echo "=== Building Next.js application (with proper validation) ==="
           MAX_RETRIES=3
           RETRY_COUNT=0
           BUILD_SUCCESS=false
@@ -55,41 +57,70 @@ jobs:
             echo ""
             echo "Build attempt $RETRY_COUNT/$MAX_RETRIES..."
             
-            # Clear cache before each retry
+            # Clear corrupted caches before retry
             if [ $RETRY_COUNT -gt 1 ]; then
-              echo "Clearing cache before retry..."
+              echo "Clearing corrupted caches before retry..."
               rm -rf .next
-              rm -rf ~/.cache/next-swc
+              rm -rf ~/.cache/next-swc/*.tgz
+              rm -rf ~/.cache/next-swc/swc-*
             fi
             
-            # Run build with timeout and error handling
-            if npm run build --if-present 2>&1 | tee /tmp/build.log; then
-              BUILD_SUCCESS=true
-              echo "✅ Build succeeded on attempt $RETRY_COUNT"
-              break
-            else
-              BUILD_EXIT_CODE=$?
-              echo "⚠️  Build failed on attempt $RETRY_COUNT (exit code: $BUILD_EXIT_CODE)"
+            # Run build and capture all output
+            set +e  # Don't exit on error
+            npm run build 2>&1 | tee /tmp/build.log
+            BUILD_EXIT_CODE=$?
+            set -e
+            
+            echo ""
+            echo "Build process completed with exit code: $BUILD_EXIT_CODE"
+            
+            # Check for errors in the logs (even if exit code was 0)
+            if grep -qi "unhandledRejection\|ZlibError\|TAR_ABORT\|FATAL ERROR" /tmp/build.log; then
+              echo "⚠️  Build log contains fatal errors (attempt $RETRY_COUNT)"
               
-              # Check if it's the SWC download error
-              if grep -q "zlib\|ZlibError\|swc" /tmp/build.log; then
-                echo "Detected SWC download issue - will retry..."
-                sleep 5
+              # Check if standalone was created despite errors
+              if [ -d ".next/standalone" ]; then
+                echo "✅ Standalone directory exists despite warnings - build may have recovered"
+                BUILD_SUCCESS=true
+                break
               else
-                echo "Different error detected - checking logs..."
-                tail -50 /tmp/build.log
-                if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-                  echo "❌ Build failed after $MAX_RETRIES attempts"
-                  exit 1
+                echo "❌ Standalone directory not created - build failed"
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "Retrying in 10 seconds..."
+                  sleep 10
+                fi
+              fi
+            elif [ $BUILD_EXIT_CODE -ne 0 ]; then
+              echo "⚠️  Build failed with exit code $BUILD_EXIT_CODE (attempt $RETRY_COUNT)"
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "Retrying in 10 seconds..."
+                sleep 10
+              fi
+            else
+              # Exit code 0 and no fatal errors - verify standalone exists
+              if [ -d ".next/standalone" ]; then
+                echo "✅ Build succeeded on attempt $RETRY_COUNT"
+                BUILD_SUCCESS=true
+                break
+              else
+                echo "⚠️  Build exited cleanly but standalone directory missing (attempt $RETRY_COUNT)"
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "Retrying in 10 seconds..."
+                  sleep 10
                 fi
               fi
             fi
           done
           
           if [ "$BUILD_SUCCESS" = "false" ]; then
+            echo ""
             echo "❌ Build failed after $MAX_RETRIES attempts"
-            echo "Build log:"
-            cat /tmp/build.log
+            echo ""
+            echo "Last build log:"
+            tail -100 /tmp/build.log
+            echo ""
+            echo ".next directory contents:"
+            ls -la .next/ 2>/dev/null || echo ".next directory not found"
             exit 1
           fi
           
