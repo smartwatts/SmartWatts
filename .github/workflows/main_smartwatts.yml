@@ -26,13 +26,78 @@ jobs:
 
       - name: npm install, build, and test
         working-directory: ./frontend
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
         run: |
+          echo "=== Installing dependencies ==="
           npm install
-          npm run build --if-present
+          
+          echo ""
+          echo "=== Clearing Next.js cache to avoid corrupted SWC downloads ==="
+          rm -rf .next
+          rm -rf ~/.cache/next-swc
+          rm -rf node_modules/.cache
+          
+          echo ""
+          echo "=== Pre-installing SWC packages to avoid download issues ==="
+          # Pre-install SWC packages for the runner's platform (Linux x64)
+          # This helps avoid corrupted downloads during build
+          npm install --no-save @next/swc-linux-x64-gnu@13.5.6 @next/swc-linux-x64-musl@13.5.6 || echo "SWC pre-install failed (will download during build)"
+          
+          echo ""
+          echo "=== Building Next.js application (with retry logic) ==="
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          BUILD_SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo ""
+            echo "Build attempt $RETRY_COUNT/$MAX_RETRIES..."
+            
+            # Clear cache before each retry
+            if [ $RETRY_COUNT -gt 1 ]; then
+              echo "Clearing cache before retry..."
+              rm -rf .next
+              rm -rf ~/.cache/next-swc
+            fi
+            
+            # Run build with timeout and error handling
+            if npm run build --if-present 2>&1 | tee /tmp/build.log; then
+              BUILD_SUCCESS=true
+              echo "✅ Build succeeded on attempt $RETRY_COUNT"
+              break
+            else
+              BUILD_EXIT_CODE=$?
+              echo "⚠️  Build failed on attempt $RETRY_COUNT (exit code: $BUILD_EXIT_CODE)"
+              
+              # Check if it's the SWC download error
+              if grep -q "zlib\|ZlibError\|swc" /tmp/build.log; then
+                echo "Detected SWC download issue - will retry..."
+                sleep 5
+              else
+                echo "Different error detected - checking logs..."
+                tail -50 /tmp/build.log
+                if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+                  echo "❌ Build failed after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+              fi
+            fi
+          done
+          
+          if [ "$BUILD_SUCCESS" = "false" ]; then
+            echo "❌ Build failed after $MAX_RETRIES attempts"
+            echo "Build log:"
+            cat /tmp/build.log
+            exit 1
+          fi
+          
           # Tests temporarily disabled
           # npm run test --if-present
           
-          # Verify standalone build was created
+          echo ""
+          echo "=== Verifying standalone build ==="
           if [ ! -d ".next/standalone" ]; then
             echo "❌ Error: .next/standalone directory not found after build"
             echo "This means standalone mode is not working correctly"
