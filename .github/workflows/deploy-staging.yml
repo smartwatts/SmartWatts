@@ -35,24 +35,44 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate Azure Credentials JSON
-        continue-on-error: true
         run: |
           echo "🔍 Validating Azure credentials JSON format..."
           CREDS='${{ secrets.AZURE_CREDENTIALS_STAGING }}'
+          
           if [ -z "$CREDS" ]; then
-            echo "❌ Error: AZURE_CREDENTIALS_STAGING secret is empty"
+            echo "❌ Error: AZURE_CREDENTIALS_STAGING secret is empty or not set"
+            echo ""
+            echo "Please set the secret at: https://github.com/smartwatts/SmartWatts/settings/secrets/actions"
             exit 1
           fi
+          
+          echo "Secret length: ${#CREDS} characters"
+          echo "First 150 characters: ${CREDS:0:150}"
+          echo ""
+          
           # Test if it's valid JSON
-          echo "$CREDS" | python3 -m json.tool > /dev/null 2>&1
-          if [ $? -eq 0 ]; then
+          JSON_ERROR=$(echo "$CREDS" | python3 -m json.tool 2>&1)
+          JSON_EXIT_CODE=$?
+          
+          if [ $JSON_EXIT_CODE -eq 0 ]; then
             echo "✅ JSON format is valid"
+            echo ""
+            echo "Parsed JSON structure:"
+            echo "$CREDS" | python3 -m json.tool | head -10
           else
             echo "❌ Error: JSON format is invalid"
-            echo "First 100 characters: ${CREDS:0:100}"
+            echo ""
+            echo "JSON validation error:"
+            echo "$JSON_ERROR"
+            echo ""
+            echo "Raw secret (first 200 chars):"
+            echo "${CREDS:0:200}"
+            echo ""
+            echo "Expected format (single line, no spaces):"
+            echo '{"clientId":"...","clientSecret":"...","subscriptionId":"...","tenantId":"..."}'
             echo ""
             echo "Please check: https://github.com/smartwatts/SmartWatts/settings/secrets/actions"
-            echo "JSON must be on a single line with all values in double quotes"
+            echo "Update AZURE_CREDENTIALS_STAGING with valid JSON"
             exit 1
           fi
 
