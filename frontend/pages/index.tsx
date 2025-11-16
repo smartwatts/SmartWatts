@@ -107,18 +107,15 @@ export default function Index() {
       </Head>
 
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        {/* Navigation */}
+      {/* Navigation */}
         <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16 md:h-20">
               {/* Logo */}
-              <Link href="/" className="flex items-center space-x-2 group">
-                <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-green-600 to-green-700 rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-                  <BoltIcon className="h-5 w-5 md:h-6 md:w-6 text-white" />
-                </div>
-                <span className="text-xl md:text-2xl font-black tracking-tight" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '-0.02em' }}>
+              <Link href="/" className="flex items-center group">
+                <span className="text-4xl font-black tracking-tight transform hover:scale-105 transition-transform duration-300" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '-0.02em' }}>
                   <span className="text-gray-900 dark:text-white">Smart</span>
-                  <span className="text-green-600 dark:text-green-500">Watts</span>
+                  <span className="text-green-500">Watts</span>
                 </span>
               </Link>
 
@@ -133,20 +130,20 @@ export default function Index() {
                 <Link href="/contact" className="text-gray-600 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 font-medium transition-colors">
                   Contact
                 </Link>
-              </div>
+          </div>
 
               {/* Desktop CTA Buttons */}
               <div className="hidden md:flex items-center space-x-4">
-                <Link 
-                  href="/login" 
+            <Link 
+              href="/login" 
                   className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors"
-                >
-                  Sign In
-                </Link>
-                <Link 
-                  href="/register" 
+            >
+              Sign In
+            </Link>
+            <Link 
+              href="/register" 
                   className="bg-green-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-green-700 transition-all shadow-md hover:shadow-lg"
-                >
+            >
                   Get Started
                 </Link>
               </div>
@@ -214,13 +211,13 @@ export default function Index() {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Get Started
-                </Link>
+            </Link>
               </div>
-            </div>
           </div>
-        </nav>
+        </div>
+      </nav>
 
-        {/* Hero Section */}
+      {/* Hero Section */}
         <section className="relative pt-24 md:pt-32 pb-16 md:pb-24 bg-gradient-to-br from-white via-green-50/30 to-blue-50/30 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 overflow-hidden">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-5">
@@ -240,15 +237,15 @@ export default function Index() {
             <div className="text-center mb-6">
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 dark:text-white leading-tight">
                 Nigeria's #1{' '}
-                <span className="text-green-600 dark:text-green-400">AI-Powered</span>{' '}
+                <span className="text-blue-600 dark:text-blue-400">AI-Powered</span>{' '}
                 <br className="hidden sm:block" />
                 Energy Business Intelligence Platform
-              </h1>
+            </h1>
             </div>
 
             {/* Subheadline */}
             <div className="text-center mb-10 md:mb-12">
-              <p className="text-lg sm:text-xl md:text-2xl text-gray-700 dark:text-gray-300 leading-relaxed max-w-4xl mx-auto">
+              <p className="text-xl text-gray-600 dark:text-gray-300 leading-relaxed max-w-4xl mx-auto">
                 See, Control, and Save on all your power sources — Grid, Generator, Solar, and Inverter — with enterprise-grade AI energy intelligence designed for Nigerian businesses and homes.
               </p>
             </div>
@@ -303,14 +300,14 @@ export default function Index() {
 
             {/* CTA Buttons */}
             <div className="text-center">
-              <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
-                <Link 
-                  href="/register" 
+            <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6">
+              <Link 
+                href="/register" 
                   className="w-full sm:w-auto bg-green-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-lg font-semibold text-base md:text-lg hover:bg-green-700 transition-all flex items-center justify-center shadow-lg hover:shadow-xl"
-                >
+              >
                   Start Your Free Trial
-                  <ArrowRightIcon className="ml-2 h-5 w-5" />
-                </Link>
+                <ArrowRightIcon className="ml-2 h-5 w-5" />
+              </Link>
                 <Link
                   href="/contact"
                   className="w-full sm:w-auto border-2 border-green-600 text-green-600 dark:text-green-400 px-6 md:px-8 py-3 md:py-4 rounded-lg font-semibold text-base md:text-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition-all flex items-center justify-center"
@@ -318,10 +315,10 @@ export default function Index() {
                   <PlayIcon className="mr-2 h-5 w-5" />
                   Watch Demo
                 </Link>
-              </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
         {/* Features Section */}
         <section id="features" className="py-16 md:py-20 bg-white dark:bg-gray-900">
@@ -329,11 +326,11 @@ export default function Index() {
             <div className="text-center mb-12 md:mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
                 Beyond Monitoring — This is Energy Intelligence
-              </h2>
+            </h2>
               <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
                 Transform raw energy data into actionable business intelligence that drives real cost savings and operational efficiency.
-              </p>
-            </div>
+            </p>
+          </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
               {/* Complete Energy Visibility */}
@@ -384,7 +381,7 @@ export default function Index() {
                     Automated waste detection
                   </li>
                 </ul>
-              </div>
+            </div>
 
               {/* Business Intelligence Dashboard */}
               <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 md:p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
@@ -533,7 +530,7 @@ export default function Index() {
                       We understand NERC tariffs, DisCo billing, prepaid tokens, and the unique challenges of Nigeria's energy landscape.
                     </p>
                   </div>
-                </div>
+              </div>
               </div>
 
               <div className="space-y-6">
@@ -541,13 +538,13 @@ export default function Index() {
                   <div className="flex items-center mb-4">
                     <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
                       <LightBulbIcon className="w-6 h-6 text-white" />
-                    </div>
+              </div>
                     <h4 className="text-lg font-bold text-gray-900 dark:text-white">Why We Built SmartWatts</h4>
-                  </div>
+            </div>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
                     Energy shouldn't be your biggest unknown expense. Nigerian businesses spend an average of 40% of operational costs on power, yet most have no clear visibility into where that money goes. We're changing that.
-                  </p>
-                </div>
+              </p>
+            </div>
 
                 <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-2xl p-6 border border-green-200 dark:border-green-700">
                   <div className="flex items-center mb-4">
@@ -555,11 +552,11 @@ export default function Index() {
                       <GlobeAltIcon className="w-6 h-6 text-white" />
                     </div>
                     <h4 className="text-lg font-bold text-gray-900 dark:text-white">Our Technology</h4>
-                  </div>
+              </div>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
                     Enterprise-grade AI, edge computing for offline functionality, real-time MQTT communications, and seamless integration with all major energy hardware used in Nigeria.
-                  </p>
-                </div>
+              </p>
+            </div>
 
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl p-6 border border-purple-200 dark:border-purple-700">
                   <div className="flex items-center mb-4">
@@ -567,7 +564,7 @@ export default function Index() {
                       <ShieldCheckIcon className="w-6 h-6 text-white" />
                     </div>
                     <h4 className="text-lg font-bold text-gray-900 dark:text-white">NERC-Compliant & Secure</h4>
-                  </div>
+              </div>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
                     Full compliance with NERC regulations and NDPR data protection standards. Your energy data is encrypted, secure, and belongs to you.
                   </p>
@@ -585,21 +582,21 @@ export default function Index() {
                 <div className="text-center">
                   <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">30%</div>
                   <div className="text-gray-600 dark:text-gray-300">Average Cost Reduction</div>
-                </div>
+                  </div>
                 <div className="text-center">
                   <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">₦2.5M</div>
                   <div className="text-gray-600 dark:text-gray-300">Average Annual Savings</div>
-                </div>
+                  </div>
                 <div className="text-center">
                   <div className="text-4xl font-bold text-purple-600 dark:text-purple-400 mb-2">3-6</div>
                   <div className="text-gray-600 dark:text-gray-300">Months Payback Period</div>
                 </div>
-              </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* CTA Section */}
+      {/* CTA Section */}
         <section className="py-16 md:py-20 bg-gradient-to-r from-green-600 to-green-700 dark:from-green-700 dark:to-green-800">
           <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -622,7 +619,7 @@ export default function Index() {
               >
                 Contact Sales
               </Link>
-            </div>
+          </div>
 
             {/* Test Credentials Info */}
             <div className="mt-12 pt-8 border-t border-green-500">
@@ -649,19 +646,16 @@ export default function Index() {
                 Or <Link href="/register" className="underline hover:text-white">create your own account</Link> — it's free!
               </p>
             </div>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Footer */}
+      {/* Footer */}
         <footer className="bg-gray-900 dark:bg-gray-950 text-white py-12 md:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="col-span-1 md:col-span-2">
                 <div className="flex items-center mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-br from-green-600 to-green-700 rounded-lg flex items-center justify-center mr-3">
-                    <BoltIcon className="h-5 w-5 text-white" />
-                  </div>
-                  <span className="text-2xl font-black tracking-tight" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '-0.02em' }}>
+                  <span className="text-3xl font-black tracking-tight" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '-0.02em' }}>
                     <span className="text-white">Smart</span><span className="text-green-500">Watts</span>
                   </span>
                 </div>
@@ -677,25 +671,25 @@ export default function Index() {
                 </div>
               </div>
               
-              <div>
-                <h3 className="font-semibold mb-4">Product</h3>
+            <div>
+              <h3 className="font-semibold mb-4">Product</h3>
                 <ul className="space-y-2 text-gray-400 text-sm">
                   <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
                   <li><Link href="#about" className="hover:text-white transition-colors">About</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition-colors">Demo</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition-colors">API</Link></li>
-                </ul>
-              </div>
+              </ul>
+            </div>
               
-              <div>
-                <h3 className="font-semibold mb-4">Support</h3>
+            <div>
+              <h3 className="font-semibold mb-4">Support</h3>
                 <ul className="space-y-2 text-gray-400 text-sm">
                   <li><Link href="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition-colors">Help Center</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition-colors">Documentation</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition-colors">Status</Link></li>
-                </ul>
-              </div>
+              </ul>
+            </div>
             </div>
             
             <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between">
@@ -709,11 +703,11 @@ export default function Index() {
                 <Link href="/privacy-policy" className="text-gray-400 hover:text-white text-sm transition-colors">
                   Privacy Policy
                 </Link>
-              </div>
-            </div>
           </div>
-        </footer>
-      </div>
+          </div>
+        </div>
+      </footer>
+    </div>
     </>
   )
-}
+} 
