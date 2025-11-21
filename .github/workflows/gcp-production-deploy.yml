@@ -1,11 +1,14 @@
 name: Deploy to GCP Cloud Run (Production)
 
-# PRODUCTION WORKFLOW - DISABLED
-# This workflow is created but disabled (workflow_dispatch only)
-# Enable automatic triggers only when ready for production deployment
+# PRODUCTION WORKFLOW
+# Currently set to manual trigger only (workflow_dispatch)
+# To enable automatic deployment on prod branch pushes, uncomment the push section below
 
 on:
-  # NO automatic triggers - manual only
+  # Automatic trigger on prod branch (uncomment when ready)
+  # push:
+  #   branches:
+  #     - prod
   workflow_dispatch:
     inputs:
       confirm_deployment:
