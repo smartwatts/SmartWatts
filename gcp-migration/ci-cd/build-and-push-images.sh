@@ -33,8 +33,20 @@ SERVICES=(
 
 echo "Building and pushing images for ${ENVIRONMENT}"
 
-# Configure Docker
+# Verify authentication
+echo "Verifying authentication..."
+gcloud auth list
+
+# Configure Docker authentication
+echo "Configuring Docker for Artifact Registry..."
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+# Explicitly authenticate Docker with access token
+echo "Authenticating Docker with access token..."
+gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin "${REGION}-docker.pkg.dev" || {
+    echo "Error: Failed to authenticate Docker"
+    exit 1
+}
 
 # Build and push each service
 for service_name in "${SERVICES[@]}"; do
