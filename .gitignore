@@ -496,3 +496,6 @@ monitoring/logs/
 !.github/
 !azure-pipelines.yml
 !sonar-project.properties
+# Service account keys
+ml-training/setup/ml-training-key.json
+gcp-migration/gcp-setup/service-account-keys/**/*.json
