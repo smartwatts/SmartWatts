@@ -109,7 +109,6 @@ create_cloud_sql_instance() {
         --storage-type="${STORAGE_TYPE}" \
         --storage-size="${STORAGE_SIZE}" \
         --backup-start-time="02:00" \
-        --enable-bin-log \
         --maintenance-window-day=SUN \
         --maintenance-window-hour=3 \
         --maintenance-release-channel=production \

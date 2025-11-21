@@ -2,6 +2,8 @@ server:
   port: 8088
 
 spring:
+  main:
+    allow-bean-definition-overriding: true
   application:
     name: edge-gateway
   
@@ -170,3 +172,11 @@ sentry:
     ignore-exceptions:
       - org.springframework.security.access.AccessDeniedException
       - org.springframework.web.HttpRequestMethodNotSupportedException
+
+# Model Repository Configuration
+edge:
+  ml:
+    models:
+      repository-url: https://storage.googleapis.com/smartwatts-models/models/tflite
+      auto-download: true
+      sync-interval: 3600000  # 1 hour

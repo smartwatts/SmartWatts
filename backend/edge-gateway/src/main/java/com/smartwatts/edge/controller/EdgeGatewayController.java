@@ -260,9 +260,9 @@ public class EdgeGatewayController {
     }
     
     /**
-     * Get ML model status
+     * Get consolidated ML model status summary (gateway view)
      */
-    @GetMapping("/ml/status")
+    @GetMapping("/ml/status/overview")
     public ResponseEntity<Map<String, Object>> getMLModelStatus() {
         try {
             Map<String, Object> status = edgeMLService.getModelStatus();

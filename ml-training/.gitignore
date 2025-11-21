@@ -1,0 +1,36 @@
+# Data files
+data/raw/*.csv
+data/processed/*
+
+# Model files
+models/*.h5
+models/*.tflite
+models/*.json
+!models/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Training outputs
+*.log
+training_results.json
+evaluation_results.json
+

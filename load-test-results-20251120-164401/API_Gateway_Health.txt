@@ -1,0 +1,56 @@
+This is ApacheBench, Version 2.3 <$Revision: 1913912 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking api-gateway-3daykcsw5a-ew.a.run.app (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Completed 600 requests
+Completed 700 requests
+Completed 800 requests
+Completed 900 requests
+Completed 1000 requests
+Finished 1000 requests
+
+
+Server Software:        Google
+Server Hostname:        api-gateway-3daykcsw5a-ew.a.run.app
+Server Port:            443
+SSL/TLS Protocol:       TLSv1.2,ECDHE-ECDSA-CHACHA20-POLY1305,256,256
+Server Temp Key:        ECDH X25519 253 bits
+TLS Server Name:        api-gateway-3daykcsw5a-ew.a.run.app
+
+Document Path:          /actuator/health
+Document Length:        15 bytes
+
+Concurrency Level:      20
+Time taken for tests:   35.203 seconds
+Complete requests:      1000
+Failed requests:        0
+Total transferred:      490012 bytes
+HTML transferred:       15000 bytes
+Requests per second:    28.41 [#/sec] (mean)
+Time per request:       704.066 [ms] (mean)
+Time per request:       35.203 [ms] (mean, across all concurrent requests)
+Transfer rate:          13.59 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      203  496 128.9    472    2475
+Processing:   131  189  65.7    175     707
+Waiting:      131  185  58.3    173     641
+Total:        352  685 146.3    657    2651
+
+Percentage of the requests served within a certain time (ms)
+  50%    657
+  66%    691
+  75%    728
+  80%    751
+  90%    816
+  95%    881
+  98%   1090
+  99%   1220
+ 100%   2651 (longest request)

@@ -24,8 +24,9 @@ public class SecurityConfig {
                 .pathMatchers("/api/v1/users/forgot-password").permitAll()
                 .pathMatchers("/api/v1/users/reset-password").permitAll()
                 .pathMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                // All other endpoints require authentication
-                .anyExchange().authenticated()
+                // All other endpoints - let backend services handle authentication
+                // API Gateway will forward Authorization headers to backend services
+                .anyExchange().permitAll()
             );
         
         return http.build();

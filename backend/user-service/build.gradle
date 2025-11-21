@@ -27,6 +27,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'com.google.cloud.sql:postgres-socket-factory:1.15.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -151,7 +152,10 @@ dependencyManagement {
 
 // Flyway configuration
 flyway {
-    url = System.getenv('DATABASE_URL') ?: 'jdbc:postgresql://localhost:5432/smartwatts'
-    user = System.getenv('DATABASE_USER') ?: 'smartwatts'
-    password = System.getenv('DATABASE_PASSWORD') ?: 'smartwatts123'
+    url = System.getProperty('flyway.url') ?: System.getenv('DATABASE_URL') ?: 'jdbc:postgresql://localhost:5432/smartwatts_users'
+    user = System.getProperty('flyway.user') ?: System.getenv('DATABASE_USER') ?: 'postgres'
+    password = System.getProperty('flyway.password') ?: System.getenv('DATABASE_PASSWORD') ?: 'postgres'
+    driver = 'org.postgresql.Driver'
+    // Add PostgreSQL driver to Flyway classpath
+    configurations = ['runtimeClasspath']
 } 

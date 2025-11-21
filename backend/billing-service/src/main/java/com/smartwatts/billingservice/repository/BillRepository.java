@@ -42,4 +42,7 @@ public interface BillRepository extends JpaRepository<Bill, UUID> {
     BigDecimal findTotalOutstandingAmountByUserId(@Param("userId") UUID userId);
     @Query("SELECT SUM(b.amountPaid) FROM Bill b WHERE b.userId = :userId AND b.paidDate >= :startDate AND b.paidDate <= :endDate")
     BigDecimal findTotalPaidAmountByUserIdAndDateRange(@Param("userId") UUID userId, @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    
+    // Method for cost forecast and savings tracking
+    List<Bill> findByUserIdOrderByBillingPeriodEndDesc(UUID userId);
 } 

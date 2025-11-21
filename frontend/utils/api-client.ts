@@ -30,8 +30,25 @@ class ApiClient {
   private circuitBreakers: Map<string, CircuitBreakerState> = new Map()
 
   constructor(config: Partial<ApiClientConfig> = {}) {
+    // Get API URL from environment or use current origin for relative URLs
+    // In production, NEXT_PUBLIC_API_URL should be set at build time
+    // For client-side, we use relative URLs that go through Next.js API routes
+    let baseUrl = ''
+    if (typeof window !== 'undefined') {
+      // Client-side: use relative URLs (goes through Next.js /api/proxy)
+      baseUrl = ''
+    } else {
+      // Server-side: use environment variable or fallback
+      baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api-gateway-3daykcsw5a-ew.a.run.app'
+    }
+    
+    // Ensure we never use localhost in production
+    if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+      baseUrl = typeof window !== 'undefined' ? '' : 'https://api-gateway-3daykcsw5a-ew.a.run.app'
+    }
+    
     this.config = {
-      baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+      baseUrl,
       timeout: 10000,
       retryAttempts: 3,
       retryDelay: 1000,

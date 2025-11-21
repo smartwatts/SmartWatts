@@ -4,7 +4,6 @@ metadata:
   name: device-verification-service
   annotations:
     run.googleapis.com/ingress: all
-    run.googleapis.com/execution-environment: gen2
 spec:
   template:
     metadata:
@@ -12,10 +11,10 @@ spec:
         autoscaling.knative.dev/minScale: "1"
         autoscaling.knative.dev/maxScale: "10"
         run.googleapis.com/cpu-throttling: "false"
-        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cloudsql-instances: smartwatts-staging:europe-west1:smartwatts-staging-db
     spec:
       containerConcurrency: 80
-      timeoutSeconds: 300
+      timeoutSeconds: 600
       serviceAccountName: cloud-run-sa@smartwatts-staging.iam.gserviceaccount.com
       containers:
       - image: europe-west1-docker.pkg.dev/smartwatts-staging/device-verification-service/device-verification-service:latest
@@ -23,53 +22,40 @@ spec:
         - name: http1
           containerPort: 8091
         env:
-        - name: PORT
-          value: "8091"
         - name: SPRING_PROFILES_ACTIVE
           value: "cloudrun"
+        - name: SERVER_PORT
+          value: "8091"
         - name: SPRING_DATASOURCE_URL
           value: "jdbc:postgresql:///smartwatts_device_verification?cloudSqlInstance=smartwatts-staging:europe-west1:smartwatts-staging-db&socketFactory=com.google.cloud.sql.postgres.SocketFactory"
         - name: SPRING_DATASOURCE_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: postgres-username
-              key: username
+          value: "postgres"
         - name: SPRING_DATASOURCE_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: postgres-password
-              key: password
+              name: postgres-root-password
+              key: latest
         - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: "http://service-discovery:8761/eureka/"
+          value: "https://service-discovery-3daykcsw5a-ew.a.run.app/eureka/"
         - name: SPRING_DATA_REDIS_HOST
           value: "redis-service"
         - name: SPRING_DATA_REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
               name: redis-password
-              key: password
+              key: latest
         resources:
           limits:
-            cpu: "1"
-            memory: 512Mi
+            cpu: "2"
+            memory: 1Gi
           requests:
-            cpu: "0"
-            memory: "256Gi"
-        startupProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8091
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+            cpu: "1"
+            memory: "256Mi"
         livenessProbe:
           httpGet:
             path: /actuator/health
             port: 8091
-          initialDelaySeconds: 60
+          initialDelaySeconds: 180
           periodSeconds: 30
           timeoutSeconds: 5
-          failureThreshold: 3
-      cloudSqlInstances:
-      - smartwatts-staging:europe-west1:smartwatts-staging-db
+          failureThreshold: 15

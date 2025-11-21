@@ -540,6 +540,226 @@ public class BillingService {
         return billing;
     }
     
+    /**
+     * Get cost forecast for a user
+     * Provides 3, 6, and 12-month cost projections based on historical consumption
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getCostForecast(UUID userId) {
+        log.info("Getting cost forecast for user: {}", userId);
+        
+        // Get historical bills for the user
+        List<Bill> historicalBills = billRepository.findByUserIdOrderByBillingPeriodEndDesc(userId);
+        
+        // Calculate average monthly consumption and cost
+        BigDecimal avgMonthlyConsumption = BigDecimal.ZERO;
+        BigDecimal avgMonthlyCost = BigDecimal.ZERO;
+        
+        if (!historicalBills.isEmpty()) {
+            BigDecimal totalConsumption = historicalBills.stream()
+                    .map(bill -> bill.getTotalConsumptionKwh() != null ? bill.getTotalConsumptionKwh() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            BigDecimal totalCost = historicalBills.stream()
+                    .map(bill -> bill.getTotalAmount() != null ? bill.getTotalAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            int billCount = historicalBills.size();
+            if (billCount > 0) {
+                avgMonthlyConsumption = totalConsumption.divide(new BigDecimal(billCount), 2, RoundingMode.HALF_UP);
+                avgMonthlyCost = totalCost.divide(new BigDecimal(billCount), 2, RoundingMode.HALF_UP);
+            }
+        } else {
+            // Default values if no historical data
+            avgMonthlyConsumption = new BigDecimal("200"); // kWh
+            avgMonthlyCost = new BigDecimal("5000"); // NGN
+        }
+        
+        // Get active tariff for cost calculation
+        List<Tariff> activeTariffs = tariffRepository.findActiveTariffs(LocalDateTime.now());
+        Tariff activeTariff = activeTariffs.isEmpty() ? null : activeTariffs.get(0);
+        BigDecimal ratePerKwh = activeTariff != null && activeTariff.getBaseRate() != null 
+                ? activeTariff.getBaseRate() 
+                : new BigDecimal("20"); // Default rate
+        
+        // Calculate forecasts for 3, 6, and 12 months
+        Map<String, Object> forecast = new HashMap<>();
+        forecast.put("userId", userId);
+        forecast.put("forecastDate", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        forecast.put("baseMonthlyConsumption", avgMonthlyConsumption);
+        forecast.put("baseMonthlyCost", avgMonthlyCost);
+        forecast.put("ratePerKwh", ratePerKwh);
+        
+        // 3-month forecast
+        Map<String, Object> threeMonth = new HashMap<>();
+        threeMonth.put("period", "3 months");
+        threeMonth.put("projectedConsumption", avgMonthlyConsumption.multiply(new BigDecimal("3")));
+        threeMonth.put("projectedCost", avgMonthlyCost.multiply(new BigDecimal("3")));
+        threeMonth.put("confidence", "High");
+        forecast.put("threeMonth", threeMonth);
+        
+        // 6-month forecast
+        Map<String, Object> sixMonth = new HashMap<>();
+        sixMonth.put("period", "6 months");
+        sixMonth.put("projectedConsumption", avgMonthlyConsumption.multiply(new BigDecimal("6")));
+        sixMonth.put("projectedCost", avgMonthlyCost.multiply(new BigDecimal("6")));
+        sixMonth.put("confidence", "Medium");
+        forecast.put("sixMonth", sixMonth);
+        
+        // 12-month forecast
+        Map<String, Object> twelveMonth = new HashMap<>();
+        twelveMonth.put("period", "12 months");
+        twelveMonth.put("projectedConsumption", avgMonthlyConsumption.multiply(new BigDecimal("12")));
+        twelveMonth.put("projectedCost", avgMonthlyCost.multiply(new BigDecimal("12")));
+        twelveMonth.put("confidence", "Low");
+        forecast.put("twelveMonth", twelveMonth);
+        
+        // Seasonal adjustments
+        Map<String, Object> seasonalFactors = new HashMap<>();
+        seasonalFactors.put("summerMultiplier", 1.15); // 15% increase in summer
+        seasonalFactors.put("winterMultiplier", 0.90); // 10% decrease in winter
+        forecast.put("seasonalFactors", seasonalFactors);
+        
+        // Recommendations
+        List<String> recommendations = new ArrayList<>();
+        if (avgMonthlyConsumption.compareTo(new BigDecimal("300")) > 0) {
+            recommendations.add("Consider energy-efficient appliances to reduce consumption");
+        }
+        if (avgMonthlyCost.compareTo(new BigDecimal("10000")) > 0) {
+            recommendations.add("Explore time-of-use pricing to optimize costs");
+        }
+        recommendations.add("Monitor peak usage hours and shift non-essential loads");
+        forecast.put("recommendations", recommendations);
+        
+        return forecast;
+    }
+    
+    /**
+     * Get savings tracking for a user
+     * Calculates actual savings compared to baseline and provides savings breakdown
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getSavings(UUID userId) {
+        log.info("Getting savings tracking for user: {}", userId);
+        
+        // Get historical bills
+        List<Bill> historicalBills = billRepository.findByUserIdOrderByBillingPeriodEndDesc(userId);
+        
+        // Calculate baseline (average of first 3 months or default)
+        BigDecimal baselineMonthlyCost = BigDecimal.ZERO;
+        if (historicalBills.size() >= 3) {
+            BigDecimal firstThreeMonthsTotal = historicalBills.subList(0, Math.min(3, historicalBills.size())).stream()
+                    .map(bill -> bill.getTotalAmount() != null ? bill.getTotalAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            baselineMonthlyCost = firstThreeMonthsTotal.divide(new BigDecimal("3"), 2, RoundingMode.HALF_UP);
+        } else if (!historicalBills.isEmpty()) {
+            BigDecimal total = historicalBills.stream()
+                    .map(bill -> bill.getTotalAmount() != null ? bill.getTotalAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            baselineMonthlyCost = total.divide(new BigDecimal(historicalBills.size()), 2, RoundingMode.HALF_UP);
+        } else {
+            baselineMonthlyCost = new BigDecimal("8000"); // Default baseline
+        }
+        
+        // Calculate current average (last 3 months or all available)
+        BigDecimal currentMonthlyCost = BigDecimal.ZERO;
+        if (!historicalBills.isEmpty()) {
+            int monthsToConsider = Math.min(3, historicalBills.size());
+            BigDecimal recentTotal = historicalBills.subList(0, monthsToConsider).stream()
+                    .map(bill -> bill.getTotalAmount() != null ? bill.getTotalAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            currentMonthlyCost = recentTotal.divide(new BigDecimal(monthsToConsider), 2, RoundingMode.HALF_UP);
+        } else {
+            currentMonthlyCost = baselineMonthlyCost;
+        }
+        
+        // Calculate savings
+        BigDecimal monthlySavings = baselineMonthlyCost.subtract(currentMonthlyCost);
+        BigDecimal savingsPercentage = baselineMonthlyCost.compareTo(BigDecimal.ZERO) > 0
+                ? monthlySavings.divide(baselineMonthlyCost, 4, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"))
+                : BigDecimal.ZERO;
+        
+        // Calculate annual savings projection
+        BigDecimal annualSavings = monthlySavings.multiply(new BigDecimal("12"));
+        
+        Map<String, Object> savings = new HashMap<>();
+        savings.put("userId", userId);
+        savings.put("calculationDate", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
+        // Baseline information
+        Map<String, Object> baseline = new HashMap<>();
+        baseline.put("monthlyCost", baselineMonthlyCost);
+        baseline.put("period", "Initial 3 months average");
+        savings.put("baseline", baseline);
+        
+        // Current information
+        Map<String, Object> current = new HashMap<>();
+        current.put("monthlyCost", currentMonthlyCost);
+        current.put("period", "Last 3 months average");
+        savings.put("current", current);
+        
+        // Savings summary
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("monthlySavings", monthlySavings);
+        summary.put("annualSavings", annualSavings);
+        summary.put("savingsPercentage", savingsPercentage);
+        summary.put("trend", monthlySavings.compareTo(BigDecimal.ZERO) > 0 ? "Decreasing" : "Increasing");
+        savings.put("summary", summary);
+        
+        // Savings breakdown by category
+        List<Map<String, Object>> breakdown = new ArrayList<>();
+        
+        // Time-of-use savings (if applicable)
+        Map<String, Object> touSavings = new HashMap<>();
+        touSavings.put("category", "Time-of-Use Optimization");
+        touSavings.put("monthlySavings", monthlySavings.multiply(new BigDecimal("0.3"))); // 30% of total
+        touSavings.put("description", "Savings from shifting usage to off-peak hours");
+        breakdown.add(touSavings);
+        
+        // Energy efficiency savings
+        Map<String, Object> efficiencySavings = new HashMap<>();
+        efficiencySavings.put("category", "Energy Efficiency");
+        efficiencySavings.put("monthlySavings", monthlySavings.multiply(new BigDecimal("0.4"))); // 40% of total
+        efficiencySavings.put("description", "Savings from using energy-efficient appliances");
+        breakdown.add(efficiencySavings);
+        
+        // Solar/Alternative energy savings
+        Map<String, Object> solarSavings = new HashMap<>();
+        solarSavings.put("category", "Solar/Alternative Energy");
+        solarSavings.put("monthlySavings", monthlySavings.multiply(new BigDecimal("0.3"))); // 30% of total
+        solarSavings.put("description", "Savings from solar generation and alternative energy sources");
+        breakdown.add(solarSavings);
+        
+        savings.put("breakdown", breakdown);
+        
+        // Savings goals
+        Map<String, Object> goals = new HashMap<>();
+        goals.put("targetMonthlySavings", baselineMonthlyCost.multiply(new BigDecimal("0.20"))); // 20% target
+        goals.put("targetAnnualSavings", baselineMonthlyCost.multiply(new BigDecimal("2.4"))); // 20% * 12
+        goals.put("currentProgress", savingsPercentage);
+        goals.put("status", savingsPercentage.compareTo(new BigDecimal("20")) >= 0 ? "Achieved" : "In Progress");
+        savings.put("goals", goals);
+        
+        // Historical savings trend (last 6 months if available)
+        List<Map<String, Object>> trend = new ArrayList<>();
+        int monthsToShow = Math.min(6, historicalBills.size());
+        for (int i = 0; i < monthsToShow; i++) {
+            Bill bill = historicalBills.get(i);
+            Map<String, Object> monthData = new HashMap<>();
+            monthData.put("month", bill.getBillingPeriodEnd() != null 
+                    ? bill.getBillingPeriodEnd().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                    : LocalDateTime.now().minusMonths(i).format(DateTimeFormatter.ofPattern("yyyy-MM")));
+            monthData.put("cost", bill.getTotalAmount() != null ? bill.getTotalAmount() : BigDecimal.ZERO);
+            monthData.put("savings", baselineMonthlyCost.subtract(
+                    bill.getTotalAmount() != null ? bill.getTotalAmount() : BigDecimal.ZERO));
+            trend.add(monthData);
+        }
+        savings.put("trend", trend);
+        
+        return savings;
+    }
+    
     private String generateToken() {
         // Generate a 20-digit token
         StringBuilder token = new StringBuilder();

@@ -1,0 +1,46 @@
+This is ApacheBench, Version 2.3 <$Revision: 1913912 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking api-gateway-3daykcsw5a-ew.a.run.app (be patient).....done
+
+
+Server Software:        Google
+Server Hostname:        api-gateway-3daykcsw5a-ew.a.run.app
+Server Port:            443
+SSL/TLS Protocol:       TLSv1.2,ECDHE-ECDSA-CHACHA20-POLY1305,256,256
+Server Temp Key:        ECDH X25519 253 bits
+TLS Server Name:        api-gateway-3daykcsw5a-ew.a.run.app
+
+Document Path:          /actuator/info
+Document Length:        129 bytes
+
+Concurrency Level:      5
+Time taken for tests:   13.738 seconds
+Complete requests:      100
+Failed requests:        0
+Non-2xx responses:      100
+Total transferred:      58408 bytes
+HTML transferred:       12900 bytes
+Requests per second:    7.28 [#/sec] (mean)
+Time per request:       686.897 [ms] (mean)
+Time per request:       137.379 [ms] (mean, across all concurrent requests)
+Transfer rate:          4.15 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      239  471  84.4    462     998
+Processing:   137  178  43.7    171     553
+Waiting:      134  175  43.9    170     553
+Total:        398  649 107.7    638    1238
+
+Percentage of the requests served within a certain time (ms)
+  50%    638
+  66%    652
+  75%    670
+  80%    674
+  90%    740
+  95%    847
+  98%   1177
+  99%   1238
+ 100%   1238 (longest request)

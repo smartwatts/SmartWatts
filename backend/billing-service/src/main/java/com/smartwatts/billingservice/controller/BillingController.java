@@ -425,4 +425,24 @@ public class BillingController {
         Map<String, Object> billing = billingService.getDiscoBilling(userId);
         return ResponseEntity.ok(billing);
     }
+    
+    @GetMapping("/users/{userId}/cost-forecast")
+    @Operation(summary = "Get cost forecast", description = "Retrieves 3, 6, and 12-month cost projections based on historical consumption")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('BILLING_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getCostForecast(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching cost forecast for user: {}", userId);
+        Map<String, Object> forecast = billingService.getCostForecast(userId);
+        return ResponseEntity.ok(forecast);
+    }
+    
+    @GetMapping("/users/{userId}/savings")
+    @Operation(summary = "Get savings tracking", description = "Retrieves savings tracking information comparing current costs to baseline")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN') or hasRole('BILLING_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getSavings(
+            @Parameter(description = "User ID") @PathVariable UUID userId) {
+        log.info("Fetching savings tracking for user: {}", userId);
+        Map<String, Object> savings = billingService.getSavings(userId);
+        return ResponseEntity.ok(savings);
+    }
 } 

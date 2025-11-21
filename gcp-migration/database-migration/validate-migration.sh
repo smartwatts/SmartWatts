@@ -59,9 +59,10 @@ for db_name in "${DATABASES[@]}"; do
         --command="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null || echo "0")
     
     # Get table count from Cloud SQL (via proxy)
+    CLOUD_SQL_PORT="${CLOUD_SQL_PORT:-5433}"  # Default to 5433 to avoid conflict with local PostgreSQL
     CLOUD_TABLES=$(PGPASSWORD="${CLOUD_PASSWORD}" psql \
         --host=127.0.0.1 \
-        --port=5432 \
+        --port="${CLOUD_SQL_PORT}" \
         --username=postgres \
         --dbname="${db_name}" \
         --tuples-only \

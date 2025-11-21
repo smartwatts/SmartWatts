@@ -56,7 +56,7 @@ AZURE_POSTGRES_PASSWORD=""
 
 # Cloud SQL connection (via Cloud SQL Proxy)
 CLOUD_SQL_HOST="127.0.0.1"
-CLOUD_SQL_PORT="5432"
+CLOUD_SQL_PORT="${CLOUD_SQL_PORT:-5433}"  # Default to 5433 to avoid conflict with local PostgreSQL
 CLOUD_SQL_USER="postgres"
 CLOUD_SQL_PASSWORD=""
 
@@ -131,9 +131,18 @@ get_connection_details() {
 start_cloud_sql_proxy() {
     echo -e "${YELLOW}Starting Cloud SQL Proxy...${NC}"
     
-    # Check if proxy is already running
+    # Check if proxy is already running on the expected port
+    if lsof -i :"${CLOUD_SQL_PORT}" > /dev/null 2>&1; then
+        echo -e "${YELLOW}Cloud SQL Proxy appears to be running on port ${CLOUD_SQL_PORT}${NC}"
+        echo -e "${YELLOW}Assuming proxy is already started (you may have started it manually)${NC}"
+        return 0
+    fi
+    
+    # Check if proxy process is running
     if pgrep -f "cloud-sql-proxy" > /dev/null; then
-        echo -e "${YELLOW}Cloud SQL Proxy is already running${NC}"
+        echo -e "${YELLOW}Cloud SQL Proxy process found, but not on expected port${NC}"
+        echo -e "${YELLOW}Please ensure proxy is running on port ${CLOUD_SQL_PORT}${NC}"
+        echo -e "${YELLOW}Run: cloud-sql-proxy ${CLOUD_SQL_INSTANCE} --port=${CLOUD_SQL_PORT}${NC}"
         return 0
     fi
     

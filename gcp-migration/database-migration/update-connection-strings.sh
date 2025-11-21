@@ -22,21 +22,41 @@ if [ -z "$CLOUD_SQL_INSTANCE" ]; then
         --format="value(connectionName)" 2>/dev/null || echo "")
 fi
 
-# Database mapping
-declare -A DB_MAP=(
-    ["user-service"]="smartwatts_users"
-    ["energy-service"]="smartwatts_energy"
-    ["device-service"]="smartwatts_devices"
-    ["analytics-service"]="smartwatts_analytics"
-    ["billing-service"]="smartwatts_billing"
-    ["facility-service"]="smartwatts_facility360"
-    ["feature-flag-service"]="smartwatts_feature_flags"
-    ["device-verification-service"]="smartwatts_device_verification"
-    ["appliance-monitoring-service"]="smartwatts_appliance_monitoring"
+# Database mapping function
+get_database_name() {
+    local service_name=$1
+    case "$service_name" in
+        "user-service") echo "smartwatts_users" ;;
+        "energy-service") echo "smartwatts_energy" ;;
+        "device-service") echo "smartwatts_devices" ;;
+        "analytics-service") echo "smartwatts_analytics" ;;
+        "billing-service") echo "smartwatts_billing" ;;
+        "facility-service") echo "smartwatts_facility360" ;;
+        "feature-flag-service") echo "smartwatts_feature_flags" ;;
+        "device-verification-service") echo "smartwatts_device_verification" ;;
+        "appliance-monitoring-service") echo "smartwatts_appliance_monitoring" ;;
+        *) echo "" ;;
+    esac
+}
+
+SERVICES=(
+    "user-service"
+    "energy-service"
+    "device-service"
+    "analytics-service"
+    "billing-service"
+    "facility-service"
+    "feature-flag-service"
+    "device-verification-service"
+    "appliance-monitoring-service"
 )
 
-for service in "${!DB_MAP[@]}"; do
-    db_name="${DB_MAP[$service]}"
+for service in "${SERVICES[@]}"; do
+    db_name=$(get_database_name "$service")
+    if [ -z "$db_name" ]; then
+        echo "Skipping ${service}: No database mapping"
+        continue
+    fi
     config_file="backend/${service}/src/main/resources/application-cloudrun.yml"
     
     mkdir -p "$(dirname "$config_file")"

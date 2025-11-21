@@ -6,6 +6,7 @@ import com.smartwatts.edge.protocol.ModbusProtocolHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -21,11 +22,12 @@ import java.util.concurrent.TimeUnit;
  * Implements actual device discovery and scanning for RS485 and network devices
  */
 @Service
+@ConditionalOnProperty(name = "edge.rs485.enabled", havingValue = "true", matchIfMissing = true)
 public class DeviceDiscoveryService {
 
     private static final Logger logger = LoggerFactory.getLogger(DeviceDiscoveryService.class);
 
-    @Autowired
+    @Autowired(required = false)
     private RS485SerialService rs485Service;
 
     // Note: modbusHandler reserved for future Modbus protocol integration
@@ -35,7 +37,7 @@ public class DeviceDiscoveryService {
 
     // Note: rs485Config reserved for future RS485 configuration access
     @SuppressWarnings("unused")
-    @Autowired
+    @Autowired(required = false)
     private RS485Configuration rs485Config;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);

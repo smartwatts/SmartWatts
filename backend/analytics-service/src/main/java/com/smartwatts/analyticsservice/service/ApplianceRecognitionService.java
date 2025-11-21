@@ -29,9 +29,16 @@ public class ApplianceRecognitionService {
      */
     @Transactional
     public List<ApplianceDetection> detectAppliances(UUID deviceId, List<EnergyReading> readings) {
-        log.info("Starting appliance detection for device: {} with {} readings", deviceId, readings.size());
+        log.info("Starting appliance detection for device: {} with {} readings", deviceId, 
+                readings != null ? readings.size() : 0);
         
         List<ApplianceDetection> detections = new ArrayList<>();
+        
+        // Handle null or empty readings - return empty list instead of throwing error
+        if (readings == null || readings.isEmpty()) {
+            log.warn("No energy readings provided for device: {}. Returning empty detection list.", deviceId);
+            return detections;
+        }
         
         // Get known appliance signatures
         List<ApplianceSignature> signatures = signatureRepository.findByDeviceId(deviceId);
@@ -52,7 +59,9 @@ public class ApplianceRecognitionService {
         detections.addAll(unknownDetections);
         
         // Save detections
-        detectionRepository.saveAll(detections);
+        if (!detections.isEmpty()) {
+            detectionRepository.saveAll(detections);
+        }
         
         log.info("Detected {} appliances for device: {}", detections.size(), deviceId);
         return detections;
@@ -149,12 +158,17 @@ public class ApplianceRecognitionService {
                                                            List<EnergyReading> readings) {
         List<ApplianceDetection> detections = new ArrayList<>();
         
+        // Handle null or empty readings
+        if (readings == null || readings.isEmpty()) {
+            return detections;
+        }
+        
         // Look for significant power changes that might indicate new appliances
         for (Map.Entry<String, List<EnergyReading>> entry : patterns.entrySet()) {
             String powerRange = entry.getKey();
             List<EnergyReading> rangeReadings = entry.getValue();
             
-            if (rangeReadings.size() > 10) { // Minimum readings for detection
+            if (rangeReadings != null && rangeReadings.size() > 10) { // Minimum readings for detection
                 ApplianceDetection detection = new ApplianceDetection();
                 detection.setDeviceId(readings.get(0).getDeviceId());
                 detection.setApplianceName("Unknown " + powerRange + " Appliance");

@@ -23,6 +23,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(authz -> authz
+                .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/device-verification/health").permitAll()
                 .requestMatchers("/api/device-verification/info").permitAll()
                 .requestMatchers("/api/device-verification/**").permitAll()

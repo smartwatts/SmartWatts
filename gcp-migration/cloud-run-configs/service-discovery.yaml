@@ -4,7 +4,6 @@ metadata:
   name: service-discovery
   annotations:
     run.googleapis.com/ingress: all
-    run.googleapis.com/execution-environment: gen2
 spec:
   template:
     metadata:
@@ -12,7 +11,6 @@ spec:
         autoscaling.knative.dev/minScale: "1"
         autoscaling.knative.dev/maxScale: "10"
         run.googleapis.com/cpu-throttling: "false"
-        run.googleapis.com/execution-environment: gen2
     spec:
       containerConcurrency: 80
       timeoutSeconds: 300
@@ -23,27 +21,25 @@ spec:
         - name: http1
           containerPort: 8761
         env:
-        - name: PORT
-          value: "8761"
         - name: SPRING_PROFILES_ACTIVE
           value: "cloudrun"
 
         - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: "http://service-discovery:8761/eureka/"
+          value: "https://service-discovery-3daykcsw5a-ew.a.run.app/eureka/"
         - name: SPRING_DATA_REDIS_HOST
           value: "redis-service"
         - name: SPRING_DATA_REDIS_PASSWORD
           valueFrom:
             secretKeyRef:
               name: redis-password
-              key: password
+              key: latest
         resources:
           limits:
             cpu: "1"
             memory: 512Mi
           requests:
             cpu: "0"
-            memory: "256Gi"
+            memory: "256Mi"
         startupProbe:
           httpGet:
             path: /actuator/health
@@ -56,7 +52,7 @@ spec:
           httpGet:
             path: /actuator/health
             port: 8761
-          initialDelaySeconds: 60
+          initialDelaySeconds: 120
           periodSeconds: 30
           timeoutSeconds: 5
           failureThreshold: 3

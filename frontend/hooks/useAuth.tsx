@@ -231,15 +231,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (userData: RegisterData) => {
     try {
+      // Generate username from email (take part before @)
+      const username = userData.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '_')
+      
+      // Ensure phone number is in correct format (+234XXXXXXXXXX)
+      let phoneNumber = userData.phoneNumber.trim()
+      if (!phoneNumber.startsWith('+234')) {
+        // If it starts with 0, replace with +234
+        if (phoneNumber.startsWith('0')) {
+          phoneNumber = '+234' + phoneNumber.substring(1)
+        } else if (phoneNumber.startsWith('234')) {
+          phoneNumber = '+' + phoneNumber
+        } else {
+          phoneNumber = '+234' + phoneNumber
+        }
+      }
+      
+      // Prepare payload matching backend UserDto requirements
+      const payload = {
+        username: username,
+        email: userData.email,
+        password: userData.password,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        phoneNumber: phoneNumber,
+        // Optional fields that backend accepts
+        address: userData.address || null,
+        city: userData.city || null,
+        state: userData.state || null,
+        country: userData.country || null,
+      }
+      
       const response = await fetch('/api/proxy?service=user&path=/users/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(payload),
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Registration failed')
+        const errorData = await response.json().catch(() => ({ message: 'Registration failed' }))
+        const errorMessage = errorData.message || errorData.error || 'Registration failed'
+        throw new Error(errorMessage)
       }
       
       const data = await response.json()

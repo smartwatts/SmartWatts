@@ -1,0 +1,11 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    url: jdbc:postgresql:///smartwatts_devices?cloudSqlInstance=smartwatts-staging:europe-west1:smartwatts-staging-db&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000

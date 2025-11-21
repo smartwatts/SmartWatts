@@ -38,9 +38,8 @@ export default function Document() {
         <link rel="apple-touch-startup-image" href="/icons/apple-splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
         <link rel="apple-touch-startup-image" href="/icons/apple-splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
 
-        {/* Security Headers */}
+        {/* Security Headers - Note: X-Frame-Options is set via HTTP headers in next.config.js, not meta tags */}
         <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
-        <meta httpEquiv="X-Frame-Options" content="DENY" />
         <meta httpEquiv="X-XSS-Protection" content="1; mode=block" />
         <meta httpEquiv="Referrer-Policy" content="origin-when-cross-origin" />
 
@@ -59,6 +58,7 @@ export default function Document() {
     </Html>
   )
 }
+
 
 
 

@@ -1,0 +1,121 @@
+Load Test Summary
+==================
+Date: Thu Nov 20 16:47:07 GMT 2025
+Configuration:
+  Concurrent Users: 20
+  Requests per User: 50
+  Total Requests: 1000
+  Test Duration: 60s
+
+Results:
+--------
+
+Test: API_Gateway_Authenticated
+Time per request:       38.528 [ms] (mean, across all concurrent requests)
+Transfer rate:          26.41 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      211  522 259.1    484    7382
+Processing:   154  226  76.6    204     682
+Waiting:      154  219  63.1    202     676
+Total:        393  748 274.4    709    7694
+
+Percentage of the requests served within a certain time (ms)
+  50%    709
+  66%    745
+  75%    787
+  80%    819
+  90%    946
+  95%   1039
+  98%   1176
+  99%   1547
+ 100%   7694 (longest request)
+
+Test: API_Gateway_Health
+Time per request:       35.203 [ms] (mean, across all concurrent requests)
+Transfer rate:          13.59 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      203  496 128.9    472    2475
+Processing:   131  189  65.7    175     707
+Waiting:      131  185  58.3    173     641
+Total:        352  685 146.3    657    2651
+
+Percentage of the requests served within a certain time (ms)
+  50%    657
+  66%    691
+  75%    728
+  80%    751
+  90%    816
+  95%    881
+  98%   1090
+  99%   1220
+ 100%   2651 (longest request)
+
+Test: API_Gateway_Public
+Time per request:       36.274 [ms] (mean, across all concurrent requests)
+Transfer rate:          15.75 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      215  501 135.5    470    1577
+Processing:   130  192  85.6    173    1199
+Waiting:      130  185  71.1    171    1199
+Total:        364  692 163.1    652    1758
+
+Percentage of the requests served within a certain time (ms)
+  50%    652
+  66%    689
+  75%    727
+  80%    747
+  90%    847
+  95%    986
+  98%   1187
+  99%   1595
+ 100%   1758 (longest request)
+
+Test: User_Service_Direct
+Time per request:       35.764 [ms] (mean, across all concurrent requests)
+Transfer rate:          23.81 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      200  502 136.9    475    1856
+Processing:   133  195  73.5    175     680
+Waiting:      132  188  59.2    174     593
+Total:        361  697 158.5    660    2026
+
+Percentage of the requests served within a certain time (ms)
+  50%    660
+  66%    701
+  75%    742
+  80%    768
+  90%    853
+  95%    984
+  98%   1189
+  99%   1271
+ 100%   2026 (longest request)
+
+Test: User_Service_Health
+Time per request:       35.819 [ms] (mean, across all concurrent requests)
+Transfer rate:          23.77 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      210  504 109.4    481    1621
+Processing:   136  194  75.2    177    1536
+Waiting:      130  190  70.4    176    1536
+Total:        385  698 137.7    675    2068
+
+Percentage of the requests served within a certain time (ms)
+  50%    675
+  66%    713
+  75%    750
+  80%    770
+  90%    841
+  95%    905
+  98%    984
+  99%   1216
+ 100%   2068 (longest request)

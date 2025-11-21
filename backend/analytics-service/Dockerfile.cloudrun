@@ -7,7 +7,7 @@
 # - Cloud Run environment variable support
 
 # Builder stage
-FROM eclipse-temurin:17-jdk-alpine AS builder
+FROM eclipse-temurin:17-jdk AS builder
 
 WORKDIR /app
 
@@ -22,34 +22,29 @@ COPY settings.gradle .
 # Make gradlew executable
 RUN chmod +x gradlew
 
-# Download dependencies (cached layer)
-RUN ./gradlew dependencies --no-daemon
+# Download dependencies (cached layer) - with retry logic for network issues
+RUN for i in 1 2 3 4 5; do ./gradlew dependencies --no-daemon && break || sleep 10; done
 
 # Copy source code
 COPY src src
 
-# Build the application
-RUN ./gradlew build -x test --no-daemon
+# Build the application - with retry logic for network issues
+RUN for i in 1 2 3 4 5; do ./gradlew build -x test -x jacocoTestReport -x jacocoTestCoverageVerification --no-daemon && break || sleep 10; done
 
 # Extract application layers for better caching
-RUN java -Djarmode=layertools -jar build/libs/*.jar extract
+RUN java -Djarmode=layertools -jar build/libs/*-SNAPSHOT.jar extract || java -Djarmode=layertools -jar build/libs/*boot*.jar extract
 
-# Runtime stage - using Alpine for minimal size with shell support
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 
 # Create non-root user
-RUN addgroup -S spring && adduser -S spring -G spring
+RUN groupadd -r spring && useradd -r -g spring spring
 
 WORKDIR /app
 
-# Copy extracted layers
-COPY --from=builder --chown=spring:spring /app/dependencies/ ./
-COPY --from=builder --chown=spring:spring /app/spring-boot-loader/ ./
-COPY --from=builder --chown=spring:spring /app/snapshot-dependencies/ ./
-COPY --from=builder --chown=spring:spring /app/application/ ./
-
+# Copy the built JAR file (use boot jar, not plain jar)
+COPY --from=builder --chown=spring:spring /app/build/libs/*.jar app.jar
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Switch to non-root user
 USER spring:spring
@@ -65,4 +60,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8084}/actuator/health || exit 1
 
 # Cloud Run requires the application to listen on the PORT environment variable
-ENTRYPOINT ["java", "org.springframework.boot.loader.JarLauncher"]
+ENTRYPOINT ["java", "-jar", "app.jar"]

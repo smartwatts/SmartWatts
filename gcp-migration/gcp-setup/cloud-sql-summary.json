@@ -1,0 +1,43 @@
+{
+  "creationDate": "2025-11-16T19:39:03Z",
+  "primaryRegion": "europe-west1",
+  "replicaRegion": "europe-west4",
+  "instances": {
+    "staging": {
+      "projectId": "smartwatts-staging",
+      "instanceName": "smartwatts-staging-db",
+      "connectionName": "smartwatts-staging:europe-west1:smartwatts-staging-db",
+      "region": "europe-west1",
+      "tier": "db-f1-micro",
+      "databases": [
+  "smartwatts_users",
+  "smartwatts_energy",
+  "smartwatts_devices",
+  "smartwatts_analytics",
+  "smartwatts_billing",
+  "smartwatts_facility360",
+  "smartwatts_feature_flags",
+  "smartwatts_device_verification",
+  "smartwatts_appliance_monitoring"
+]
+    },
+    "production": {
+      "projectId": "smartwatts-production",
+      "instanceName": "smartwatts-production-db",
+      "connectionName": "smartwatts-production:europe-west1:smartwatts-production-db",
+      "region": "europe-west1",
+      "tier": "db-f1-micro",
+      "databases": [
+  "smartwatts_users",
+  "smartwatts_energy",
+  "smartwatts_devices",
+  "smartwatts_analytics",
+  "smartwatts_billing",
+  "smartwatts_facility360",
+  "smartwatts_feature_flags",
+  "smartwatts_device_verification",
+  "smartwatts_appliance_monitoring"
+]
+    }
+  }
+}

@@ -32,9 +32,15 @@ public class CommunityBenchmarkingService {
         // Get user's energy data
         Map<String, Object> userMetrics = calculateUserMetrics(userId);
         
-        // Get regional benchmarks
+        // Get regional benchmarks - ensure we always have a valid benchmark
         CommunityBenchmark regionalBenchmark = benchmarkRepository.findByRegionAndMetricType(region, "ENERGY_EFFICIENCY")
             .orElse(createDefaultBenchmark(region, "ENERGY_EFFICIENCY"));
+        
+        // Safety check - ensure benchmark is not null
+        if (regionalBenchmark == null) {
+            log.warn("Benchmark is null for region: {}, metric: ENERGY_EFFICIENCY. Creating default.", region);
+            regionalBenchmark = createDefaultBenchmark(region, "ENERGY_EFFICIENCY");
+        }
         
         // Calculate ranking
         Map<String, Object> ranking = new HashMap<>();
@@ -322,6 +328,12 @@ public class CommunityBenchmarkingService {
         CommunityBenchmark benchmark = benchmarkRepository.findByRegionAndMetricType(region, metricType)
             .orElse(createDefaultBenchmark(region, metricType));
         
+        // Safety check - ensure benchmark is not null
+        if (benchmark == null) {
+            log.warn("Benchmark is null for region: {}, metric: {}. Creating default.", region, metricType);
+            benchmark = createDefaultBenchmark(region, metricType);
+        }
+        
         Map<String, Object> stats = new HashMap<>();
         stats.put("average", benchmark.getAverageValue());
         stats.put("median", benchmark.getMedianValue());
@@ -441,23 +453,56 @@ public class CommunityBenchmarkingService {
      * Create default benchmark - only when no real data exists
      */
     private CommunityBenchmark createDefaultBenchmark(String region, String metricType) {
-        // Return null to indicate no data available
-        return null;
+        // Return default benchmark with zero values when no data is available
+        return CommunityBenchmark.builder()
+                .region(region)
+                .metricType(metricType)
+                .averageValue(BigDecimal.ZERO)
+                .medianValue(BigDecimal.ZERO)
+                .percentile25(BigDecimal.ZERO)
+                .percentile75(BigDecimal.ZERO)
+                .percentile90(BigDecimal.ZERO)
+                .sampleSize(0)
+                .isActive(false)
+                .lastUpdated(LocalDateTime.now())
+                .build();
     }
 
     /**
      * Create default solar benchmark - only when no real data exists
      */
     private CommunityBenchmark createDefaultSolarBenchmark(String region) {
-        // Return null to indicate no data available
-        return null;
+        // Return default benchmark with zero values when no data is available
+        return CommunityBenchmark.builder()
+                .region(region)
+                .metricType("SOLAR_UTILIZATION")
+                .averageValue(BigDecimal.ZERO)
+                .medianValue(BigDecimal.ZERO)
+                .percentile25(BigDecimal.ZERO)
+                .percentile75(BigDecimal.ZERO)
+                .percentile90(BigDecimal.ZERO)
+                .sampleSize(0)
+                .isActive(false)
+                .lastUpdated(LocalDateTime.now())
+                .build();
     }
 
     /**
      * Create default consumption benchmark - only when no real data exists
      */
     private CommunityBenchmark createDefaultConsumptionBenchmark(String region) {
-        // Return null to indicate no data available
-        return null;
+        // Return default benchmark with zero values when no data is available
+        return CommunityBenchmark.builder()
+                .region(region)
+                .metricType("ENERGY_CONSUMPTION")
+                .averageValue(BigDecimal.ZERO)
+                .medianValue(BigDecimal.ZERO)
+                .percentile25(BigDecimal.ZERO)
+                .percentile75(BigDecimal.ZERO)
+                .percentile90(BigDecimal.ZERO)
+                .sampleSize(0)
+                .isActive(false)
+                .lastUpdated(LocalDateTime.now())
+                .build();
     }
 }

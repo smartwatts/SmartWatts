@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql:///smartwatts_facility360?cloudSqlInstance=smartwatts-staging:europe-west1:smartwatts-staging-db&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+management:
+  health:
+    redis:
+      enabled: false
+    eureka:
+      enabled: false

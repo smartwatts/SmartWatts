@@ -22,9 +22,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const validatedPath: string = pathString
 
   // Route all requests through API Gateway for proper load balancing and security
-  // Use environment variable for backend URL, fallback to localhost for local development
-  const apiGatewayUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+  // In server-side API routes, NEXT_PUBLIC_* vars are available but may not be set at runtime
+  // Use explicit fallback to production API Gateway URL
+  let apiGatewayUrl = process.env.NEXT_PUBLIC_API_URL || 
+                      process.env.API_GATEWAY_URL || 
+                      'https://api-gateway-3daykcsw5a-ew.a.run.app'
+  
+  // Ensure we never use localhost in production (Cloud Run)
+  if (apiGatewayUrl.includes('localhost') || apiGatewayUrl.includes('127.0.0.1')) {
+    console.warn('Warning: localhost detected, using production API Gateway URL')
+    apiGatewayUrl = 'https://api-gateway-3daykcsw5a-ew.a.run.app'
+  }
+  
   const backendBaseUrl = apiGatewayUrl.replace(/\/$/, '') // Remove trailing slash
+  
+  // Log for debugging
+  console.log('Proxy request:', {
+    service: validatedService,
+    path: validatedPath,
+    apiGatewayUrl: backendBaseUrl,
+    envVar: process.env.NEXT_PUBLIC_API_URL || 'not set'
+  })
   
   // For services that go through API Gateway, use the gateway URL
   // For direct service access, construct URLs based on the backend base URL
@@ -59,8 +77,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Construct URL with query parameters
-  // Add /api/v1 prefix for API Gateway routing if not already present
-  const normalizedPath = validatedPath.startsWith('/api/v1') ? validatedPath : `/api/v1${validatedPath}`
+  // Handle different service path formats
+  let normalizedPath = validatedPath
+  
+  // Feature-flags service uses /api/feature-flags, not /api/v1/feature-flags
+  if (validatedService === 'feature-flags' || validatedService === 'feature-flag-service') {
+    if (!normalizedPath.startsWith('/api/feature-flags')) {
+      normalizedPath = `/api/feature-flags${normalizedPath}`
+    }
+  } else {
+    // Other services use /api/v1 prefix
+    if (!normalizedPath.startsWith('/api/v1') && !normalizedPath.startsWith('/api/')) {
+      normalizedPath = `/api/v1${normalizedPath}`
+    }
+  }
+  
   let url = `${baseUrl}${normalizedPath}`
   
   // Add query parameters
@@ -99,15 +130,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(response.status).send(text)
     }
   } catch (error: any) {
-    console.error('Proxy error:', error)
+    console.error('Proxy error:', {
+      error: error.message,
+      stack: error.stack,
+      url: url,
+      service: validatedService,
+      path: validatedPath,
+      apiGatewayUrl: backendBaseUrl
+    })
     
-    // Return standardized error response
+    // Return standardized error response with more details
     res.status(503).json({ 
       error: 'SERVICE_UNAVAILABLE',
-      message: `${validatedService} service is temporarily unavailable`,
+      message: `${validatedService} service is temporarily unavailable: ${error.message}`,
       timestamp: new Date().toISOString(),
       path: req.url,
       service: validatedService,
+      targetUrl: url,
       suggestedAction: 'Please try again in a few minutes'
     })
   }

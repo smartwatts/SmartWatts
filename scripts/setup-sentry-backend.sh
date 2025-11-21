@@ -45,3 +45,4 @@ echo -e "${GREEN}Sentry configuration is already added to all services!${NC}"
 
 
 
+

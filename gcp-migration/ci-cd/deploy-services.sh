@@ -54,25 +54,38 @@ for service_config in "${SERVICES[@]}"; do
     # Get image from Artifact Registry
     IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${service_name}/${service_name}:latest"
     
-    # Deploy to Cloud Run
-    gcloud run deploy "${service_name}" \
-        --image="${IMAGE}" \
-        --region="${REGION}" \
-        --project="${PROJECT_ID}" \
-        --platform=managed \
-        --allow-unauthenticated \
-        --service-account="cloud-run-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
-        --set-env-vars="PORT=${port},SPRING_PROFILES_ACTIVE=cloudrun" \
-        --set-secrets="POSTGRES_PASSWORD=postgres-password:latest,REDIS_PASSWORD=redis-password:latest" \
-        --memory=1Gi \
-        --cpu=1 \
-        --timeout=300 \
-        --max-instances=10 \
-        --min-instances=1 \
-        --port="${port}" || {
-        echo -e "${RED}Failed to deploy ${service_name}${NC}"
-        exit 1
-    }
+    # Check if YAML config exists, otherwise use command-line flags
+    CONFIG_FILE="gcp-migration/cloud-run-configs/${service_name}.yaml"
+    
+    if [ -f "$CONFIG_FILE" ]; then
+        # Deploy using YAML config
+        gcloud run services replace "${CONFIG_FILE}" \
+            --region="${REGION}" \
+            --project="${PROJECT_ID}" || {
+            echo -e "${RED}Failed to deploy ${service_name} from YAML${NC}"
+            exit 1
+        }
+    else
+        # Deploy with command-line flags (fallback)
+        gcloud run deploy "${service_name}" \
+            --image="${IMAGE}" \
+            --region="${REGION}" \
+            --project="${PROJECT_ID}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --service-account="cloud-run-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --set-env-vars="SPRING_PROFILES_ACTIVE=cloudrun" \
+            --set-secrets="POSTGRES_PASSWORD=postgres-password:latest,REDIS_PASSWORD=redis-password:latest" \
+            --memory=1Gi \
+            --cpu=1 \
+            --timeout=300 \
+            --max-instances=10 \
+            --min-instances=1 \
+            --port="${port}" || {
+            echo -e "${RED}Failed to deploy ${service_name}${NC}"
+            exit 1
+        }
+    fi
     
     # Wait for service to be ready
     echo -e "  Waiting for ${service_name} to be ready..."

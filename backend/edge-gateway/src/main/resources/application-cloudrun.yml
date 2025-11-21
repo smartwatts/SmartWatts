@@ -1,0 +1,40 @@
+server:
+  port: ${PORT:8088}
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  application:
+    name: edge-gateway
+  cloud:
+    netflix:
+      eureka:
+        client:
+          service-url:
+            defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+          register-with-eureka: true
+          fetch-registry: true
+        instance:
+          prefer-ip-address: true
+
+edge:
+  rs485:
+    enabled: true
+    default-port: "/dev/ttyUSB0"
+    default-baud-rate: 9600
+    default-data-bits: 8
+    default-parity: "NONE"
+    default-stop-bits: 1
+    read-timeout: 1000
+    write-timeout: 1000
+    polling-interval: 5000
+    auto-discovery: false
+    enable-logging: false
+
+
+# Model Repository Configuration
+edge:
+  ml:
+    models:
+      repository-url: https://storage.googleapis.com/smartwatts-models/models/tflite
+      auto-download: true

@@ -1,0 +1,165 @@
+spring:
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "https://frontend-3daykcsw5a-ew.a.run.app"
+              - "http://localhost:3000"
+              - "http://localhost:3001"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+            maxAge: 3600
+      routes:
+        # User Service Routes
+        - id: user-service
+          uri: https://user-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/users/**
+        - id: inventory-service
+          uri: https://user-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/inventory/**
+        - id: accounts-service
+          uri: https://user-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/accounts/**
+        
+        # Device Service Routes
+        - id: device-service
+          uri: https://device-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/devices/**
+        - id: circuits-service
+          uri: https://device-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/circuits/**
+        - id: device-verification-service
+          uri: https://device-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/device-verification/**
+        
+        # Energy Service Routes
+        - id: energy-service
+          uri: https://energy-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/energy/**
+        
+        # Analytics Service Routes
+        - id: analytics-service
+          uri: https://analytics-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/analytics/**
+        - id: solar-service
+          uri: https://analytics-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/solar/**
+        - id: community-service
+          uri: https://analytics-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/community/**
+        - id: appliance-recognition-service
+          uri: https://analytics-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/appliance-recognition/**
+        - id: weather-service
+          uri: https://analytics-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/weather/**
+        
+        # Billing Service Routes
+        - id: billing-service
+          uri: https://billing-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/billing/**
+        - id: bills-service
+          uri: https://billing-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/bills/**
+        - id: tariffs-service
+          uri: https://billing-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/tariffs/**
+        - id: tokens-service
+          uri: https://billing-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/tokens/**
+        
+        # Edge Gateway Routes
+        - id: edge-gateway
+          uri: https://edge-gateway-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/edge/**
+        - id: rs485-service
+          uri: https://edge-gateway-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/rs485/**
+        
+        # Facility Service Routes
+        - id: facility-fleet-service
+          uri: https://facility-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/fleet/**
+        - id: facility-spaces-service
+          uri: https://facility-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/spaces/**
+        - id: facility-work-orders-service
+          uri: https://facility-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/work-orders/**
+        - id: facility-assets-service
+          uri: https://facility-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/assets/**
+        
+        # Appliance Monitoring Service Routes
+        - id: appliance-monitoring-service
+          uri: https://appliance-monitoring-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/appliance-monitoring/**
+        
+        # Notification Service Routes
+        - id: notification-service
+          uri: https://notification-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/v1/push/**
+        
+        # Feature Flag Service Routes
+        - id: feature-flag-service
+          uri: https://feature-flag-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/feature-flags/**
+        
+        # Device Verification Service Routes (standalone)
+        - id: device-verification-standalone
+          uri: https://device-verification-service-3daykcsw5a-ew.a.run.app
+          predicates:
+            - Path=/api/device-verification/**
+    netflix:
+      eureka:
+        client:
+          enabled: false
+          register-with-eureka: false
+          fetch-registry: false
+eureka:
+  client:
+    enabled: false
+
+management:
+  health:
+    redis:
+      enabled: false
+    eureka:
+      enabled: false

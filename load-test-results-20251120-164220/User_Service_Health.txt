@@ -1,0 +1,45 @@
+This is ApacheBench, Version 2.3 <$Revision: 1913912 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking user-service-3daykcsw5a-ew.a.run.app (be patient).....done
+
+
+Server Software:        Google
+Server Hostname:        user-service-3daykcsw5a-ew.a.run.app
+Server Port:            443
+SSL/TLS Protocol:       TLSv1.2,ECDHE-ECDSA-CHACHA20-POLY1305,256,256
+Server Temp Key:        ECDH X25519 253 bits
+TLS Server Name:        user-service-3daykcsw5a-ew.a.run.app
+
+Document Path:          /actuator/health
+Document Length:        429 bytes
+
+Concurrency Level:      5
+Time taken for tests:   13.693 seconds
+Complete requests:      100
+Failed requests:        0
+Total transferred:      87200 bytes
+HTML transferred:       42900 bytes
+Requests per second:    7.30 [#/sec] (mean)
+Time per request:       684.636 [ms] (mean)
+Time per request:       136.927 [ms] (mean, across all concurrent requests)
+Transfer rate:          6.22 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:      199  467 115.9    457    1462
+Processing:   136  177  27.9    173     334
+Waiting:      136  174  26.8    170     334
+Total:        361  644 126.4    636    1679
+
+Percentage of the requests served within a certain time (ms)
+  50%    636
+  66%    656
+  75%    674
+  80%    685
+  90%    736
+  95%    765
+  98%    804
+  99%   1679
+ 100%   1679 (longest request)

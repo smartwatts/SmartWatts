@@ -3,12 +3,13 @@
 
 name: Build and deploy Node.js app to Azure Web App - SmartWatts
 
-# Automatic runs on push to main branch + manual trigger
+# DISABLED: Azure deployment disabled - using GCP Cloud Run instead
+# To re-enable: Remove the workflow_dispatch only line below
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:  # Can also trigger manually via GitHub Actions UI
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch:  # Manual trigger only - Azure kept as backup
 
 env:
   # VM_IP can be set as a repository variable, defaults to staging VM IP in script if not set
@@ -517,30 +518,35 @@ jobs:
             echo "   NEXT_PUBLIC_API_URL=http://${VM_IP}:8080"
             echo "   NEXT_PUBLIC_WS_URL=ws://${VM_IP}:8080"
             
-            # Disable authentication/authorization to prevent 403 errors
+            # Check if Always On is supported (not available on Free tier)
             echo ""
-            echo "🔒 Configuring authentication settings..."
-            az webapp auth update \
+            echo "⚙️  Checking App Service Plan tier..."
+            APP_SERVICE_PLAN=$(az webapp show \
               --resource-group $RESOURCE_GROUP \
               --name $APP_NAME \
-              --enabled false \
-              --output none 2>/dev/null || echo "⚠️  Could not update auth settings (may not be available in this tier)"
+              --query "appServicePlanId" \
+              -o tsv 2>/dev/null || echo "")
             
-            # Remove IP restrictions to allow public access
-            echo "🌐 Configuring IP restrictions..."
-            az webapp config access-restriction remove \
-              --resource-group $RESOURCE_GROUP \
-              --name $APP_NAME \
-              --rule-name "Deny all" \
-              --output none 2>/dev/null || echo "⚠️  No IP restrictions to remove"
-            
-            # Ensure Always On is enabled
-            echo "⚙️  Ensuring Always On is enabled..."
-            az webapp config set \
-              --resource-group $RESOURCE_GROUP \
-              --name $APP_NAME \
-              --always-on true \
-              --output none
+            if [ -n "$APP_SERVICE_PLAN" ]; then
+              PLAN_SKU=$(az appservice plan show \
+                --ids "$APP_SERVICE_PLAN" \
+                --query "sku.tier" \
+                -o tsv 2>/dev/null || echo "Free")
+              
+              echo "App Service Plan tier: $PLAN_SKU"
+              
+              if [ "$PLAN_SKU" != "Free" ]; then
+                echo "✅ Paid tier detected - enabling Always On..."
+                az webapp config set \
+                  --resource-group $RESOURCE_GROUP \
+                  --name $APP_NAME \
+                  --always-on true \
+                  --output none 2>/dev/null || echo "⚠️  Could not enable Always On"
+              else
+                echo "⚠️  Free tier detected - Always On is not supported"
+                echo "   Consider upgrading to Basic tier to enable Always On and avoid quota limits"
+              fi
+            fi
             
             echo "✅ Azure Web App configured for standalone mode"
           else
@@ -706,7 +712,28 @@ jobs:
             echo ""
             echo "Attempting to start and enable the web app..."
             az webapp start --resource-group $RESOURCE_GROUP --name $APP_NAME --output none 2>/dev/null || true
-            az webapp config set --resource-group $RESOURCE_GROUP --name $APP_NAME --always-on true --output none 2>/dev/null || true
+            
+            # Check tier before enabling Always On (not supported on Free tier)
+            APP_SERVICE_PLAN=$(az webapp show \
+              --resource-group $RESOURCE_GROUP \
+              --name $APP_NAME \
+              --query "appServicePlanId" \
+              -o tsv 2>/dev/null || echo "")
+            
+            if [ -n "$APP_SERVICE_PLAN" ]; then
+              PLAN_SKU=$(az appservice plan show \
+                --ids "$APP_SERVICE_PLAN" \
+                --query "sku.tier" \
+                -o tsv 2>/dev/null || echo "Free")
+              
+              if [ "$PLAN_SKU" != "Free" ]; then
+                echo "Enabling Always On (paid tier detected)..."
+                az webapp config set --resource-group $RESOURCE_GROUP --name $APP_NAME --always-on true --output none 2>/dev/null || echo "⚠️  Could not enable Always On"
+              else
+                echo "Skipping Always On (Free tier doesn't support it - this is expected)"
+              fi
+            fi
+            
             az webapp config set --resource-group $RESOURCE_GROUP --name $APP_NAME --set enabled=true --output none 2>/dev/null || true
             
             echo "⏳ Waiting 30 seconds for web app to be ready..."

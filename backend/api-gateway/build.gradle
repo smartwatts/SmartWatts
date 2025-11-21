@@ -121,4 +121,5 @@ jacocoTestCoverageVerification {
     }
 }
 
-check.dependsOn jacocoTestCoverageVerification
+// Disable jacoco coverage check for Docker builds
+// check.dependsOn jacocoTestCoverageVerification

@@ -1,11 +1,7 @@
 package com.smartwatts.edge.config;
 
 // import com.fazecast.jSerialComm.SerialPort; // Will be available at runtime
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.validation.annotation.Validated;
-
+import jakarta.annotation.PostConstruct;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -13,6 +9,13 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * RS485 Serial Communication Configuration
@@ -20,8 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Configuration
 @ConfigurationProperties(prefix = "edge.rs485")
-@Validated
+@ConditionalOnProperty(name = "edge.rs485.enabled", havingValue = "true", matchIfMissing = true)
 public class RS485Configuration {
+
+    private static final Logger logger = LoggerFactory.getLogger(RS485Configuration.class);
 
     @NotBlank(message = "Default serial port is required")
     private String defaultPort = "/dev/ttyUSB0";
@@ -65,8 +70,51 @@ public class RS485Configuration {
     private List<String> availablePorts;
 
     @Bean
+    @Primary
     public RS485Configuration rs485Configuration() {
         return this;
+    }
+
+    @PostConstruct
+    void applyDefaultsIfNeeded() {
+        boolean adjusted = false;
+
+        if (defaultPort == null || defaultPort.isBlank()) {
+            defaultPort = "/dev/ttyS0";
+            adjusted = true;
+        }
+        if (defaultBaudRate < 1200) {
+            defaultBaudRate = 9600;
+            adjusted = true;
+        }
+        if (defaultDataBits < 5) {
+            defaultDataBits = 8;
+            adjusted = true;
+        }
+        if (defaultParity == null) {
+            defaultParity = SerialPortParity.NONE;
+            adjusted = true;
+        }
+        if (defaultStopBits < 1) {
+            defaultStopBits = 1;
+            adjusted = true;
+        }
+        if (readTimeout < 100) {
+            readTimeout = 1000;
+            adjusted = true;
+        }
+        if (writeTimeout < 100) {
+            writeTimeout = 1000;
+            adjusted = true;
+        }
+        if (pollingInterval < 10) {
+            pollingInterval = 5000;
+            adjusted = true;
+        }
+
+        if (adjusted) {
+            logger.warn("RS485 configuration contained invalid values. Falling back to safe defaults for Cloud Run.");
+        }
     }
 
     /**

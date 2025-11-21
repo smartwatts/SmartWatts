@@ -29,7 +29,7 @@ public class ModbusProtocolHandler {
     
     private static final Logger logger = LoggerFactory.getLogger(ModbusProtocolHandler.class);
     
-    @Autowired
+    @Autowired(required = false)
     private RS485SerialService rs485Service;
     
     @Value("${edge.modbus.master.enabled:true}")
@@ -178,6 +178,10 @@ public class ModbusProtocolHandler {
             );
             
             // Send request via RS485
+            if (rs485Service == null) {
+                logger.warn("RS485 service not available, cannot send Modbus RTU request to device {}", deviceId);
+                return null;
+            }
             boolean success = rs485Service.sendDataToDevice(deviceId, request);
             if (!success) {
                 logger.warn("Failed to send Modbus RTU request to device {}", deviceId);
@@ -372,6 +376,10 @@ public class ModbusProtocolHandler {
             );
             
             // Send request via RS485
+            if (rs485Service == null) {
+                logger.warn("RS485 service not available, cannot send Modbus RTU write request to device {}", deviceId);
+                return false;
+            }
             boolean success = rs485Service.sendDataToDevice(deviceId, request);
             if (!success) {
                 logger.warn("Failed to send Modbus RTU write request to device {}", deviceId);

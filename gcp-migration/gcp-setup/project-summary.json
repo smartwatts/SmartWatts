@@ -1,0 +1,23 @@
+{
+  "creationDate": "2025-11-16T18:34:49Z",
+  "billingAccount": "017D62-692D69-87FD3C",
+  "projects": {
+    "staging": {
+      "projectId": "smartwatts-staging",
+      "projectName": "SmartWatts Staging",
+      "region": "europe-west1",
+      "zone": "europe-west1-b",
+      "status": "ACTIVE"
+    },
+    "production": {
+      "projectId": "smartwatts-production",
+      "projectName": "SmartWatts Production",
+      "region": "europe-west1",
+      "zone": "europe-west1-b",
+      "status": "ACTIVE"
+    }
+  },
+  "enabledAPIs": [
+
+  ]
+}

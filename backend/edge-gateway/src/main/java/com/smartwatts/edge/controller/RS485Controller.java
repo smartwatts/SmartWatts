@@ -6,6 +6,7 @@ import com.smartwatts.edge.config.RS485Configuration;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/rs485")
 @Tag(name = "RS485 Communication", description = "RS485 serial communication management and testing")
+@ConditionalOnProperty(name = "edge.rs485.enabled", havingValue = "true", matchIfMissing = true)
 public class RS485Controller {
 
     @Autowired

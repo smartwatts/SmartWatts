@@ -1,0 +1,61 @@
+{
+  "creationDate": "2025-11-16T19:45:21Z",
+  "region": "europe-west1",
+  "replicaRegion": "europe-west4",
+  "repositories": {
+    "staging": {
+      "projectId": "smartwatts-staging",
+      "region": "europe-west1",
+      "repositories": [
+  "api-gateway",
+  "user-service",
+  "energy-service",
+  "device-service",
+  "analytics-service",
+  "billing-service",
+  "service-discovery",
+  "edge-gateway",
+  "facility-service",
+  "feature-flag-service",
+  "device-verification-service",
+  "appliance-monitoring-service",
+  "notification-service",
+  "frontend"
+]
+    },
+    "production": {
+      "projectId": "smartwatts-production",
+      "region": "europe-west1",
+      "repositories": [
+  "api-gateway",
+  "user-service",
+  "energy-service",
+  "device-service",
+  "analytics-service",
+  "billing-service",
+  "service-discovery",
+  "edge-gateway",
+  "facility-service",
+  "feature-flag-service",
+  "device-verification-service",
+  "appliance-monitoring-service",
+  "notification-service",
+  "frontend"
+]
+    }
+  },
+  "repositoryUrls": {
+    "staging": {
+      "baseUrl": "europe-west1-docker.pkg.dev/smartwatts-staging",
+      "repositories": {
+
+      }
+    },
+    "production": {
+      "baseUrl": "europe-west1-docker.pkg.dev/smartwatts-production",
+      "repositories": {
+
+      }
+    }
+  }
+}

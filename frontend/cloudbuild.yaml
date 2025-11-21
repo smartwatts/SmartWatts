@@ -1,0 +1,17 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--platform'
+      - 'linux/amd64'
+      - '-f'
+      - 'Dockerfile.cloudrun'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/frontend/frontend:latest'
+      - '.'
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/frontend/frontend:latest'
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
