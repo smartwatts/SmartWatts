@@ -698,7 +698,7 @@ export default function Index() {
                   </div>
                   <div className="flex items-center">
                     <EnvelopeIcon className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span>contact@smartwatts.ng</span>
+                    <span>info@mysmartwatts.com</span>
                   </div>
                 </div>
               </div>

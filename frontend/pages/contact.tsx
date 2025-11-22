@@ -111,8 +111,9 @@ export default function Contact() {
                 <div>
                   <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Office Address</h4>
                   <p className="text-gray-600 dark:text-gray-400">
-                    33 Parakou Street off Aminu Kano Crescent<br />
-                    Wuse2, Abuja, Nigeria
+                  Plot 20, Prince Adelowo Adedeji Street<br />
+                  Off Admiralty Way, Lekki Phase 1<br />
+                  Lagos, Nigeria
                   </p>
                 </div>
                 <div>
