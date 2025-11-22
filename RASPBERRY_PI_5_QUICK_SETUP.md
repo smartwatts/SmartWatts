@@ -292,7 +292,7 @@ Your Raspberry Pi 5 is now ready to run SmartWatts with full hardware integratio
 - **Documentation**: Check the full setup guide
 - **Issues**: GitHub Issues
 - **Community**: SmartWatts Discord
-- **Email**: support@smartwatts.ng
+- **Email**: support@mysmartwatts.com
 
 Version: 1.0.0
 Last Updated: January 2025

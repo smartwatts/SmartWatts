@@ -2,8 +2,8 @@
 
 global:
   smtp_smarthost: 'localhost:587'
-  smtp_from: 'alerts@smartwatts.ng'
-  smtp_auth_username: 'alerts@smartwatts.ng'
+  smtp_from: 'alerts@mysmartwatts.com'
+  smtp_auth_username: 'alerts@mysmartwatts.com'
   smtp_auth_password: 'your-email-password'
 
 route:
@@ -27,7 +27,7 @@ receivers:
 
   - name: 'critical-alerts'
     email_configs:
-      - to: 'admin@smartwatts.ng'
+      - to: 'admin@mysmartwatts.com'
         subject: '[CRITICAL] SmartWatts Alert: {{ .GroupLabels.alertname }}'
         body: |
           {{ range .Alerts }}
@@ -45,7 +45,7 @@ receivers:
 
   - name: 'warning-alerts'
     email_configs:
-      - to: 'ops@smartwatts.ng'
+      - to: 'ops@mysmartwatts.com'
         subject: '[WARNING] SmartWatts Alert: {{ .GroupLabels.alertname }}'
         body: |
           {{ range .Alerts }}

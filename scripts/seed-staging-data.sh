@@ -32,7 +32,8 @@ PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "sma
 INSERT INTO users (id, username, email, password, first_name, last_name, role, is_active, created_at, updated_at)
 VALUES 
     ('550e8400-e29b-41d4-a716-446655440000', 'testuser', 'test@example.com', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Test', 'User', 'ROLE_USER', true, NOW(), NOW()),
-    ('550e8400-e29b-41d4-a716-446655440001', 'admin', 'admin@smartwatts.ng', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Admin', 'User', 'ROLE_ADMIN', true, NOW(), NOW())
+    ('550e8400-e29b-41d4-a716-446655440001', 'admin', 'admin@mysmartwatts.com', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Admin', 'User', 'ROLE_ADMIN', true, NOW(), NOW()),
+    ('550e8400-e29b-41d4-a716-446655440002', 'superadmin', 'su_admin@mysmartwatts.com', '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Super', 'Admin', 'ROLE_ENTERPRISE_ADMIN', true, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 EOF
 

@@ -271,7 +271,7 @@ describe('useAuth Hook', () => {
           accessToken: 'admin-token',
           userId: 'admin-123',
           username: 'admin',
-          email: 'admin@smartwatts.ng',
+          email: 'admin@mysmartwatts.com',
           role: 'ADMIN',
           active: true
         })
@@ -280,10 +280,10 @@ describe('useAuth Hook', () => {
       const { result } = renderHook(() => useAuth(), { wrapper })
 
       await act(async () => {
-        await result.current.login('admin@smartwatts.ng', 'password')
+        await result.current.login('admin@mysmartwatts.com', 'password')
       })
 
-      expect(localStorage.getItem('adminEmail')).toBe('admin@smartwatts.ng')
+      expect(localStorage.getItem('adminEmail')).toBe('admin@mysmartwatts.com')
     })
 
     it('should throw error on client-side only', async () => {

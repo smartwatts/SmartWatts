@@ -66,7 +66,7 @@ function SecurityComplianceContent() {
     {
       id: '3',
       type: 'API_ACCESS',
-      user: 'system@smartwatts.ng',
+      user: 'system@mysmartwatts.com',
       timestamp: '2025-01-01T10:20:00Z',
       ipAddress: '10.0.0.5',
       userAgent: 'SmartWatts-API-Client/1.0',

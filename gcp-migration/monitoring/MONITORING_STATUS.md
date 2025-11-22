@@ -57,12 +57,12 @@ Create notification channels for alerts:
 **Channels to Create:**
 1. **Critical Alerts** (Email)
    - Type: Email
-   - Email: admin@smartwatts.ng (or your email)
+   - Email: admin@mysmartwatts.com (or your email)
    - For: Service down, high error rate
 
 2. **Warning Alerts** (Email)
    - Type: Email
-   - Email: ops@smartwatts.ng (or your email)
+   - Email: ops@mysmartwatts.com (or your email)
    - For: High response time, resource usage warnings
 
 3. **Slack Alerts** (Optional)

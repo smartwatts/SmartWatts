@@ -33,7 +33,7 @@ Troubleshooting:
 Support:
 - Documentation: docs/
 - GitHub: https://github.com/your-repo/smartwatts
-- Email: support@smartwatts.ng
+- Email: support@mysmartwatts.com
 
 Version: 1.0.0
 Last Updated: January 2025

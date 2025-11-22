@@ -4,6 +4,7 @@ import Layout from '../components/Layout'
 import ProtectedRoute from '../components/ProtectedRoute'
 import AddDeviceModal from '../components/AddDeviceModal'
 import { useAuth } from '../hooks/useAuth'
+import { isAdmin } from '../utils/roles'
 import {
   CogIcon,
   BoltIcon,
@@ -102,14 +103,14 @@ export default function Devices() {
   const [maintenanceSchedule, setMaintenanceSchedule] = useState<MaintenanceSchedule[]>([])
 
   useEffect(() => {
-    // Redirect super admins to admin dashboard
-    if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
+    // Redirect admins to admin dashboard
+    if (isAdmin(user?.role)) {
       router.replace('/admin/dashboard')
     }
   }, [user, router])
 
-  // Don't render customer pages for super admins
-  if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
+  // Don't render customer pages for admins
+  if (isAdmin(user?.role)) {
     return null
   }
 

@@ -259,7 +259,7 @@ docker-compose -f docker-compose.hardware.yml up -d
 - **Documentation**: Check the full Hardware Integration Guide
 - **Issues**: GitHub Issues
 - **Community**: SmartWatts Discord
-- **Email**: support@smartwatts.ng
+- **Email**: support@mysmartwatts.com
 
 ## 🎯 Next Steps
 

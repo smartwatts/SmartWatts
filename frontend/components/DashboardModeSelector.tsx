@@ -61,7 +61,7 @@ const dashboardModes: DashboardMode[] = [
     description: 'Advanced analytics and multi-tenant management',
     icon: BuildingOffice2Icon,
     path: '/dashboard/enterprise',
-    targetUsers: ['ROLE_ENTERPRISE_ADMIN', 'ROLE_SYSTEM_ADMIN'],
+    targetUsers: ['ROLE_ENTERPRISE_ADMIN', 'ROLE_ADMIN', 'ROLE_SYSTEM_ADMIN'],
     features: [
       'Advanced analytics and forecasting',
       'Multi-tenant management',
@@ -124,9 +124,9 @@ export default function DashboardModeSelector({
 
   // Filter modes based on user role
   // ROLE_BUSINESS_ADMIN and ROLE_SME_ADMIN should see both household and business modes
-  // ROLE_ENTERPRISE_ADMIN and ROLE_SYSTEM_ADMIN should see all modes
+  // ROLE_ENTERPRISE_ADMIN, ROLE_ADMIN, and ROLE_SYSTEM_ADMIN should see all modes
   const availableModes = dashboardModes.filter(mode => {
-    if (userRole === 'ROLE_SYSTEM_ADMIN' || userRole === 'ROLE_ENTERPRISE_ADMIN') {
+    if (userRole === 'ROLE_SYSTEM_ADMIN' || userRole === 'ROLE_ENTERPRISE_ADMIN' || userRole === 'ROLE_ADMIN') {
       return true // See all modes
     }
     if (userRole === 'ROLE_BUSINESS_ADMIN' || userRole === 'ROLE_SME_ADMIN') {
@@ -305,7 +305,7 @@ export function useDashboardMode() {
 
   const getAvailableModes = () => {
     return dashboardModes.filter(mode => 
-      mode.targetUsers.includes(userRole) || userRole === 'ROLE_SYSTEM_ADMIN'
+      mode.targetUsers.includes(userRole) || userRole === 'ROLE_SYSTEM_ADMIN' || userRole === 'ROLE_ADMIN'
     )
   }
 

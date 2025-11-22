@@ -66,7 +66,7 @@ function TeamsContent() {
     {
       id: '1',
       name: 'John Adebayo',
-      email: 'john.adebayo@smartwatts.ng',
+      email: 'john.adebayo@mysmartwatts.com',
       phone: '+234 802 123 4567',
       role: 'Sales Manager',
       department: 'Sales',
@@ -90,7 +90,7 @@ function TeamsContent() {
     {
       id: '2',
       name: 'Sarah Mohammed',
-      email: 'sarah.mohammed@smartwatts.ng',
+      email: 'sarah.mohammed@mysmartwatts.com',
       phone: '+234 803 987 6543',
       role: 'Sales Rep',
       department: 'Sales',
@@ -114,7 +114,7 @@ function TeamsContent() {
     {
       id: '3',
       name: 'Michael Okoro',
-      email: 'michael.okoro@smartwatts.ng',
+      email: 'michael.okoro@mysmartwatts.com',
       phone: '+234 805 456 7890',
       role: 'Sales Rep',
       department: 'Sales',
@@ -138,7 +138,7 @@ function TeamsContent() {
     {
       id: '4',
       name: 'Grace Okafor',
-      email: 'grace.okafor@smartwatts.ng',
+      email: 'grace.okafor@mysmartwatts.com',
       phone: '+234 807 123 4567',
       role: 'Technical Support',
       department: 'Support',
@@ -162,7 +162,7 @@ function TeamsContent() {
     {
       id: '5',
       name: 'David Adebayo',
-      email: 'david.adebayo@smartwatts.ng',
+      email: 'david.adebayo@mysmartwatts.com',
       phone: '+234 809 876 5432',
       role: 'Field Engineer',
       department: 'Engineering',
@@ -186,7 +186,7 @@ function TeamsContent() {
     {
       id: '6',
       name: 'Fatima Ibrahim',
-      email: 'fatima.ibrahim@smartwatts.ng',
+      email: 'fatima.ibrahim@mysmartwatts.com',
       phone: '+234 811 234 5678',
       role: 'Customer Success',
       department: 'Support',
@@ -210,7 +210,7 @@ function TeamsContent() {
     {
       id: '7',
       name: 'Chinedu Okoro',
-      email: 'chinedu.okoro@smartwatts.ng',
+      email: 'chinedu.okoro@mysmartwatts.com',
       phone: '+234 813 456 7890',
       role: 'Sales Rep',
       department: 'Sales',

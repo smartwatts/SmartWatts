@@ -100,7 +100,7 @@ if [ "$TEST_TYPE" = "all" ] || [ "$TEST_TYPE" = "integration" ]; then
         done
         
         if [ "$SUCCESS" = "true" ]; then
-            echo "Integration tests passed"
+        echo "Integration tests passed"
         else
             echo "⚠️  Integration tests failed - API Gateway may still be starting up"
             echo "This is non-blocking - services may need more time to become ready"

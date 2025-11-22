@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useRouter } from 'next/router'
+import { isAdmin } from '../utils/roles'
 
 interface AdminRouteProps {
   children: React.ReactNode
@@ -11,8 +12,8 @@ export default function AdminRoute({ children }: AdminRouteProps) {
   const router = useRouter()
   const [isRedirecting, setIsRedirecting] = useState(false)
 
-  // Check if user is enterprise admin (only ROLE_ENTERPRISE_ADMIN has admin access)
-  const isAdmin = user?.role === 'ROLE_ENTERPRISE_ADMIN'
+  // Check if user has admin privileges (ROLE_ADMIN or ROLE_ENTERPRISE_ADMIN)
+  const hasAdminAccess = isAdmin(user?.role)
 
   useEffect(() => {
     // Only redirect if not loading and user is determined and not already redirecting
@@ -28,7 +29,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
         }
         return
       }
-      if (!isAdmin) {
+      if (!hasAdminAccess) {
         setIsRedirecting(true)
         const replacePromise = router.replace('/dashboard?error=unauthorized')
         if (replacePromise && typeof replacePromise.finally === 'function') {
@@ -40,7 +41,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
         return
       }
     }
-  }, [user, loading, isAdmin, router, isRedirecting])
+  }, [user, loading, hasAdminAccess, router, isRedirecting])
 
   // Show loading state during authentication check or redirecting
   if (loading || isRedirecting) {
@@ -69,7 +70,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     )
   }
 
-  if (!isAdmin) {
+  if (!hasAdminAccess) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 dark:from-gray-900 dark:via-blue-900 dark:to-gray-800 flex items-center justify-center">
         <div className="text-center">

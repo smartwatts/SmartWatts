@@ -71,7 +71,7 @@ chmod +x load-testing/*.sh
 
 # Generate SSL certificates
 echo "🔐 Setting up SSL certificates..."
-if [ "$DOMAIN" != "smartwatts.ng" ]; then
+if [ "$DOMAIN" != "mysmartwatts.com" ]; then
     echo "   Using self-signed certificates for development"
     ./scripts/generate-ssl-certs.sh
 else

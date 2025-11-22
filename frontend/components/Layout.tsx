@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { useAuth } from '../hooks/useAuth'
 import { useFeatureFlags } from '../hooks/useFeatureFlags'
+import { isAdmin } from '../utils/roles'
 import ThemeSelector from './ThemeSelector'
 import { DashboardThemeProvider } from '../contexts/DashboardThemeContext'
 import OfflineIndicator from './OfflineIndicator'
@@ -48,8 +49,9 @@ export default function Layout({ children }: LayoutProps) {
       { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, requiredFeature: null }
     ]
 
-    // Enterprise admin navigation - SYSTEM ADMINISTRATION ONLY
-    if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
+    // Admin navigation - for both ROLE_ADMIN and ROLE_ENTERPRISE_ADMIN
+    // ROLE_ENTERPRISE_ADMIN has ultimate privileges over ROLE_ADMIN
+    if (isAdmin(user?.role)) {
       return [
         ...baseNavigation,
         { name: 'Accounts', href: '/admin/accounts', icon: BuildingOffice2Icon, requiredFeature: null },

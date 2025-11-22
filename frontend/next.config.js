@@ -4,7 +4,7 @@ const nextConfig = {
   swcMinify: true,
   output: 'standalone', // Required for Azure Static Web Apps
   images: {
-    domains: ['localhost', 'smartwatts.ng'],
+    domains: ['localhost', 'mysmartwatts.com'],
     unoptimized: true, // Required for Azure Static Web Apps
   },
   env: {

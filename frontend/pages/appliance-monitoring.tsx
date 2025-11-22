@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import { useAuth } from '../hooks/useAuth'
 import { useFeatureFlags } from '../hooks/useFeatureFlags'
+import { isAdmin } from '../utils/roles'
 import {
   BoltIcon,
   CogIcon,
@@ -99,8 +100,8 @@ export default function ApplianceMonitoring() {
   }
 
   useEffect(() => {
-    // Redirect super admins to admin dashboard
-    if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
+    // Redirect admins to admin dashboard
+    if (isAdmin(user?.role)) {
       router.replace('/admin/dashboard')
       return
     }
@@ -112,8 +113,8 @@ export default function ApplianceMonitoring() {
     }
   }, [user, router]) // Removed isFeatureEnabled from dependencies to prevent infinite loop
 
-  // Don't render customer pages for super admins
-  if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
+  // Don't render customer pages for admins
+  if (isAdmin(user?.role)) {
     return null
   }
 

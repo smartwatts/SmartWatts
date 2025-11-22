@@ -581,8 +581,8 @@ public void handleDeviceData(String deviceId, String payload, String authSecret)
 
 For technical support or questions about the Device Verification API:
 
-- **Email**: dev-support@smartwatts.ng
-- **Documentation**: https://docs.smartwatts.ng
+- **Email**: dev-support@mysmartwatts.com
+- **Documentation**: https://docs.mysmartwatts.com
 - **GitHub Issues**: https://github.com/smartwatts/backend/issues
 - **Slack**: #dev-support channel
 

@@ -2,6 +2,7 @@ import React from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useRouter } from 'next/router'
 import { useEffect } from 'react'
+import { isAdmin } from '../utils/roles'
 
 // Higher-Order Component for Admin Authentication
 export function withAdminAuth<P extends object>(
@@ -16,7 +17,7 @@ export function withAdminAuth<P extends object>(
         if (!user) {
           // Not authenticated - redirect to login
           router.push('/login')
-        } else if (user.role !== 'ROLE_ENTERPRISE_ADMIN') {
+        } else if (!isAdmin(user.role)) {
           // Not admin - redirect to dashboard with error message
           router.push('/dashboard?error=unauthorized')
         }
@@ -37,8 +38,8 @@ export function withAdminAuth<P extends object>(
       )
     }
 
-    // Check authentication and enterprise admin role
-    if (!user || user.role !== 'ROLE_ENTERPRISE_ADMIN') {
+    // Check authentication and admin role (ROLE_ADMIN or ROLE_ENTERPRISE_ADMIN)
+    if (!user || !isAdmin(user.role)) {
       return null // Will redirect
     }
 
@@ -56,7 +57,7 @@ export function useAdminAuth() {
     if (!loading) {
       if (!user) {
         router.push('/login')
-      } else if (user.role !== 'ROLE_ENTERPRISE_ADMIN') {
+      } else if (!isAdmin(user.role)) {
         router.push('/dashboard?error=unauthorized')
       }
     }
@@ -65,7 +66,7 @@ export function useAdminAuth() {
   return {
     user,
     loading,
-    isAdmin: user?.role === 'ROLE_ENTERPRISE_ADMIN',
+    isAdmin: isAdmin(user?.role),
     isAuthenticated: !!user
   }
 }

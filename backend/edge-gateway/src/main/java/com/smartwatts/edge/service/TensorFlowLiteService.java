@@ -288,9 +288,9 @@ public class TensorFlowLiteService {
             
             // Model download URLs (in production, these would be from a secure repository)
             Map<String, String> modelUrls = Map.of(
-                "energy_forecast", "https://models.smartwatts.ng/energy_forecast.tflite",
-                "anomaly_detection", "https://models.smartwatts.ng/anomaly_detection.tflite",
-                "optimization", "https://models.smartwatts.ng/optimization.tflite"
+                "energy_forecast", "https://models.mysmartwatts.com/energy_forecast.tflite",
+                "anomaly_detection", "https://models.mysmartwatts.com/anomaly_detection.tflite",
+                "optimization", "https://models.mysmartwatts.com/optimization.tflite"
             );
             
             String modelUrl = modelUrls.get(modelName);

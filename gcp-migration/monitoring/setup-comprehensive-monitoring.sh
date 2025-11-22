@@ -170,7 +170,7 @@ echo ""
 
 # Step 2: Create notification channels
 echo -e "${BLUE}Step 2: Creating notification channels...${NC}"
-NOTIFICATION_EMAIL="${NOTIFICATION_EMAIL:-admin@smartwatts.ng}"
+NOTIFICATION_EMAIL="${NOTIFICATION_EMAIL:-admin@mysmartwatts.com}"
 
 CRITICAL_CHANNEL=$(create_notification_channel "${ENVIRONMENT}-critical-alerts" "${NOTIFICATION_EMAIL}")
 WARNING_CHANNEL=$(create_notification_channel "${ENVIRONMENT}-warning-alerts" "${NOTIFICATION_EMAIL}")

@@ -30,7 +30,7 @@ SmartWatts uses a **centralized training, distributed inference** architecture. 
 │  │     - Store trained .tflite models                       │  │
 │  │     - Version control                                    │  │
 │  │     - Model registry                                     │  │
-│  │     - URL: https://models.smartwatts.ng/                 │  │
+│  │     - URL: https://models.mysmartwatts.com/                 │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                            ↓
@@ -93,7 +93,7 @@ SmartWatts uses a **centralized training, distributed inference** architecture. 
 
 ### 2. Model Distribution
 
-**Model Repository**: `https://models.smartwatts.ng/` (or GCP Cloud Storage)
+**Model Repository**: `https://models.mysmartwatts.com/` (or GCP Cloud Storage)
 
 **Edge Gateway Auto-Download**:
 - Checks for model updates every hour (`sync-interval: 3600000`)

@@ -5,6 +5,7 @@ import ProtectedRoute from '../components/ProtectedRoute'
 import DashboardClient from '../components/DashboardClient'
 import DashboardModeSelector, { useDashboardMode } from '../components/DashboardModeSelector'
 import { useAuth } from '../hooks/useAuth'
+import { isAdmin } from '../utils/roles'
 import Head from 'next/head'
 
 export default function Dashboard() {
@@ -14,14 +15,14 @@ export default function Dashboard() {
   const [showModeSelector, setShowModeSelector] = useState(false)
 
   useEffect(() => {
-    // Redirect super admins to admin dashboard
-    if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
+    // Redirect admins (ROLE_ADMIN or ROLE_ENTERPRISE_ADMIN) to admin dashboard
+    if (isAdmin(user?.role)) {
       router.push('/admin/dashboard')
     }
   }, [user, router])
 
-  // Don't render customer dashboard for super admins
-  if (user?.role === 'ROLE_ENTERPRISE_ADMIN') {
+  // Don't render customer dashboard for admins
+  if (isAdmin(user?.role)) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">

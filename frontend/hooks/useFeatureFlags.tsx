@@ -87,8 +87,9 @@ export function useFeatureFlags() {
 
     if (!user) return false
 
-    // ENTERPRISE ADMIN: Can access all system administration features
-    if (user.role === 'ROLE_ENTERPRISE_ADMIN') {
+    // ADMIN ROLES: Can access all system administration features
+    // ROLE_ENTERPRISE_ADMIN has ultimate privileges over ROLE_ADMIN
+    if (user.role === 'ROLE_ENTERPRISE_ADMIN' || user.role === 'ROLE_ADMIN') {
       return true
     }
 
@@ -113,8 +114,8 @@ export function useFeatureFlags() {
   const canManageFeature = (featureKey: string): boolean => {
     if (!user) return false
     
-    // Enterprise admin users can manage all features
-    if (user.role === 'ROLE_ENTERPRISE_ADMIN') {
+    // Admin users can manage all features (ROLE_ENTERPRISE_ADMIN has ultimate privileges)
+    if (user.role === 'ROLE_ENTERPRISE_ADMIN' || user.role === 'ROLE_ADMIN') {
       return true
     }
     
