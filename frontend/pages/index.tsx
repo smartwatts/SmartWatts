@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { 
-  BoltIcon, 
+  BoltIcon,
   ChartBarIcon, 
-  CogIcon, 
-  SunIcon, 
+  CogIcon,
+  SunIcon,
   ShieldCheckIcon, 
   DevicePhoneMobileIcon,
   ArrowRightIcon,
@@ -253,15 +253,24 @@ export default function Index() {
             {/* Stats Row */}
             <div className="grid grid-cols-3 gap-4 md:gap-8 max-w-3xl mx-auto mb-10 md:mb-12">
               <div className="text-center">
-                <div className="text-2xl md:text-4xl font-bold text-green-600 dark:text-green-400 mb-1">30%</div>
+                <div className="flex items-center justify-center mb-2">
+                  <CurrencyDollarIcon className="w-6 h-6 md:w-8 md:h-8 text-green-600 dark:text-green-400 mr-2" />
+                  <div className="text-2xl md:text-4xl font-bold text-green-600 dark:text-green-400">30%</div>
+                </div>
                 <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">Cost Savings</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl md:text-4xl font-bold text-blue-600 dark:text-blue-400 mb-1">₦2.5M</div>
+                <div className="flex items-center justify-center mb-2">
+                  <ArrowTrendingUpIcon className="w-6 h-6 md:w-8 md:h-8 text-blue-600 dark:text-blue-400 mr-2" />
+                  <div className="text-2xl md:text-4xl font-bold text-blue-600 dark:text-blue-400">₦2.5M</div>
+                </div>
                 <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">Avg. Yearly</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl md:text-4xl font-bold text-purple-600 dark:text-purple-400 mb-1">24/7</div>
+                <div className="flex items-center justify-center mb-2">
+                  <ClockIcon className="w-6 h-6 md:w-8 md:h-8 text-purple-600 dark:text-purple-400 mr-2" />
+                  <div className="text-2xl md:text-4xl font-bold text-purple-600 dark:text-purple-400">24/7</div>
+                </div>
                 <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">Monitoring</div>
               </div>
             </div>
@@ -280,18 +289,33 @@ export default function Index() {
                     </div>
                     <div className="grid grid-cols-2 gap-3 md:gap-4">
                       <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-3 md:p-4">
-                        <div className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">2.4kW</div>
+                        <div className="flex items-center mb-1">
+                          <SunIcon className="w-4 h-4 md:w-5 md:h-5 text-blue-600 dark:text-blue-400 mr-2" />
+                          <div className="text-xl md:text-2xl font-bold text-blue-600 dark:text-blue-400">2.4kW</div>
+                        </div>
                         <div className="text-xs md:text-sm text-gray-600 dark:text-gray-300">Solar Generation</div>
                       </div>
                       <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-3 md:p-4">
-                        <div className="text-xl md:text-2xl font-bold text-green-600 dark:text-green-400">1.8kW</div>
+                        <div className="flex items-center mb-1">
+                          <BoltIcon className="w-4 h-4 md:w-5 md:h-5 text-green-600 dark:text-green-400 mr-2" />
+                          <div className="text-xl md:text-2xl font-bold text-green-600 dark:text-green-400">1.8kW</div>
+                        </div>
                         <div className="text-xs md:text-sm text-gray-600 dark:text-gray-300">Grid Usage</div>
                       </div>
                     </div>
                     <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-lg p-3 md:p-4">
-                      <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">₦45,230</div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center">
+                          <ChartPieIcon className="w-5 h-5 md:w-6 md:h-6 text-gray-700 dark:text-gray-300 mr-2" />
+                          <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">₦45,230</div>
+                        </div>
+                        <ArrowTrendingUpIcon className="w-5 h-5 md:w-6 md:h-6 text-green-600 dark:text-green-400" />
+                      </div>
                       <div className="text-xs md:text-sm text-gray-600 dark:text-gray-300">Monthly Savings</div>
-                      <div className="text-xs text-green-600 dark:text-green-400">+28% vs last month</div>
+                      <div className="text-xs text-green-600 dark:text-green-400 flex items-center">
+                        <StarIcon className="w-3 h-3 mr-1" />
+                        +28% vs last month
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -444,14 +468,14 @@ export default function Index() {
                     </div>
                   </div>
                   <div className="flex items-start">
-                    <CheckIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                    <DocumentTextIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
                     <div>
                       <h4 className="font-semibold text-gray-900 dark:text-white">Advanced Reporting</h4>
                       <p className="text-sm text-gray-600 dark:text-gray-300">Executive dashboards with detailed cost breakdowns</p>
                     </div>
                   </div>
                   <div className="flex items-start">
-                    <CheckIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                    <CogIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
                     <div>
                       <h4 className="font-semibold text-gray-900 dark:text-white">API Integration</h4>
                       <p className="text-sm text-gray-600 dark:text-gray-300">Connect with your existing business systems</p>
@@ -473,21 +497,21 @@ export default function Index() {
                 </p>
                 <div className="space-y-4">
                   <div className="flex items-start">
-                    <CheckIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                    <WrenchScrewdriverIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
                     <div>
                       <h4 className="font-semibold text-gray-900 dark:text-white">Smart Home Integration</h4>
                       <p className="text-sm text-gray-600 dark:text-gray-300">Connect with your existing solar and inverter systems</p>
                     </div>
                   </div>
                   <div className="flex items-start">
-                    <CheckIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                    <ExclamationTriangleIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
                     <div>
                       <h4 className="font-semibold text-gray-900 dark:text-white">Cost Optimization</h4>
                       <p className="text-sm text-gray-600 dark:text-gray-300">AI recommendations for maximum savings</p>
                     </div>
                   </div>
                   <div className="flex items-start">
-                    <CheckIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
+                    <DevicePhoneMobileIcon className="w-5 h-5 text-green-500 mr-3 mt-1 flex-shrink-0" />
                     <div>
                       <h4 className="font-semibold text-gray-900 dark:text-white">Mobile App</h4>
                       <p className="text-sm text-gray-600 dark:text-gray-300">Monitor and control from anywhere</p>
@@ -666,7 +690,15 @@ export default function Index() {
                 <div className="space-y-2 text-sm text-gray-400">
                   <div className="flex items-start">
                     <MapPinIcon className="w-4 h-4 mr-2 mt-1 flex-shrink-0" />
-                    <span>33 Parakou Street off Aminu Kano Crescent, Wuse2, Abuja, Nigeria</span>
+                    <span>Plot 20, Prince Adelowo Adedeji Street, Off Admiralty Way, Lekki Phase 1, Lagos, Nigeria</span>
+                  </div>
+                  <div className="flex items-center">
+                    <PhoneIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>+234 (0) 123 456 7890</span>
+                  </div>
+                  <div className="flex items-center">
+                    <EnvelopeIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>contact@smartwatts.ng</span>
                   </div>
                 </div>
               </div>
@@ -694,7 +726,7 @@ export default function Index() {
             
             <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between">
               <p className="text-gray-400 text-sm">
-                © {new Date().getFullYear()} SmartWatts Limited. All rights reserved.
+                © {new Date().getFullYear()} Citizenshield Technologies Limited. All rights reserved.
               </p>
               <div className="flex items-center space-x-6 mt-4 md:mt-0">
                 <Link href="/terms-of-service" className="text-gray-400 hover:text-white text-sm transition-colors">
