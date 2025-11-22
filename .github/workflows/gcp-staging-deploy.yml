@@ -4,10 +4,11 @@ name: Deploy to GCP Cloud Run (Main Branch)
 # Production deployment is handled by gcp-production-deploy.yml (manual trigger only)
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  # CI/CD DISABLED - Testing directly in cloud without using workflow minutes
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch:  # Manual trigger only
 
 env:
   PROJECT_ID: smartwatts-staging

@@ -78,13 +78,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex, WebRequest request) {
         log.error("Runtime exception: {}", ex.getMessage(), ex);
         
+        // Check if it's an authentication-related error
+        String message = ex.getMessage();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        
+        if (message != null && (message.toLowerCase().contains("invalid password") || 
+                                message.toLowerCase().contains("authentication required"))) {
+            status = HttpStatus.UNAUTHORIZED;
+        }
+        
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
-        errorResponse.put("status", HttpStatus.BAD_REQUEST.value());
-        errorResponse.put("error", "Bad Request");
-        errorResponse.put("message", ex.getMessage());
+        errorResponse.put("status", status.value());
+        errorResponse.put("error", status == HttpStatus.UNAUTHORIZED ? "Unauthorized" : "Bad Request");
+        errorResponse.put("message", message);
         errorResponse.put("path", request.getDescription(false));
         
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        return ResponseEntity.status(status).body(errorResponse);
     }
 }

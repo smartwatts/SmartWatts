@@ -191,8 +191,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Login failed')
+        let errorData
+        try {
+          errorData = await response.json()
+        } catch (e) {
+          // If response is not JSON, use status text
+          throw new Error(`Login failed: ${response.statusText || 'Invalid credentials'}`)
+        }
+        
+        // Provide more helpful error messages
+        const errorMessage = errorData.message || 'Login failed'
+        if (errorMessage.toLowerCase().includes('invalid password')) {
+          throw new Error('Invalid password. Please check your password and try again. For test accounts, use: admin@mysmartwatts.com / password')
+        } else if (errorMessage.toLowerCase().includes('user not found')) {
+          throw new Error('User not found. Please check your email/username. For test accounts, use: admin@mysmartwatts.com')
+        }
+        throw new Error(errorMessage)
       }
       
       const data = await response.json()
