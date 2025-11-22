@@ -32,7 +32,7 @@ export function isEnterpriseAdmin(role: string | undefined | null): boolean {
  * @returns true if the user has basic admin privileges
  */
 export function isBasicAdmin(role: string | undefined | null): boolean {
-  return role === 'ROLE_ADMIN' && role !== 'ROLE_ENTERPRISE_ADMIN'
+  return role === 'ROLE_ADMIN'
 }
 
 /**
