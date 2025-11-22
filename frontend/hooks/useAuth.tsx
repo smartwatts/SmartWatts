@@ -142,7 +142,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userData = await response.json()
         // Additional validation - ensure user data is complete
         if (userData && userData.id && userData.email) {
-          setUser(userData)
+          // Transform UserDto to match frontend User interface
+          const transformedUser: User = {
+            id: userData.id,
+            email: userData.email,
+            firstName: userData.firstName || userData.username?.split('@')[0] || '',
+            lastName: userData.lastName || '',
+            role: userData.role || 'ROLE_USER',
+            isActive: userData.isActive !== undefined ? userData.isActive : true,
+            createdAt: userData.createdAt || new Date().toISOString(),
+            location: userData.address || undefined,
+          }
+          setUser(transformedUser)
         } else {
           console.warn('checkAuth: Incomplete user data received')
           localStorage.removeItem('token')
@@ -210,16 +221,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       const data = await response.json()
-      const { accessToken, userId, username, email: userEmail, role, active } = data
+      const { accessToken, userId, username, email: userEmail, role, isActive, active } = data
       
       // Transform backend response to match frontend User interface
+      // Backend returns 'isActive', but handle both for compatibility
+      const userIsActive = isActive !== undefined ? isActive : active
+      
       const userData: User = {
         id: userId,
         email: userEmail,
         firstName: username.includes('@') ? username.split('@')[0] : (username.split('user')[0] || username), // Extract first name from email or username
         lastName: username.includes('@') ? '' : (username.split('user')[1] || ''), // Extract last name from username if not email
         role: role,
-        isActive: active,
+        isActive: userIsActive,
         createdAt: new Date().toISOString(),
       }
       
